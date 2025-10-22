@@ -8,15 +8,15 @@ function NavBar() {
   return (
     <div className="flex justify-between items-center px-[1.5rem] py-[1rem] shadow-lg sticky top-0 right-0 left-0 bg-white">
       <div>
-        <img width={130} src={Logo} alt="Logo" />
+        <img className="cursor-pointer" onClick={() => navigate('/user/home')} width={130} src={Logo} alt="Logo" />
       </div>
       <div className="flex gap-15">
         <p className="hover:underline cursor-pointer text-2xl">
           Introduction
         </p>
-        <p className="hover:underline cursor-pointer text-2xl">
+        <Link to={'/user/products'} className="hover:underline cursor-pointer text-2xl">
           Products
-        </p>
+        </Link>
         <p className="hover:underline cursor-pointer text-2xl">
           Promotion services
         </p>

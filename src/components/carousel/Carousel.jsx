@@ -4,7 +4,6 @@ import "swiper/css";
 import "swiper/css/pagination";
 import BikeCard from "../bikeCard/BikeCard";
 import "swiper/css/navigation";
-import { Link } from "react-router";
 
 function Carousel() {
   const bikeList = [
@@ -56,12 +55,13 @@ function Carousel() {
         navigation={true}
         modules={[Navigation, Pagination]}
         className="mySwiper"
+        
       >
         {bikeList.map((b) => (
           <SwiperSlide>
-            <Link to={'/user/bike-detail'}>
-            <BikeCard name={b.name} price={b.price} image={b.image} /></Link>
-            
+            <div className="flex justify-center items-center p-2">
+              <BikeCard name={b.name} price={b.price} image={b.image} />
+            </div>
           </SwiperSlide>
         ))}
       </Swiper>

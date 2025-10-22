@@ -12,7 +12,7 @@ function UserLayout() {
       <section>
         <Outlet />
       </section>
-      <footer>
+      <footer className="bottom-0">
         <Footer />
       </footer>
     </div>
