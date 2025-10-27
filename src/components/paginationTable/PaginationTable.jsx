@@ -36,7 +36,7 @@ function PaginationTable({
                   <CircularProgress className="animate-spin text-blue-500" />
                 </td>
               </tr>
-            ) : data.length === 0 ? (
+            ) : data?.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
@@ -46,7 +46,7 @@ function PaginationTable({
                 </td>
               </tr>
             ) : (
-              data.map((item, idx) => (
+              data?.map((item, idx) => (
                 <tr
                   key={item.id ?? idx}
                   className="border-[rgb(181,183,192)] hover:bg-gray-50"

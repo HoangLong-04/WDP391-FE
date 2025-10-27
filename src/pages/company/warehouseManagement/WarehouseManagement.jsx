@@ -1,132 +1,124 @@
 import React, { useEffect, useState } from "react";
-import PrivateAdminApi from "../../../../services/PrivateAdminApi";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
-import EditIcon from "@mui/icons-material/Edit";
-import FormModal from "../../../../components/modal/formModal/FormModal";
+import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import { toast } from "react-toastify";
+import PaginationTable from "../../../components/paginationTable/PaginationTable";
+import FormModal from "../../../components/modal/formModal/FormModal";
 
-function AgencyManagement() {
-  const [agency, setAgency] = useState([]);
+function WarehouseManagement() {
+  const [warehouse, setWarehouse] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [location, setLocation] = useState(null);
-  const [address, setAddress] = useState(null);
   const [limit] = useState(10);
+  const [location, setLocation] = useState("");
+  const [address, setAddress] = useState("");
   const [totalItem, setTotalItem] = useState(0);
 
-  const [loading, setLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [form, setForm] = useState({
-    name: "",
-    location: "",
-    address: "",
-    contactInfo: "",
-  });
+  const [form, setForm] = useState({ location: "", address: "", name: "" });
   const [updateForm, setUpdateForm] = useState({
-    name: "",
     location: "",
     address: "",
-    contactInfo: "",
+    name: "",
+    isActive: "",
   });
-  const [selectedId, setSelectedId] = useState("");
-  const [isEdit, setIsEdit] = useState(false);
 
   const [formModal, setFormModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
 
-  const fetchAgency = async () => {
+  const [loading, setLoading] = useState(false);
+  const [submit, setSubmit] = useState(false);
+
+  const [isEdit, setIsEdit] = useState(false);
+  const [selectedId, setSelectedId] = useState("");
+
+  const fetchWarehouse = async () => {
     setLoading(true);
     try {
-      const response = await PrivateAdminApi.getAgency({
+      const response = await PrivateAdminApi.getWarehouseList({
         page,
         limit,
-        location,
         address,
+        location,
       });
-      
-      setAgency(response.data?.data);
-      setTotalItem(response.data?.paginationInfo.total);
+      setWarehouse(response.data.data);
+      setTotalItem(response.data.paginationInfo.total);
     } catch (error) {
-      console.log(error);
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
-
   useEffect(() => {
-    fetchAgency();
-  }, [page, limit, location, address]);
+    fetchWarehouse();
+  }, [page, limit, address, location]);
 
-  const handleCreateAgency = async (e) => {
+  const handleCreateWarehouse = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    setSubmit(true);
     try {
-      await PrivateAdminApi.createAgency(form);
-      fetchAgency();
+      await PrivateAdminApi.createWarehouse(form);
+      fetchWarehouse();
       toast.success("Create successfully");
+      setForm({ name: "", address: "", location: "" });
       setFormModal(false);
-      setForm({ name: "", address: "", contactInfo: "", location: "" });
     } catch (error) {
       toast.error(error.message);
     } finally {
-      setIsSubmitting(false);
+      setSubmit(false);
     }
   };
 
-  const handleUpdateAgency = async (e) => {
+  const handleUpdateWarehouse = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    setSubmit(true);
     try {
-      await PrivateAdminApi.updateAgency(selectedId, updateForm);
+      await PrivateAdminApi.updateWarehouse(selectedId, updateForm);
+      fetchWarehouse();
       toast.success("Update successfully");
-      fetchAgency();
       setFormModal(false);
       setIsEdit(false);
     } catch (error) {
       toast.error(error.message);
     } finally {
-      setIsSubmitting(false);
+      setSubmit(false);
     }
   };
 
-  const handleDeleteAgency = async (e) => {
+  const handleDeleteWarehouse = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    setSubmit(true);
     try {
-      await PrivateAdminApi.deleteAgency(selectedId);
+      await PrivateAdminApi.deleteWarehouse(selectedId);
       toast.success("Delete successfully");
       setDeleteModal(false);
-      fetchAgency();
+      fetchWarehouse();
     } catch (error) {
       toast.error(error.message);
     } finally {
-      setIsSubmitting(false);
+      setSubmit(false);
     }
   };
 
-  const columns = [
+  const column = [
     { key: "id", title: "Id" },
-    { key: "name", title: "Name" },
     { key: "location", title: "Location" },
     { key: "address", title: "Address" },
-    { key: "contactInfo", title: "Contact info" },
+    { key: "name", title: "Name" },
     {
-      key: "status",
-      title: "Status",
-      render: (status) => (
+      key: "isActive",
+      title: "Active",
+      render: (isActive) => (
         <span
           className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
-            status ? "bg-green-500" : "bg-red-500"
+            isActive ? "bg-green-500" : "bg-red-500"
           }`}
         >
-          {status ? "Active" : "Inactive"}
+          {isActive ? "Active" : "Inactive"}
         </span>
       ),
     },
     {
-      key: "action2",
-      title: "Update",
+      key: "action1",
+      title: "Action",
       render: (_, item) => (
         <span
           onClick={() => {
@@ -134,10 +126,10 @@ function AgencyManagement() {
             setIsEdit(true);
             setFormModal(true);
             setUpdateForm({
-              name: item.name,
-              contactInfo: item.contactInfo,
-              location: item.location,
               address: item.address,
+              location: item.location,
+              name: item.name,
+              isActive: item.isActive,
             });
           }}
           className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg"
@@ -147,14 +139,12 @@ function AgencyManagement() {
       ),
     },
     {
-      key: "action1",
-      title: "Delete",
+      key: "action2",
+      title: "Action",
       render: (_, item) => (
         <span
           onClick={() => {
             setSelectedId(item.id);
-            console.log(item.id);
-            
             setDeleteModal(true);
           }}
           className="cursor-pointer text-white bg-red-500 p-2 rounded-lg"
@@ -163,25 +153,22 @@ function AgencyManagement() {
         </span>
       ),
     },
-    
   ];
   return (
     <div>
-      <div className="flex justify-end gap-5 items-center my-3">
+      <div className="my-3 flex justify-end items-center gap-5">
         <div>
           <label className="mr-2 font-medium text-gray-600">Location:</label>
-          <select
-            className="border border-gray-300 rounded-md px-2 py-1"
+          <input
+            placeholder="Location"
             value={location}
             onChange={(e) => {
               setLocation(e.target.value);
               setPage(1);
             }}
-          >
-            <option value="">All</option>
-            <option value="USA">USA</option>
-            <option value="China">China</option>
-          </select>
+            className="border border-gray-300 rounded-md px-2 py-1"
+            type="text"
+          />
         </div>
         <div>
           <label className="mr-2 font-medium text-gray-600">Address:</label>
@@ -202,29 +189,29 @@ function AgencyManagement() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="cursor-pointer bg-blue-500 rounded-lg text-white p-2 hover:bg-blue-600 transition "
+            className="p-2 rounded-lg cursor-pointer bg-blue-500 hover:bg-blue-600 transition text-white"
           >
-            Create agency
+            Create warehouse
           </button>
         </div>
       </div>
+
       <PaginationTable
-        data={agency}
-        columns={columns}
-        pageSize={limit}
-        page={page}
+        columns={column}
+        data={warehouse}
         loading={loading}
-        title={"Agency management"}
+        page={page}
+        pageSize={limit}
         setPage={setPage}
+        title={"Warehouse management"}
         totalItem={totalItem}
       />
-
       <FormModal
         isOpen={formModal}
         onClose={() => setFormModal(false)}
-        title={isEdit ? "Update agency" : "Create agency"}
-        onSubmit={isEdit ? handleUpdateAgency : handleCreateAgency}
-        isSubmitting={isSubmitting}
+        onSubmit={isEdit ? handleUpdateWarehouse : handleCreateWarehouse}
+        title={isEdit ? "Update warehouse" : "Create warehouse"}
+        isSubmitting={submit}
       >
         <div className="space-y-3">
           <div>
@@ -281,27 +268,24 @@ function AgencyManagement() {
               required
             />
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Contact info <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="email"
-              name="contactInfo"
-              placeholder="abc@gmail.com"
-              value={isEdit ? updateForm.contactInfo : form.contactInfo}
-              onChange={(e) => {
-                isEdit
-                  ? setUpdateForm({
-                      ...updateForm,
-                      contactInfo: e.target.value,
-                    })
-                  : setForm({ ...form, contactInfo: e.target.value });
-              }}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
-              required
-            />
-          </div>
+          {isEdit && (
+            <div className="group">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Active <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={updateForm.isActive}
+                onChange={(e) => {
+                  const isTrue = e.target.value === "true";
+                  setUpdateForm({ ...updateForm, isActive: isTrue });
+                }}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer appearance-none"
+              >
+                <option value={true}>Active</option>
+                <option value={false}>Deactive</option>
+              </select>
+            </div>
+          )}
         </div>
       </FormModal>
 
@@ -309,9 +293,9 @@ function AgencyManagement() {
         isDelete={true}
         isOpen={deleteModal}
         onClose={() => setDeleteModal(false)}
-        onSubmit={handleDeleteAgency}
+        onSubmit={handleDeleteWarehouse}
         title={"Confirm delete"}
-        isSubmitting={isSubmitting}
+        isSubmitting={submit}
       >
         <p className="text-gray-700">
           Are you sure you want to delete this staff member? This action cannot
@@ -322,4 +306,4 @@ function AgencyManagement() {
   );
 }
 
-export default AgencyManagement;
+export default WarehouseManagement;

@@ -17,7 +17,6 @@ function Login() {
     try {
       const response = await PublicApi.login(form);
       const role = response.data.data.role;
-      console.log(response.data.data.role);
 
       if (role[0] === "Admin" || role[0] === "Evm Staff") {
         navigate("/company/dashboard");

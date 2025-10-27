@@ -1,5 +1,4 @@
 import { Link, useLocation, useNavigate } from "react-router";
-import TuneIcon from "@mui/icons-material/Tune";
 import { useState } from "react";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PrivateApi from "../../services/PrivateApi";
@@ -18,6 +17,9 @@ import PolicyIcon from "@mui/icons-material/Policy";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import CampaignIcon from "@mui/icons-material/Campaign";
+import StoreIcon from '@mui/icons-material/Store';
+import WarehouseIcon from '@mui/icons-material/Warehouse';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 
 function CompanySidebar() {
   const location = useLocation();
@@ -28,8 +30,15 @@ function CompanySidebar() {
 
   const navItems = [
     { path: "/company/dashboard", label: "Dashboard", Icon: DashboardIcon },
-    { path: "/company/inventory", label: "Inventory", Icon: InventoryIcon },
     { path: "/company/agency-management", label: "Agency", Icon: GroupsIcon },
+    {
+      label: "Store",
+      Icon: StoreIcon,
+      children: [
+        { path: "/company/inventory", label: "Inventory", Icon: InventoryIcon },
+        { path: "/company/warehouse", label: "Warehouse", Icon: WarehouseIcon },
+      ],
+    },
     {
       label: "Staff",
       Icon: SettingsIcon,
@@ -51,6 +60,7 @@ function CompanySidebar() {
         { path: "/company/promotion", label: "Promotion", Icon: CampaignIcon },
       ],
     },
+    { path: "/company/order-restock", label: "Order restock", Icon: ShoppingCartIcon },
   ];
 
   const handleLogout = async () => {

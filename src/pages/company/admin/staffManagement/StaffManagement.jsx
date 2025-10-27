@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import ViewModal from "../../../../components/modal/viewModal/ViewModal";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import { toast } from "react-toastify";
+import StaffForm from "./staffForm/StaffForm";
 
 function StaffManagement() {
   const [staff, setStaff] = useState([]);
@@ -27,6 +28,11 @@ function StaffManagement() {
   const [viewModal, setViewModal] = useState(false);
   const [formModal, setFormModal] = useState(false);
   const [assignForm, setAssignForm] = useState(false);
+  const [deleteForm, setDeleteForm] = useState(false);
+
+  const [selectedId, setSelectedId] = useState();
+  const [isEdit, setIsEdit] = useState(false);
+  const [isDelete, setIsDelete] = useState(false);
 
   const [form, setForm] = useState({
     username: "",
@@ -44,9 +50,6 @@ function StaffManagement() {
     phone: "",
     address: "",
   });
-
-  const [selectedId, setSelectedId] = useState();
-  const [isEdit, setIsEdit] = useState(false);
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -90,7 +93,7 @@ function StaffManagement() {
   };
 
   const handleAssign = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
     setIsSubmitting(true);
     try {
       await PrivateAdminApi.assignStaffToAgency(selectedId, agencyId);
@@ -98,7 +101,7 @@ function StaffManagement() {
       setAssignForm(false);
       toast.success("Assign successfully");
     } catch (error) {
-      toast.error(error.message || 'Assign fail');
+      toast.error(error.message || "Assign fail");
     } finally {
       setIsSubmitting(false);
     }
@@ -126,7 +129,22 @@ function StaffManagement() {
       setFormModalLoading(false);
     }
   };
-  console.log(staffDetail);
+
+  const handleDeleteStaff = async (e) => {
+    e.preventDefault()
+    setIsSubmitting(true);
+    try {
+      const response = await PrivateAdminApi.deleteStaff(selectedId);
+      setIsDelete(false);
+      setDeleteForm(false)
+      fetchAllStaff();
+      toast.success(response.data.message);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const updateStaff = async (e) => {
     e.preventDefault();
@@ -226,7 +244,7 @@ function StaffManagement() {
             isActive ? "bg-green-500" : "bg-red-500"
           }`}
         >
-          {isActive ? "Active" : "Not active"}
+          {isActive ? "Active" : "Inactive"}
         </span>
       ),
     },
@@ -236,10 +254,10 @@ function StaffManagement() {
       render: (isDeleted) => (
         <div
           className={`px-3 py-1 rounded-full text-white text-sm font-medium text-center ${
-            isDeleted ? "bg-green-500" : "bg-red-500"
+            isDeleted ? "bg-red-500" : "bg-green-500"
           }`}
         >
-          {isDeleted ? "Active" : "Not active"}
+          {isDeleted ? "Not" : "Available"}
         </div>
       ),
     },
@@ -263,7 +281,7 @@ function StaffManagement() {
       ),
     },
     {
-      key: "action",
+      key: "action1",
       title: "Assign",
       render: (_, item) => (
         <>
@@ -282,7 +300,7 @@ function StaffManagement() {
       ),
     },
     {
-      key: "action",
+      key: "action2",
       title: "Update",
       render: (_, item) => (
         <span
@@ -294,10 +312,18 @@ function StaffManagement() {
       ),
     },
     {
-      key: "action",
+      key: "action3",
       title: "Delete",
       render: (_, item) => (
-        <span className="cursor-pointer bg-red-500 rounded-lg p-2 flex justify-center items-center text-white">
+        <span
+          onClick={() => {
+            setIsDelete(true);
+            setSelectedId(item.id);
+            setDeleteForm(true);
+            console.log(item.id);
+          }}
+          className="cursor-pointer bg-red-500 rounded-lg p-2 flex justify-center items-center text-white"
+        >
           Delete
         </span>
       ),
@@ -395,6 +421,7 @@ function StaffManagement() {
             onChange={(e) => setAgencyId(e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer appearance-none"
           >
+            <option value="">Select the agency</option>
             {agencyList.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} - {a.location}
@@ -416,150 +443,32 @@ function StaffManagement() {
           onSubmit={isEdit ? updateStaff : handleCreateStaff}
           isSubmitting={isSubmitting}
         >
-          <div className="space-y-5">
-            <div className="group">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Username <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="username"
-                placeholder="Username"
-                value={isEdit ? staffDetail.username : form.username}
-                onChange={(e) => {
-                  isEdit
-                    ? setStaffDetail({
-                        ...staffDetail,
-                        username: e.target.value,
-                      })
-                    : setForm({ ...form, username: e.target.value });
-                }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
-                required
-              />
-            </div>
-
-            {!isEdit && (
-              <div className="group">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Password <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  name="password"
-                  placeholder="Password"
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm({ ...form, password: e.target.value })
-                  }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
-                  required
-                />
-              </div>
-            )}
-
-            <div className="group">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Fullname <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="fullname"
-                placeholder="Fullname"
-                value={isEdit ? staffDetail.fullname : form.fullname}
-                onChange={(e) => {
-                  isEdit
-                    ? setStaffDetail({
-                        ...staffDetail,
-                        fullname: e.target.value,
-                      })
-                    : setForm({ ...form, fullname: e.target.value });
-                }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
-                required
-              />
-            </div>
-
-            <div className="group">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Email <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="email"
-                name="email"
-                placeholder="abc@email.com"
-                value={isEdit ? staffDetail.email : form.email}
-                onChange={(e) => {
-                  isEdit
-                    ? setStaffDetail({ ...staffDetail, email: e.target.value })
-                    : setForm({ ...form, email: e.target.value });
-                }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
-                required
-              />
-            </div>
-
-            <div className="group">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Phone
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                placeholder="0123456789"
-                value={isEdit ? staffDetail.phone : form.phone}
-                onChange={(e) => {
-                  isEdit
-                    ? setStaffDetail({ ...staffDetail, phone: e.target.value })
-                    : setForm({ ...form, phone: e.target.value });
-                }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
-              />
-            </div>
-
-            <div className="group">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Address <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="address"
-                placeholder="Address"
-                value={isEdit ? staffDetail.address : form.address}
-                onChange={(e) => {
-                  isEdit
-                    ? setStaffDetail({
-                        ...staffDetail,
-                        address: e.target.value,
-                      })
-                    : setForm({ ...form, address: e.target.value });
-                }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
-                required
-              />
-            </div>
-
-            {!isEdit && (
-              <div className="group">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Role <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={form.role}
-                  onChange={handleChangeRole}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer appearance-none"
-                >
-                  {roleList.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.roleName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
+          <StaffForm
+            isEdit={isEdit}
+            form={form}
+            roleList={roleList}
+            handleChangeRole={handleChangeRole}
+            setForm={setForm}
+            setStaffDetail={setStaffDetail}
+            staffDetail={staffDetail}
+          />
         </FormModal>
       )}
+
+      <FormModal
+        isOpen={deleteForm}
+        onClose={() => setDeleteForm(false)}
+        onSubmit={handleDeleteStaff}
+        isSubmitting={isSubmitting}
+        title={"Confirm delete"}
+        isDelete={isDelete}
+        
+      >
+        <p className="text-gray-700">
+          Are you sure you want to delete this staff member? This action cannot
+          be undone.
+        </p>
+      </FormModal>
     </div>
   );
 }

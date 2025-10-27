@@ -8,16 +8,10 @@ function FormModal({
   children,
   onSubmit,
   isSubmitting = false,
-  
+  isDelete,
 }) {
   return (
-    <BaseModal
-      isOpen={isOpen}
-      
-      onClose={onClose}
-      title={title}
-      size="sm"
-    >
+    <BaseModal isOpen={isOpen} onClose={onClose} title={title} size="md">
       <form onSubmit={onSubmit}>
         <div className="space-y-4">{children}</div>
 
@@ -32,10 +26,18 @@ function FormModal({
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 cursor-pointer text-white rounded hover:bg-blue-700 transition disabled:opacity-50"
+            className={`px-4 py-2 bg-blue-500 cursor-pointer ${
+              isDelete && "bg-red-500 hover:bg-red-600"
+            } text-white rounded hover:bg-blue-600 transition disabled:opacity-50`}
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Saving..." : "Save"}
+            {isSubmitting
+              ? isDelete
+                ? "Deleting..."
+                : "Saving..."
+              : isDelete
+              ? "Delete"
+              : "Save"}
           </button>
         </div>
       </form>

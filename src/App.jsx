@@ -24,6 +24,11 @@ import InventoryManagement from "./pages/company/inventoryManagement/InventoryMa
 import DiscountManagement from "./pages/company/discountManagement/DiscountManagement";
 import PricePolicyManagement from "./pages/company/pricePolicyManagement/PricePolicyManagement";
 import PromotionManagement from "./pages/company/promotionManagement/PromotionManagement";
+import WarehouseManagement from "./pages/company/warehouseManagement/WarehouseManagement";
+import OrderRestockManagement from "./pages/company/orderRestockManagement/OrderRestockManagement";
+import DealerStaffManagement from "./pages/agency/dealerManager/dealerStaffManagement/DealerStaffManagement";
+import StockManagement from "./pages/agency/stockManagement/StockManagement";
+import InstallmentPlan from "./pages/agency/installmentPlan/InstallmentPlan";
 
 function App() {
   return (
@@ -47,6 +52,9 @@ function App() {
           {/* Private agency */}
           <Route path="/" element={<AgencyLayout />}>
             <Route path="agency/dashboard" element={<AgencyDash />} />
+            <Route path="agency/all-staff" element={<DealerStaffManagement />} />
+            <Route path="agency/stock-management" element={<StockManagement />} />
+            <Route path="agency/installment-plan" element={<InstallmentPlan />} />
           </Route>
 
           {/* Private company */}
@@ -60,6 +68,8 @@ function App() {
             />
             <Route path="company/promotion" element={<PromotionManagement />} />
             <Route path="company/inventory" element={<InventoryManagement />} />
+            <Route path="company/warehouse" element={<WarehouseManagement />} />
+            <Route path="company/order-restock" element={<OrderRestockManagement />} />
             <Route path="company/dashboard" element={<CompanyDash />} />
             <Route path="company/product" element={<CompanyProduct />} />
             <Route path="company/report" element={<CompanyReport />} />
