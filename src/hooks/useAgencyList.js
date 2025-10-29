@@ -9,7 +9,10 @@ function useAgencyList() {
   const fetchAgencyList = async () => {
     setLoad(true);
     try {
-      const response = await PrivateAdminApi.getAgency({ pageNum });
+      const response = await PrivateAdminApi.getAgency({
+        pageNum,
+        limit,
+      });
       setAgencyList(response.data.data);
     } catch (error) {
       console.log(error.message);

@@ -13,8 +13,8 @@ function InstallmentPlan() {
 
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
-  const [status, setStatus] = useState("");
-  const [interestPaidType, setInterestPaidType] = useState("");
+  const [status, setStatus] = useState('');
+  const [interestPaidType, setInterestPaidType] = useState('');
   const [totalItem, setTotalItem] = useState(0);
 
   const [loading, setLoading] = useState(false);
@@ -156,8 +156,6 @@ function InstallmentPlan() {
               endAt: dayjs(item.endAt).format('YYYY-MM-DD'),
               startAt: dayjs(item.startAt).format('YYYY-MM-DD')
             });
-            console.log(item);
-            
           }}
           className="bg-blue-500 cursor-pointer p-2 rounded-lg text-white"
         >

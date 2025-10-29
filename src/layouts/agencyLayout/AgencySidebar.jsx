@@ -10,6 +10,9 @@ import MenuIcon from "@mui/icons-material/Menu";
 import GroupsIcon from '@mui/icons-material/Groups';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import BuildIcon from '@mui/icons-material/Build';
+import ProductionQuantityLimitsIcon from '@mui/icons-material/ProductionQuantityLimits';
+import WysiwygIcon from '@mui/icons-material/Wysiwyg';
+import PeopleIcon from '@mui/icons-material/People';
 
 function AgencySidebar() {
   const location = useLocation();
@@ -23,6 +26,9 @@ function AgencySidebar() {
     { path: "/agency/all-staff", label: "Dealer staff", Icon: GroupsIcon },
     { path: "/agency/stock-management", label: "Stock", Icon: InventoryIcon },
     { path: "/agency/installment-plan", label: "Instalment plan", Icon: BuildIcon },
+    { path: "/agency/stock-promotion", label: "Stock promotion", Icon: ProductionQuantityLimitsIcon },
+    { path: "/agency/customer-contract", label: "Customer contract", Icon: WysiwygIcon },
+    { path: "/agency/customer-management", label: "Customer management", Icon: PeopleIcon },
   ];
 
   const handleLogout = async () => {
