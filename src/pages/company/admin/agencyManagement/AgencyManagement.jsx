@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import PrivateAdminApi from "../../../../services/PrivateAdminApi";
 import PaginationTable from "../../../../components/paginationTable/PaginationTable";
-import EditIcon from "@mui/icons-material/Edit";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import { toast } from "react-toastify";
+import { Pencil, Trash2, Plus } from "lucide-react";
 
 function AgencyManagement() {
   const [agency, setAgency] = useState([]);
@@ -140,9 +140,9 @@ function AgencyManagement() {
               address: item.address,
             });
           }}
-          className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          Update
+          <Pencil className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -157,9 +157,9 @@ function AgencyManagement() {
             
             setDeleteModal(true);
           }}
-          className="cursor-pointer text-white bg-red-500 p-2 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
         >
-          Delete
+          <Trash2 className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -202,9 +202,10 @@ function AgencyManagement() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="cursor-pointer bg-blue-500 rounded-lg text-white p-2 hover:bg-blue-600 transition "
+            className="cursor-pointer flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 rounded-lg hover:bg-blue-600 transition text-white"
           >
-            Create agency
+            <Plus className="w-5 h-5" />
+            <span>Create</span>
           </button>
         </div>
       </div>
