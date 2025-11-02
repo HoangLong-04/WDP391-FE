@@ -67,11 +67,19 @@ function AgencySidebar() {
     try {
       const response = await PrivateApi.logout();
       logout();
-      toast.success(response.data.message);
+      toast.success(response.data.message || "Logout successfully");
       navigate("/login");
     } catch (error) {
-      toast.error("Logout fail");
-      console.log(error);
+      // Nếu JWT hết hạn, vẫn logout local mà không báo lỗi
+      if (error.response?.status === 401) {
+        logout();
+        toast.success("Logout successfully");
+        navigate("/login");
+      } else {
+        // Các lỗi khác vẫn logout local
+        logout();
+        navigate("/login");
+      }
     }
   };
   const toggleDropdown = (label) => {

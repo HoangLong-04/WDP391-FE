@@ -7,7 +7,7 @@ import PaginationTable from "../../../../components/paginationTable/PaginationTa
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import StockPromotionForm from "./stockPromotionForm/StockPromotionForm";
 import useStockListAgency from "../../../../hooks/useStockListAgency";
-import { Pencil, Trash2, Tag } from "lucide-react";
+import { Pencil, Trash2, Tag, Plus } from "lucide-react";
 import { renderStatusTag } from "../../../../utils/statusTag";
 
 const inputClasses =
@@ -271,9 +271,9 @@ function StockPromotion() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="bg-blue-500 hover:bg-blue-600 transition text-white rounded-lg p-2 cursor-pointer"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create stock
+            <Plus size={20} />
           </button>
         </div>
       </div>
@@ -297,6 +297,8 @@ function StockPromotion() {
           isEdit ? handleUpdateStockPromotion : handleCreateStockPromotion
         }
         isSubmitting={submit}
+        isCreate={!isEdit}
+        isUpdate={isEdit}
       >
         <StockPromotionForm
           form={form}

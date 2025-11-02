@@ -6,7 +6,7 @@ import dayjs from "dayjs";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import CustomerForm from "./customerForm/CustomerForm";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 
 function CustomerManagement() {
   const { user } = useAuth();
@@ -173,9 +173,9 @@ function CustomerManagement() {
               setFormModal(true);
               setIsedit(false);
             }}
-            className="text-white cursor-pointer bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create customer
+            <Plus size={20} />
           </button>
         </div>
       </div>
@@ -197,6 +197,8 @@ function CustomerManagement() {
         isDelete={false}
         onSubmit={isEdit ? handleUpdateCustomer : handleCreateCustomer}
         isSubmitting={submit}
+        isCreate={!isEdit}
+        isUpdate={isEdit}
       >
         <CustomerForm
           form={form}

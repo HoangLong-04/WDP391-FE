@@ -6,7 +6,7 @@ import dayjs from "dayjs";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import InstallmentForm from "./installmentForm/InstallmentForm";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
 
 function InstallmentPlan() {
@@ -224,9 +224,9 @@ function InstallmentPlan() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="text-white bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg cursor-pointer"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create installment plan
+            <Plus size={20} />
           </button>
         </div>
       </div>
@@ -248,6 +248,8 @@ function InstallmentPlan() {
         isDelete={false}
         onSubmit={isEdit ? handleUpdateInstallment : handleCreateInstallment}
         isSubmitting={submit}
+        isCreate={!isEdit}
+        isUpdate={isEdit}
       >
         <InstallmentForm
           form={form}
