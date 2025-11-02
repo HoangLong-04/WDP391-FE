@@ -17,6 +17,7 @@ import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
 import { Pencil, Trash2, Eye } from "lucide-react";
+import { renderStatusTag } from "../../../utils/statusTag";
 
 function CustomerContract() {
   const { user } = useAuth();
@@ -195,7 +196,11 @@ function CustomerContract() {
     },
     { key: "contractPaidType", title: "Contract paid type" },
     { key: "contractType", title: "Contract type" },
-    { key: "status", title: "Status" },
+    {
+      key: "status",
+      title: "Status",
+      render: (status) => renderStatusTag(status),
+    },
     { key: "customerId", title: "Customer" },
     { key: "staffId", title: "Staff" },
     { key: "agencyId", title: "Agency" },

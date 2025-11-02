@@ -17,6 +17,7 @@ import usePromotionAgency from "../../../../hooks/usePromotionAgency";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import OrderRestockForm from "./orderRestockForm/OrderRestockForm";
 import { Eye, Send } from "lucide-react";
+import { renderStatusTag } from "../../../../utils/statusTag";
 
 function OrderRestockAgency() {
   const { user } = useAuth();
@@ -138,7 +139,11 @@ function OrderRestockAgency() {
       title: "Order date",
       render: (date) => dayjs(date).format("DD-MM-YYYY"),
     },
-    { key: "status", title: "Status" },
+    {
+      key: "status",
+      title: "Status",
+      render: (status) => renderStatusTag(status),
+    },
     {
       key: "action",
       title: "Action",

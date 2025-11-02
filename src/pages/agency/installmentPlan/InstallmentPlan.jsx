@@ -7,6 +7,7 @@ import PaginationTable from "../../../components/paginationTable/PaginationTable
 import FormModal from "../../../components/modal/formModal/FormModal";
 import InstallmentForm from "./installmentForm/InstallmentForm";
 import { Pencil, Trash2 } from "lucide-react";
+import { renderStatusTag } from "../../../utils/statusTag";
 
 function InstallmentPlan() {
   const { user } = useAuth();
@@ -141,7 +142,11 @@ function InstallmentPlan() {
       title: "Ngày Kết Thúc",
       render: (date) => (date ? dayjs(date).format("DD/MM/YYYY") : "-"),
     },
-    { key: "status", title: "Trạng Thái" },
+    {
+      key: "status",
+      title: "Trạng Thái",
+      render: (status) => renderStatusTag(status),
+    },
     { key: "agencyId", title: "Agency ID" },
     {
       key: "action",

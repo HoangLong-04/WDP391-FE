@@ -5,15 +5,17 @@ import { useAuth } from "../../../../hooks/useAuth";
 import dayjs from "dayjs";
 import PaginationTable from "../../../../components/paginationTable/PaginationTable";
 import FormModal from "../../../../components/modal/formModal/FormModal";
+import ConfirmModal from "../../../../components/modal/confirmModal/ConfirmModal";
 import DealerStaffForm from "../dealerStaffForm/DealerStaffForm";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, UserPlus } from "lucide-react";
+import { renderStatusTag } from "../../../../utils/statusTag";
 
 function DealerStaffManagement() {
   const { user } = useAuth();
   const [staffList, setStaffList] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(0);
 
   const [loading, setLoading] = useState(false);
@@ -46,14 +48,35 @@ function DealerStaffManagement() {
   const [selectedId, setSelectedId] = useState("");
 
   const fetchAllStaff = async () => {
+    if (!user?.agencyId) return;
+    
     setLoading(true);
     try {
-      const response = await PrivateDealerManagerApi.getStaffListByAgencyId(
-        user?.agencyId,
-        { page, limit }
+      // Fetch trang đầu tiên để lấy tổng số items
+      const firstPageResponse = await PrivateDealerManagerApi.getStaffListByAgencyId(
+        user.agencyId,
+        { page: 1, limit }
       );
-      setStaffList(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      const total = firstPageResponse.data.paginationInfo.total;
+      setTotalItem(total);
+      
+      // Tính tổng số trang
+      const totalPages = Math.ceil(total / limit);
+      
+      // Fetch tất cả các trang (bỏ qua trang 1 vì đã fetch rồi)
+      const allPromises = [Promise.resolve(firstPageResponse)];
+      for (let i = 2; i <= totalPages; i++) {
+        allPromises.push(
+          PrivateDealerManagerApi.getStaffListByAgencyId(user.agencyId, {
+            page: i,
+            limit,
+          })
+        );
+      }
+      
+      const allResponses = await Promise.all(allPromises);
+      const allData = allResponses.flatMap((response) => response.data.data);
+      setStaffList(allData);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -63,7 +86,8 @@ function DealerStaffManagement() {
 
   useEffect(() => {
     fetchAllStaff();
-  }, [page, limit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.agencyId, limit]);
 
   const handleCreateDealerStaff = async (e) => {
     setSubmit(true);
@@ -97,20 +121,19 @@ function DealerStaffManagement() {
     }
   };
 
-  const handleDeleteStaff = async (e) => {
-    e.preventDefault()
-    setSubmit(true)
+  const handleDeleteStaff = async () => {
+    setSubmit(true);
     try {
-      await PrivateDealerManagerApi.deleteStaff(selectedId)
-      toast.success('Delete successfully')
-      setDeleteModal(false)
-      fetchAllStaff()
+      await PrivateDealerManagerApi.deleteStaff(selectedId);
+      toast.success("Delete successfully");
+      setDeleteModal(false);
+      fetchAllStaff();
     } catch (error) {
-      toast.error(error.message)
+      toast.error(error.message);
     } finally {
-      setSubmit(false)
+      setSubmit(false);
     }
-  }
+  };
 
   const column = [
     { key: "id", title: "Id" },
@@ -120,37 +143,10 @@ function DealerStaffManagement() {
     { key: "email", title: "Email" },
     { key: "phone", title: "Phone" },
     { key: "address", title: "Address" },
-    { key: "roleNames", title: "Roles" },
     {
       key: "isActive",
       title: "Status",
-      render: (isActive) => (
-        <span
-          className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
-            isActive ? "bg-green-500" : "bg-red-500"
-          }`}
-        >
-          {isActive ? "Active" : "Inactive"}
-        </span>
-      ),
-    },
-    {
-      key: "isDeleted",
-      title: "Available",
-      render: (isDeleted) => (
-        <div
-          className={`px-3 py-1 rounded-full text-white text-sm font-medium text-center ${
-            isDeleted ? "bg-red-500" : "bg-green-500"
-          }`}
-        >
-          {isDeleted ? "Unavailable" : "Available"}
-        </div>
-      ),
-    },
-    {
-      key: "agencyId",
-      title: "Agency",
-      render: (agencyId) => <>{agencyId && agencyId}</>,
+      render: (isActive) => renderStatusTag(isActive ? "ACTIVE" : "INACTIVE"),
     },
     {
       key: "action",
@@ -193,15 +189,16 @@ function DealerStaffManagement() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="bg-blue-500 hover:bg-blue-600 transition cursor-pointer rounded-lg p-2 text-white"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center gap-2 transform hover:scale-[1.02] active:scale-[0.98]"
           >
+            <UserPlus size={20} />
             Create staff
           </button>
         </div>
       </div>
       <PaginationTable
         columns={column}
-        data={staffList}
+        data={staffList.slice((page - 1) * limit, page * limit)}
         loading={loading}
         page={page}
         pageSize={limit}
@@ -226,19 +223,17 @@ function DealerStaffManagement() {
         />
       </FormModal>
 
-      <FormModal
+      <ConfirmModal
         isOpen={deleteModal}
         onClose={() => setDeleteModal(false)}
-        onSubmit={handleDeleteStaff}
+        onConfirm={handleDeleteStaff}
         isSubmitting={submit}
-        title={"Confirm delete"}
-        isDelete={true}
-      >
-        <p className="text-gray-700">
-          Are you sure you want to delete this staff member? This action cannot
-          be undone.
-        </p>
-      </FormModal>
+        title="Confirm Delete"
+        message="Are you sure you want to delete this staff member? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   );
 }

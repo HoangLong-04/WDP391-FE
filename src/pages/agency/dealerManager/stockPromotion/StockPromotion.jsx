@@ -8,6 +8,7 @@ import FormModal from "../../../../components/modal/formModal/FormModal";
 import StockPromotionForm from "./stockPromotionForm/StockPromotionForm";
 import useStockListAgency from "../../../../hooks/useStockListAgency";
 import { Pencil, Trash2, Tag } from "lucide-react";
+import { renderStatusTag } from "../../../../utils/statusTag";
 
 const inputClasses =
   "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400";
@@ -165,7 +166,11 @@ function StockPromotion() {
       title: "End date",
       render: (date) => dayjs(date).format("DD-MM-YYYY"),
     },
-    { key: "status", title: "Status" },
+    {
+      key: "status",
+      title: "Status",
+      render: (status) => renderStatusTag(status),
+    },
     { key: "agencyId", title: "Agency" },
     {
       key: "action",
