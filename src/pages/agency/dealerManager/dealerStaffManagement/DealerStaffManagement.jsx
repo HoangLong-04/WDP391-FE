@@ -7,7 +7,7 @@ import PaginationTable from "../../../../components/paginationTable/PaginationTa
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import ConfirmModal from "../../../../components/modal/confirmModal/ConfirmModal";
 import DealerStaffForm from "../dealerStaffForm/DealerStaffForm";
-import { Pencil, Trash2, UserPlus } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import { renderStatusTag } from "../../../../utils/statusTag";
 
 function DealerStaffManagement() {
@@ -189,10 +189,9 @@ function DealerStaffManagement() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center gap-2 transform hover:scale-[1.02] active:scale-[0.98]"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            <UserPlus size={20} />
-            Create staff
+            <Plus size={20} />
           </button>
         </div>
       </div>
@@ -213,6 +212,8 @@ function DealerStaffManagement() {
         title={iseEdit ? "Update dealer staff" : "Create dealer staff"}
         isSubmitting={submit}
         onSubmit={iseEdit ? handleUpdateStaff : handleCreateDealerStaff}
+        isCreate={!iseEdit}
+        isUpdate={iseEdit}
       >
         <DealerStaffForm
           form={form}

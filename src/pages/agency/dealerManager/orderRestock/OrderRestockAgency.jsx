@@ -16,7 +16,7 @@ import useWarehouseAgency from "../../../../hooks/useWarehouseAgency";
 import usePromotionAgency from "../../../../hooks/usePromotionAgency";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import OrderRestockForm from "./orderRestockForm/OrderRestockForm";
-import { Eye, Send } from "lucide-react";
+import { Eye, Send, Plus } from "lucide-react";
 import { renderStatusTag } from "../../../../utils/statusTag";
 
 function OrderRestockAgency() {
@@ -202,9 +202,9 @@ function OrderRestockAgency() {
             onClick={() => {
               setFormModal(true);
             }}
-            className="bg-blue-500 hover:bg-blue-600 transition text-white rounded-lg p-2 cursor-pointer"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create restock
+            <Plus size={20} />
           </button>
         </div>
       </div>
@@ -234,6 +234,7 @@ function OrderRestockAgency() {
         isDelete={false}
         onSubmit={handleCreateRestock}
         isSubmitting={submit}
+        isCreate={true}
       >
         <OrderRestockForm
           colorList={colorList}

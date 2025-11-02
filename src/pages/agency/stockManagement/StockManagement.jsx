@@ -1,24 +1,24 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import useColorList from "../../../hooks/useColorList";
-import useMotorList from "../../../hooks/useMotorList";
 import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
+import PublicApi from "../../../services/PublicApi";
 import { toast } from "react-toastify";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import dayjs from "dayjs";
 import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import {
-  stockGeneralFields,
+  getStockGeneralFields,
   stockGroupedFields,
 } from "../../../components/viewModel/stockModel/StockModel";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import StockForm from "./stockForm/StockForm";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2, Plus } from "lucide-react";
 
 function StockManagement() {
   const { user } = useAuth();
   const { colorList } = useColorList();
-  const { motorList } = useMotorList();
+  const [motorList, setMotorList] = useState([]);
   const [stockList, setStockList] = useState([]);
   const [stock, setStock] = useState({});
 
@@ -51,16 +51,44 @@ function StockManagement() {
   const [selectedId, setSelectedId] = useState('')
   const [isEdit, setIsEdit] = useState(false)
 
-  const fetchAllStock = async () => {
+  // Track if motorList has been fetched to avoid duplicate fetches
+  const motorListFetchedRef = useRef(false);
+  // Track if stock is currently being fetched to avoid duplicate fetches
+  const isFetchingStockRef = useRef(false);
+
+  const fetchMotorList = useCallback(async () => {
+    // Prevent duplicate fetches
+    if (motorListFetchedRef.current || motorList.length > 0) return;
+    
+    motorListFetchedRef.current = true;
+    try {
+      const response = await PublicApi.getMotorList({ page: 1, limit: 100 });
+      // Filter out deleted motorbikes
+      const activeMotorbikes = response.data.data.filter(motor => !motor.isDeleted);
+      setMotorList(activeMotorbikes);
+    } catch (error) {
+      console.error("Error fetching motorbike list:", error.message);
+      motorListFetchedRef.current = false; // Reset on error to allow retry
+    }
+  }, [motorList.length]);
+
+  useEffect(() => {
+    fetchMotorList();
+  }, [fetchMotorList]);
+
+  const fetchAllStock = useCallback(async () => {
+    if (!user?.agencyId || isFetchingStockRef.current) return;
+    
+    isFetchingStockRef.current = true;
     setLoading(true);
     try {
       const response = await PrivateDealerManagerApi.getStockList(
-        user?.agencyId,
+        user.agencyId,
         {
           page,
           limit,
-          colorId,
-          motorbikeId,
+          colorId: colorId || undefined,
+          motorbikeId: motorbikeId || undefined,
         }
       );
       setStockList(response.data.data);
@@ -69,12 +97,13 @@ function StockManagement() {
       toast.error(error.message);
     } finally {
       setLoading(false);
+      isFetchingStockRef.current = false;
     }
-  };
+  }, [user?.agencyId, page, limit, motorbikeId, colorId]);
 
   useEffect(() => {
     fetchAllStock();
-  }, [page, limit, motorbikeId, colorId]);
+  }, [fetchAllStock]);
 
   const fetchStockById = async (id) => {
     setViewModalLoading(true);
@@ -101,8 +130,9 @@ function StockManagement() {
         colorId: "",
       });
       toast.success("Create successfully");
-      fetchAllStock();
       setFormModal(false);
+      // Refetch stock list after create
+      fetchAllStock();
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -116,8 +146,9 @@ function StockManagement() {
     try {
       await PrivateDealerManagerApi.updateStock(selectedId, updateForm)
       toast.success('Update successfully')
-      fetchAllStock()
       setFormModal(false)
+      // Refetch stock list after update
+      fetchAllStock()
     } catch (error) {
       toast.error(error.message)
     } finally {
@@ -132,6 +163,7 @@ function StockManagement() {
       await PrivateDealerManagerApi.deleteStock(selectedId)
       toast.success('Delete successfully')
       setDeleteModal(false)
+      // Refetch stock list after delete
       fetchAllStock()
     } catch (error) {
       toast.error(error.message)
@@ -147,18 +179,24 @@ function StockManagement() {
       key: "price",
       title: "Price",
       render: (price) => {
-        return `${price.toLocaleString()} $`;
+        return `${price.toLocaleString('vi-VN')} VNĐ`;
       },
     },
     {
-      key: "createAt",
-      title: "Create date",
-      render: (createAt) => dayjs(createAt).format("DD/MM/YYYY"),
+      key: "motorbikeId",
+      title: "Motorbike",
+      render: (motorbikeId) => {
+        const motorbike = motorList.find((m) => m.id === motorbikeId);
+        return motorbike ? motorbike.name : motorbikeId || "-";
+      },
     },
     {
-      key: "updateAt",
-      title: "Update date",
-      render: (updateAt) => dayjs(updateAt).format("DD/MM/YYYY"),
+      key: "colorId",
+      title: "Color",
+      render: (colorId) => {
+        const color = colorList.find((c) => c.id === colorId);
+        return color ? color.colorType : colorId || "-";
+      },
     },
     {
       key: "action",
@@ -241,9 +279,9 @@ function StockManagement() {
           <button
             onClick={() => {setFormModal(true) 
               setIsEdit(false)}}
-            className="bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg cursor-pointer text-white"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create stock
+            <Plus size={20} />
           </button>
         </div>
       </div>
@@ -265,6 +303,8 @@ function StockManagement() {
         isDelete={false}
         onSubmit={isEdit ? handleUpdateStock : handleCreateStock}
         isSubmitting={submit}
+        isCreate={!isEdit}
+        isUpdate={isEdit}
       >
         <StockForm
           colorList={colorList}
@@ -284,7 +324,7 @@ function StockManagement() {
         loading={viewModalLoading}
         onClose={() => setViewModal(false)}
         title={"Stock info"}
-        generalFields={stockGeneralFields}
+        generalFields={getStockGeneralFields(motorList, colorList)}
       />
 
       <FormModal

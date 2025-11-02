@@ -1,11 +1,7 @@
 import dayjs from "dayjs";
 import { ImageGallery } from "./viewImage/ViewImage";
 
-export const stockGeneralFields = [
-  {
-    key: "id",
-    label: "Stock ID",
-  },
+export const getStockGeneralFields = (motorList = [], colorList = []) => [
   {
     key: "quantity",
     label: "Quantity",
@@ -17,26 +13,34 @@ export const stockGeneralFields = [
     render: (value) => value ? `${value.toLocaleString()} VND` : "-",
   },
   {
-    key: "createAt",
-    label: "Created At",
-    render: (value) => value ? new Date(value).toLocaleDateString('vi-VN') : "-",
-  },
-  {
-    key: "updateAt",
-    label: "Updated At",
-    render: (value) => value ? new Date(value).toLocaleDateString('vi-VN') : "-",
-  },
-  {
-    key: "agencyId",
-    label: "Agency ID",
-  },
-  {
     key: "motorbikeId",
-    label: "Motorbike ID",
+    label: "Motorbike",
+    render: (motorbikeId) => {
+      const motorbike = motorList.find((m) => m.id === motorbikeId);
+      return motorbike ? motorbike.name : motorbikeId || "-";
+    },
   },
   {
     key: "colorId",
-    label: "Color ID",
+    label: "Color",
+    render: (colorId) => {
+      const color = colorList.find((c) => c.id === colorId);
+      return color ? color.colorType : colorId || "-";
+    },
+  },
+];
+
+// Backward compatibility - export default fields without motor/color lists
+export const stockGeneralFields = [
+  {
+    key: "quantity",
+    label: "Quantity",
+    render: (value) => value?.toLocaleString() || "-",
+  },
+  {
+    key: "price",
+    label: "Price",
+    render: (value) => value ? `${value.toLocaleString()} VND` : "-",
   },
 ];
 
@@ -47,10 +51,6 @@ export const stockGroupedFields = [
     key: "motorbike",
     title: "MOTORBIKE INFORMATION",
     fields: [
-      {
-        key: "motorbike.id",
-        label: "Motorbike ID",
-      },
       {
         key: "motorbike.name",
         label: "Name",
@@ -76,23 +76,6 @@ export const stockGroupedFields = [
         key: "motorbike.images",
         label: "Images",
         render: (images) => <ImageGallery images={images} />
-      },
-    ],
-  },
-  {
-    key: "color",
-    title: "COLOR INFORMATION",
-    fields: [
-      {
-        key: "color.id",
-        label: "Color ID",
-      },
-      {
-        key: "color.colorType",
-        label: "Color Type",
-        render: (value) => (
-          <span className="capitalize">{value || "-"}</span>
-        ),
       },
     ],
   },

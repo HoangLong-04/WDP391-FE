@@ -38,6 +38,11 @@ privateApi.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Skip interceptor cho logout request khi token hết hạn
+    if (originalRequest._skipRefreshToken) {
+      return Promise.reject(error);
+    }
+
     // 🧩 Trường hợp token hết hạn
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
