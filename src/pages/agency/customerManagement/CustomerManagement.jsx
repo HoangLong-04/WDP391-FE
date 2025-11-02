@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import CustomerForm from "./customerForm/CustomerForm";
+import { Pencil, Trash2 } from "lucide-react";
 
 function CustomerManagement() {
   const { user } = useAuth();
@@ -129,38 +130,36 @@ function CustomerManagement() {
     },
     { key: "agencyId", title: "Agency" },
     {
-      key: "action1",
-      title: "Update",
+      key: "action",
+      title: "Action",
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setFormModal(true);
-            setIsedit(true);
-            setUpdateForm({
-              ...item,
-              dob: dayjs(item.dob).format("YYYY-MM-DD"),
-            });
-          }}
-          className="cursor-pointer p-2 text-white rounded-lg bg-blue-500"
-        >
-          Update
-        </span>
-      ),
-    },
-    {
-      key: "action2",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setDeleteModal(true);
-          }}
-          className="cursor-pointer p-2 text-white rounded-lg bg-red-500"
-        >
-          Delete
-        </span>
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={() => {
+              setSelectedId(item.id);
+              setFormModal(true);
+              setIsedit(true);
+              setUpdateForm({
+                ...item,
+                dob: dayjs(item.dob).format("YYYY-MM-DD"),
+              });
+            }}
+            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+            title="Update"
+          >
+            <Pencil size={18} />
+          </button>
+          <button
+            onClick={() => {
+              setSelectedId(item.id);
+              setDeleteModal(true);
+            }}
+            className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
+            title="Delete"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
       ),
     },
   ];

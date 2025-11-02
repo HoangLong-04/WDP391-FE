@@ -16,6 +16,7 @@ import useWarehouseAgency from "../../../../hooks/useWarehouseAgency";
 import usePromotionAgency from "../../../../hooks/usePromotionAgency";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import OrderRestockForm from "./orderRestockForm/OrderRestockForm";
+import { Eye, Send } from "lucide-react";
 
 function OrderRestockAgency() {
   const { user } = useAuth();
@@ -139,33 +140,31 @@ function OrderRestockAgency() {
     },
     { key: "status", title: "Status" },
     {
-      key: "action1",
-      title: "Detail",
+      key: "action",
+      title: "Action",
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setViewModal(true);
-            fetchOrderRestockDetail(item.id);
-          }}
-          className="cursor-pointer text-white p-2 bg-blue-500 rounded-lg"
-        >
-          View
-        </span>
-      ),
-    },
-    {
-      key: "action2",
-      title: "Update status",
-      render: (_, item) => (
-        <span
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={() => {
+              setViewModal(true);
+              fetchOrderRestockDetail(item.id);
+            }}
+            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+            title="View detail"
+          >
+            <Eye size={18} />
+          </button>
+          <button
             onClick={() => {
               setSendRequestModal(true);
               setSelectedId(item.id);
             }}
-          className="cursor-pointer text-white p-2 bg-blue-500 rounded-lg"
-        >
-          Send request
-        </span>
+            className="cursor-pointer text-white bg-green-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
+            title="Send request"
+          >
+            <Send size={18} />
+          </button>
+        </div>
       ),
     },
   ];
