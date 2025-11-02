@@ -106,13 +106,14 @@ export const motorGroupedFields = [
       {
         key: "colors",
         label: "Available colors",
-        render: (colors) => (
-          <div className="flex flex-wrap gap-2 items-center">
+        render: (colors, data, onDeleteColor) => (
+          
+          <div className="flex flex-wrap gap-3 items-center">
             {colors && colors.length > 0 ? (
               colors.map((c, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-2 border rounded-md p-1 bg-gray-50"
+                  className="relative flex items-center gap-2 border rounded-md p-2 bg-gray-50 group"
                 >
                   <span className="font-semibold capitalize text-gray-700">
                     {c.color.colorType}
@@ -122,6 +123,15 @@ export const motorGroupedFields = [
                     alt={`${c.color.colorType} motorbike`}
                     className="w-10 h-10 object-cover rounded-md"
                   />
+                  
+                  {/* Delete button */}
+                  <button
+                    onClick={() => onDeleteColor?.(data.id, c.color.id, c.imageUrl)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-md"
+                    title="Delete color"
+                  >
+                    ×
+                  </button>
                 </div>
               ))
             ) : (

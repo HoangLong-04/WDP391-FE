@@ -14,7 +14,8 @@ function useCustomerList() {
       );
       setCustomerList(response.data.data);
     } catch (error) {
-      toast.error(error.message);
+      console.log(error.message);
+      
     }
   };
 

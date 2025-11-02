@@ -13,7 +13,7 @@ const getNestedValue = (obj, path) => {
     );
 };
 
-const renderField = (field, data) => {
+const renderField = (field, data, extraCallbacks = {}) => {
   const value = getNestedValue(data, field.key);
 
   return (
@@ -23,7 +23,7 @@ const renderField = (field, data) => {
       </label>
       <p className="text-gray-900 w-2/3">
         {field.render
-          ? field.render(value)
+          ? field.render(value, data, extraCallbacks[field.key])
           : value !== null && value !== undefined
           ? value.toString()
           : "-"}
@@ -39,6 +39,7 @@ function GroupModal({
   groupedFields,
   loading,
   generalFields,
+  onDeleteColor,
 }) {
   const [openGroup, setOpenGroup] = useState(groupedFields?.[0]?.key);
 
@@ -49,6 +50,10 @@ function GroupModal({
   if (!groupedFields || groupedFields.length === 0) {
     return <p>No detail fields defined.</p>;
   }
+
+  const fieldCallbacks = {
+    colors: onDeleteColor, // ← Map callback cho colors field
+  };
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} title={title} size="md">
       <div className="space-y-3">
@@ -93,7 +98,7 @@ function GroupModal({
                           </label>
                           <p className="text-gray-900 w-2/3">
                             {field.render
-                              ? field.render(value) // Dùng render nếu có
+                              ? field.render(value, data, fieldCallbacks[field.key]) // Dùng render nếu có
                               : value !== null && value !== undefined
                               ? value.toString()
                               : "-"}{" "}

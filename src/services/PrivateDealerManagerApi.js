@@ -52,6 +52,20 @@ const PrivateDealerManagerApi = {
     apiConfig.privateApi.patch(`customer-contract/${id}`, data),
   deleteCustomerContract: (id) =>
     apiConfig.privateApi.delete(`customer-contract/${id}`),
+
+  getRestockList: (agencyId, params) =>
+    apiConfig.privateApi.get(`order-restock/list/${agencyId}`, { params }),
+  getRestockDetail: (id) =>
+    apiConfig.privateApi.get(`order-restock/detail/${id}`),
+  createRestock: (data) => apiConfig.privateApi.post("order-restock", data),
+  sendApproveToAdmin: (id) => apiConfig.privateApi.patch(`order-restock/accept/${id}`),
+
+  getDiscountList: (agencyId) =>
+    apiConfig.privateApi.get(`discount/agency/list/${agencyId}`),
+
+  getWarehouseList: () => apiConfig.privateApi.get("warehouses/list"),
+
+  getPromotionList: () => apiConfig.privateApi.get("promotion/agency/list"),
 };
 
 export default PrivateDealerManagerApi;

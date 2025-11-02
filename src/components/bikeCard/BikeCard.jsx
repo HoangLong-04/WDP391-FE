@@ -1,16 +1,29 @@
 import React from "react";
 import { useNavigate } from "react-router";
 
-function BikeCard({ image, name, price }) {
-  const navigate = useNavigate()
+function BikeCard({ image, name, price, id }) {
+  const navigate = useNavigate();
   return (
-    <div onClick={() => navigate('/user/bike-detail')} className="rounded-2xl transition cursor-pointer">
-      <div className="h-[30rem] hover:scale-105 transform duration-300  flex items-end bg-[rgb(241,241,241)] rounded-lg">
-        <img width={500} src={image} alt="" />
+    <div
+      onClick={() => navigate(`/user/bike/${id}`)}
+      className="group flex flex-col p-4 bg-white rounded-xl shadow-lg transition-all duration-300 ease-in-out cursor-pointer hover:shadow-2xl hover:scale-[1.02]"
+    >
+      <div className="relative h-64 md:h-80 lg:h-96 w-full flex items-center justify-center bg-gray-100 rounded-lg overflow-hidden mb-4">
+        <img
+          src={image}
+          alt={name}
+          className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
+        />
       </div>
-      <div className="text-[rgb(84,82,82)] text-2xl font-medium z-99">{name}</div>
-      <div className="text-[rgb(84,82,82)] text-3xl font-bold">
-        {price.toLocaleString("vi-VN")}đ
+
+      <div className="flex flex-col gap-1">
+        <div className="text-gray-700 text-lg md:text-xl font-semibold truncate">
+          {name}
+        </div>
+
+        <div className="text-2xl md:text-3xl font-extrabold text-indigo-600">
+          {price.toLocaleString("vi-VN")}$
+        </div>
       </div>
     </div>
   );

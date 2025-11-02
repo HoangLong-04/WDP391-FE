@@ -45,10 +45,10 @@ function RoleManagement() {
       render: (isDeleted) => (
         <span
           className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
-            isDeleted ? "bg-green-500" : "bg-red-500"
+            !isDeleted ? "bg-green-500" : "bg-red-500"
           }`}
         >
-          {isDeleted ? "Active" : "Not active"}
+          {!isDeleted ? "Available" : "Unavailable"}
         </span>
       ),
     },

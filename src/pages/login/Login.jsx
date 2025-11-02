@@ -28,7 +28,7 @@ function Login() {
     } catch (error) {
       console.log(error);
 
-      toast.error("Login fail");
+      toast.error(error.message || "Login fail");
     } finally {
       setLoading(false);
     }

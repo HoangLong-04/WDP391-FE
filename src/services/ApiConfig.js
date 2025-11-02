@@ -12,7 +12,7 @@ const publicApi = axios.create({
 
 const privateApi = axios.create({
   baseURL: BASE_URL,
-  headers: { "Content-Type": "application/json" },
+  // headers: { "Content-Type": "application/json" },
 });
 
 privateApi.interceptors.request.use(

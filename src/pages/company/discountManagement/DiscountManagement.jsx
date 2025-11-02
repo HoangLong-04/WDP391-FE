@@ -40,7 +40,7 @@ function DiscountManagement() {
   const [formData, setFormData] = useState({
     name: "",
     type: "",
-    value_type: "",
+    valueType: "",
     value: 0,
     min_quantity: 0,
     startAt: "",
@@ -52,7 +52,7 @@ function DiscountManagement() {
   const [updateForm, setUpdateForm] = useState({
     name: "",
     type: "",
-    value_type: "",
+    valueType: "",
     value: 0,
     min_quantity: 0,
     startAt: "",
@@ -116,7 +116,7 @@ function DiscountManagement() {
       setFormData({
         name: "",
         type: "",
-        value_type: "",
+        valueType: "",
         value: 0,
         min_quantity: 0,
         startAt: new Date(),
@@ -131,7 +131,7 @@ function DiscountManagement() {
     } catch (error) {
       toast.error(error.message);
     } finally {
-      setSubmit(true);
+      setSubmit(false);
     }
   };
 
@@ -229,7 +229,7 @@ function DiscountManagement() {
             setUpdateForm({
               name: item.name,
               type: item.type,
-              value_type: item.valueType,
+              valueType: item.valueType,
               value: item.value,
               min_quantity: item.min_quantity,
               startAt: dayjs(item.startAt).format("YYYY-MM-DD"),

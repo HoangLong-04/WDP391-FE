@@ -25,13 +25,20 @@ import DiscountManagement from "./pages/company/discountManagement/DiscountManag
 import PricePolicyManagement from "./pages/company/pricePolicyManagement/PricePolicyManagement";
 import PromotionManagement from "./pages/company/promotionManagement/PromotionManagement";
 import WarehouseManagement from "./pages/company/warehouseManagement/WarehouseManagement";
-import OrderRestockManagement from "./pages/company/orderRestockManagement/OrderRestockManagement";
 import DealerStaffManagement from "./pages/agency/dealerManager/dealerStaffManagement/DealerStaffManagement";
 import StockManagement from "./pages/agency/stockManagement/StockManagement";
 import InstallmentPlan from "./pages/agency/installmentPlan/InstallmentPlan";
 import StockPromotion from "./pages/agency/dealerManager/stockPromotion/StockPromotion";
 import CustomerContract from "./pages/agency/customerContract/CustomerContract";
 import CustomerManagement from "./pages/agency/customerManagement/CustomerManagement";
+import MotorbikeManagement from "./pages/company/motorbikeManagement/MotorbikeManagement";
+import ColorManagement from "./pages/company/colorManagement/ColorManagement";
+import AppearanceManagement from "./pages/company/appearance/AppearanceManagement";
+import ConfigurationManagement from "./pages/company/configuration/ConfigurationManagement";
+import OrderRestockAgency from "./pages/agency/dealerManager/orderRestock/OrderRestockAgency";
+import OrderRestockManagement from "./pages/company/orderRestockManagement/OrderRestockManagement";
+import BookingManagement from "./pages/agency/dealerStaff/bookingManagement/BookingManagement";
+import Payment from "./pages/payment/Payment";
 
 function App() {
   return (
@@ -42,13 +49,14 @@ function App() {
           <Route path="/" element={<Navigate to="/user/home" />} />
 
           {/* Public */}
+          <Route path="/payment" element={<Payment />} />
           <Route path="/" element={<AuthenLayout />}>
             <Route path="login" element={<Login />} />
           </Route>
           <Route path="/" element={<UserLayout />}>
             <Route path="user/home" element={<HomePage />} />
             <Route path="user/driving-test" element={<DrivingTest />} />
-            <Route path="user/bike-detail" element={<BikeDetail />} />
+            <Route path="user/bike/:id" element={<BikeDetail />} />
             <Route path="user/products" element={<Product />} />
           </Route>
 
@@ -68,8 +76,10 @@ function App() {
               element={<InstallmentPlan />}
             />
             <Route path="agency/stock-promotion" element={<StockPromotion />} />
+            <Route path="agency/order-restock" element={<OrderRestockAgency />} />
             <Route path="agency/customer-contract" element={<CustomerContract />} />
             <Route path="agency/customer-management" element={<CustomerManagement />} />
+            <Route path="agency/booking-management" element={<BookingManagement />} />
           </Route>
 
           {/* Private company */}
@@ -96,6 +106,10 @@ function App() {
               element={<AgencyManagement />}
             />
             <Route path="company/dealerManager" element={<DealerManager />} />
+            <Route path="company/motorbike" element={<MotorbikeManagement />} />
+            <Route path="company/color" element={<ColorManagement />} />
+            <Route path="company/appearance" element={<AppearanceManagement />} />
+            <Route path="company/configuration" element={<ConfigurationManagement />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -20,6 +20,11 @@ import CampaignIcon from "@mui/icons-material/Campaign";
 import StoreIcon from '@mui/icons-material/Store';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import ElectricMopedIcon from '@mui/icons-material/ElectricMoped';
+import FormatPaintIcon from '@mui/icons-material/FormatPaint';
+import CropSquareIcon from '@mui/icons-material/CropSquare';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import BlurCircularIcon from '@mui/icons-material/BlurCircular';
 
 function CompanySidebar() {
   const location = useLocation();
@@ -29,7 +34,17 @@ function CompanySidebar() {
   const [isCollapse, setIsCollapse] = useState(false);
 
   const navItems = [
-    { path: "/company/dashboard", label: "Dashboard", Icon: DashboardIcon },
+    // { path: "/company/dashboard", label: "Dashboard", Icon: DashboardIcon },
+    {
+      label: "Product",
+      Icon: CropSquareIcon,
+      children: [
+        { path: "/company/motorbike", label: "Motorbike", Icon: ElectricMopedIcon },
+        { path: "/company/color", label: "Color", Icon: FormatPaintIcon },
+        { path: "/company/appearance", label: "Appearance", Icon: AutoAwesomeIcon },
+        { path: "/company/configuration", label: "Configuration", Icon: BlurCircularIcon },
+      ],
+    },
     { path: "/company/agency-management", label: "Agency", Icon: GroupsIcon },
     {
       label: "Store",
@@ -49,7 +64,7 @@ function CompanySidebar() {
     },
     {
       label: "Policy",
-      Icon: PolicyIcon, // Icon cho mục cha
+      Icon: PolicyIcon,
       children: [
         { path: "/company/discount", label: "Discount", Icon: LocalOfferIcon },
         {
@@ -103,7 +118,6 @@ function CompanySidebar() {
   const getNavItemClass = (path, isChild = false) => {
     const isActive = path ? location.pathname === path : false;
 
-    // Classes chung
     let classes =
       "w-full py-2 rounded-lg font-medium transition flex items-center cursor-pointer";
 
@@ -125,7 +139,7 @@ function CompanySidebar() {
   return (
     <div
       className={`bg-black flex flex-col items-start h-[100dvh] py-6 shadow-lg relative transition-all duration-300 ${
-        isCollapse ? "w-[80px] px-2" : "w-[250px] px-4" // Đã fix: dùng px-2 khi collapse để căn chỉnh tốt hơn
+        isCollapse ? "w-[80px] px-2" : "w-[250px] px-4"
       }`}
     >
       <div
@@ -134,7 +148,7 @@ function CompanySidebar() {
         }`}
       >
         {!isCollapse && (
-          <p className="text-white font-medium text-2xl">DASHBOARD</p>
+          <p className="text-white font-medium text-2xl">COMPANY</p>
         )}
         <button
           onClick={() => setIsCollapse(!isCollapse)}

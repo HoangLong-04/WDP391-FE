@@ -9,6 +9,7 @@ function FormModal({
   onSubmit,
   isSubmitting = false,
   isDelete,
+  isSend,
 }) {
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} title={title} size="md">
@@ -31,7 +32,11 @@ function FormModal({
             } text-white rounded hover:bg-blue-600 transition disabled:opacity-50`}
             disabled={isSubmitting}
           >
-            {isSubmitting
+            {isSend
+              ? isSubmitting
+                ? "Sending..."
+                : "Send"
+              : isSubmitting
               ? isDelete
                 ? "Deleting..."
                 : "Saving..."

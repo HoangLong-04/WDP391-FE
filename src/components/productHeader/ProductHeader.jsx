@@ -1,25 +1,53 @@
 import React from "react";
 
-function ProductHeader() {
+function ProductHeader({
+  modelList,
+  makeList,
+  model,
+  setModel,
+  makeFrom,
+  setMakeFrom,
+  setPage,
+}) {
   return (
     <div>
       <div className="flex justify-between">
-        <span className="text-2xl font-medium">MOTOBIKES</span>
-        <div className="flex gap-5">
-          <select
-            className="bg-[rgb(242,246,255)] border-none pr-5 pl-2 rounded-lg"
-            name=""
-            id=""
-          >
-            <option value="">hello</option>
-          </select>
-          <select
-            className="bg-[rgb(242,246,255)] border-none pr-5 pl-2 rounded-lg"
-            name=""
-            id=""
-          >
-            <option value="">hello</option>
-          </select>
+        <span className="text-3xl font-medium">MOTOBIKES</span>
+        <div className="flex items-center gap-5">
+          <div className="flex gap-2 items-center">
+            <label>Model</label>
+            <select
+              className="bg-[rgb(242,246,255)] border-none py-2 px-5 rounded-lg"
+              name="model"
+              value={model}
+              onChange={(e) => {
+                setModel(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All</option>
+              {modelList?.map((m) => (
+                <option value={m.model}>{m.model}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2 items-center">
+            <label>Made in</label>
+
+            <select
+              className="bg-[rgb(242,246,255)] border-none py-2 px-5 rounded-lg"
+              value={makeFrom}
+              onChange={(e) => {
+                setMakeFrom(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All</option>
+              {makeList?.map((m) => (
+                <option value={m.makeFrom}>{m.makeFrom}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     </div>

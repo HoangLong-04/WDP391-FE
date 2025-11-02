@@ -1,48 +1,80 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Bike from "../../../assets/electric_bike.png";
 import BannerDetail from "../../../components/bannerDetail/BannerDetail";
 import BikeIntro from "../../../components/bikeIntro/BikeIntro";
 import Specification from "../../../components/specification/Specification";
+import { useParams } from "react-router";
+import PublicApi from "../../../services/PublicApi";
+import { toast } from "react-toastify";
 
 function BikeDetail() {
-  const bike = {
-    name: "ZX100",
-    speed: "150km/h",
-    battery: "200Ah",
-    price: 20000000,
-    img: "https://shop.vinfastauto.com/on/demandware.static/-/Sites-app_vinfast_vn-Library/default/dwd2263d91/images/PDP-XMD/evo200/img-evo-yellow.png",
+  const { id } = useParams();
+  const [generalInfo, setGeneralInfo] = useState({});
+  const [appearance, setAppearance] = useState({});
+  const [battery, setBattery] = useState({});
+  const [configuration, setConfiguration] = useState({});
+  const [safeFeature, setSafeFeature] = useState({});
+  const [colors, setColors] = useState([]);
+  const [images, setImages] = useState([]);
+
+  const fecthMotorDeatil = async (id) => {
+    try {
+      const response = await PublicApi.getMotorDetailForUser(id);
+      const data = response.data.data;
+      setGeneralInfo(data);
+      setAppearance(data.appearance);
+      setBattery(data.battery);
+      setColors(data.colors);
+      setConfiguration(data.configuration);
+      setSafeFeature(data.safeFeature);
+      setImages(data.images);
+    } catch (error) {
+      toast.error(error.message);
+    }
   };
+
+  useEffect(() => {
+    fecthMotorDeatil(id);
+  }, [id]);
+
   return (
     <div>
       <section className="mb-15">
         <BannerDetail
-          bikeBattery={bike.battery}
-          bikeImg={bike.img}
-          bikeName={bike.name}
-          bikePrice={bike.price}
-          bikeSpeed={bike.speed}
+          bikeBattery={battery.type}
+          bikeName={generalInfo.name}
+          bikePrice={generalInfo.price}
+          bikeSpeed={configuration.speedLimit}
+          images={images}
+          model={generalInfo.model}
+          version={generalInfo.version}
         />
       </section>
 
       <section className="p-10 mb-10">
-        <BikeIntro bikeImg={bike.img} />
+        <BikeIntro colors={colors} />
       </section>
 
       <section className="py-10 px-30 mb-15">
-        <h1 className="text-4xl w-fit py-3 border-b-4 border-blue-600 mb-10">Specification</h1>
+        <h1 className="text-4xl w-fit py-3 border-b-4 border-blue-600 mb-10">
+          Specification
+        </h1>
         <Specification
-          color={"xanh"}
-          chargeTime={"10h"}
-          normalPower={"2000W"}
-          engine={"Tiger"}
-          shock={"Ống lồng-giảm chấn thủy lực"}
-          capacity={"2.0 kWh"}
-          batteryType={"01 Pin LFP"}
-          maxSpeed={"60km/h"}
-          maxPower={"3000W"}
-          brake={"Phanh đĩa/cơ"}
-          volume={"1804 x 683 x 1127 mm"}
-          weight={"88 kg bao gồm pin LFP"}
+          batteryLimit={battery.limit}
+          batteryType={battery.type}
+          brake={safeFeature.brake}
+          chargeTime={battery.chargeTime}
+          chargeType={battery.chargeType}
+          colors={colors}
+          energyConsumption={battery.energyConsumption}
+          height={appearance.height}
+          length={appearance.length}
+          lock={safeFeature.lock}
+          maximumCapacity={configuration.maximumCapacity}
+          motorType={configuration.motorType}
+          speedLimit={configuration.speedLimit}
+          storageLimit={appearance.storageLimit}
+          width={appearance.width}
         />
       </section>
     </div>

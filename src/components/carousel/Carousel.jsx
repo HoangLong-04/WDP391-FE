@@ -4,40 +4,31 @@ import "swiper/css";
 import "swiper/css/pagination";
 import BikeCard from "../bikeCard/BikeCard";
 import "swiper/css/navigation";
+import { useEffect, useState } from "react";
+import PublicApi from "../../services/PublicApi";
+import { toast } from "react-toastify";
 
 function Carousel() {
-  const bikeList = [
-    {
-      name: "test1",
-      price: 2999000,
-      image:
-        "https://osakar.com.vn/wp-content/uploads/2025/05/nispa-lumia-ava-1024x1024.png",
-    },
-    {
-      name: "test2",
-      price: 6999000,
-      image:
-        "https://osakar.com.vn/wp-content/uploads/2025/05/nispa-lumia-ava-1024x1024.png",
-    },
-    {
-      name: "test3",
-      price: 6799000,
-      image:
-        "https://osakar.com.vn/wp-content/uploads/2025/05/nispa-lumia-ava-1024x1024.png",
-    },
-    {
-      name: "test4",
-      price: 1232000,
-      image:
-        "https://osakar.com.vn/wp-content/uploads/2025/05/nispa-lumia-ava-1024x1024.png",
-    },
-    {
-      name: "test5",
-      price: 666666,
-      image:
-        "https://osakar.com.vn/wp-content/uploads/2025/05/nispa-lumia-ava-1024x1024.png",
-    },
-  ];
+  const [motorList, setMotorList] = useState([]);
+
+  const [loading, setLoading] = useState(false);
+
+  const fetchMotorList = async () => {
+    setLoading(true);
+    try {
+      const response = await PublicApi.getMotorList({ page: 1, limit: 10 });
+      setMotorList(response.data.data);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMotorList();
+  }, []);
+
   return (
     <div className="p-10">
       <div className="flex justify-center mb-[2rem]">
@@ -55,15 +46,21 @@ function Carousel() {
         navigation={true}
         modules={[Navigation, Pagination]}
         className="mySwiper"
-        
       >
-        {bikeList.map((b) => (
-          <SwiperSlide>
-            <div className="flex justify-center items-center p-2">
-              <BikeCard name={b.name} price={b.price} image={b.image} />
-            </div>
-          </SwiperSlide>
-        ))}
+        {loading
+          ? "Loading..."
+          : motorList.map((b) => (
+              <SwiperSlide>
+                <div className="flex justify-center items-center p-2">
+                  <BikeCard
+                    name={b.name}
+                    price={b.price}
+                    image={b.images[0].imageUrl}
+                    id={b.id}
+                  />
+                </div>
+              </SwiperSlide>
+            ))}
       </Swiper>
     </div>
   );

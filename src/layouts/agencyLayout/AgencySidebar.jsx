@@ -1,34 +1,66 @@
-import React, { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router';
-import { useAuth } from '../../hooks/useAuth';
-import { toast } from 'react-toastify';
-import PrivateApi from '../../services/PrivateApi';
+import React, { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { useAuth } from "../../hooks/useAuth";
+import { toast } from "react-toastify";
+import PrivateApi from "../../services/PrivateApi";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import MenuIcon from "@mui/icons-material/Menu";
-import GroupsIcon from '@mui/icons-material/Groups';
-import InventoryIcon from '@mui/icons-material/Inventory';
-import BuildIcon from '@mui/icons-material/Build';
-import ProductionQuantityLimitsIcon from '@mui/icons-material/ProductionQuantityLimits';
-import WysiwygIcon from '@mui/icons-material/Wysiwyg';
-import PeopleIcon from '@mui/icons-material/People';
+import GroupsIcon from "@mui/icons-material/Groups";
+import InventoryIcon from "@mui/icons-material/Inventory";
+import BuildIcon from "@mui/icons-material/Build";
+import ProductionQuantityLimitsIcon from "@mui/icons-material/ProductionQuantityLimits";
+import WysiwygIcon from "@mui/icons-material/Wysiwyg";
+import PeopleIcon from "@mui/icons-material/People";
+import ListAltIcon from "@mui/icons-material/ListAlt";
+import BorderColorIcon from "@mui/icons-material/BorderColor";
 
 function AgencySidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [openDropdown, setOpenDropdown] = useState(null);
   const [isCollapse, setIsCollapse] = useState(false);
 
   const navItems = [
-    { path: "/agency/dashboard", label: "Dashboard", Icon: DashboardIcon },
+    // { path: "/agency/dashboard", label: "Dashboard", Icon: DashboardIcon },
     { path: "/agency/all-staff", label: "Dealer staff", Icon: GroupsIcon },
     { path: "/agency/stock-management", label: "Stock", Icon: InventoryIcon },
-    { path: "/agency/installment-plan", label: "Instalment plan", Icon: BuildIcon },
-    { path: "/agency/stock-promotion", label: "Stock promotion", Icon: ProductionQuantityLimitsIcon },
-    { path: "/agency/customer-contract", label: "Customer contract", Icon: WysiwygIcon },
-    { path: "/agency/customer-management", label: "Customer management", Icon: PeopleIcon },
+    {
+      path: "/agency/installment-plan",
+      label: "Instalment plan",
+      Icon: BuildIcon,
+    },
+    {
+      path: "/agency/stock-promotion",
+      label: "Stock promotion",
+      Icon: ProductionQuantityLimitsIcon,
+    },
+    {
+      path: "/agency/order-restock",
+      label: "Order restock",
+      Icon: ListAltIcon,
+    },
+    {
+      path: "/agency/customer-contract",
+      label: "Customer contract",
+      Icon: WysiwygIcon,
+    },
+    {
+      path: "/agency/customer-management",
+      label: "Customer management",
+      Icon: PeopleIcon,
+    },
+    ...(user.role && user.role[0] === "Dealer Staff"
+      ? [
+          {
+            path: "/agency/booking-management",
+            label: "Booking management",
+            Icon: BorderColorIcon,
+          },
+        ]
+      : []),
   ];
 
   const handleLogout = async () => {
@@ -101,7 +133,7 @@ function AgencySidebar() {
         }`}
       >
         {!isCollapse && (
-          <p className="text-white font-medium text-2xl">DASHBOARD</p>
+          <p className="text-white font-medium text-2xl">AGENCY</p>
         )}
         <button
           onClick={() => setIsCollapse(!isCollapse)}
@@ -179,4 +211,4 @@ function AgencySidebar() {
   );
 }
 
-export default AgencySidebar
+export default AgencySidebar;

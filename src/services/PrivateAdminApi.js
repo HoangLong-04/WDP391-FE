@@ -55,6 +55,10 @@ const PrivateAdminApi = {
   getMotorbikeById: (id) => apiConfig.privateApi.get(`motorbike/${id}`),
   getMotorList: (params) =>
     apiConfig.privateApi.get("motorbike/admin", { params }),
+  createMotorbike: (data) => apiConfig.privateApi.post("motorbike", data),
+  updateMotorbike: (id, data) =>
+    apiConfig.privateApi.patch(`motorbike/${id}`, data),
+  deleteMotorbike: (id) => apiConfig.privateApi.delete(`motorbike/${id}`),
 
   getWarehouseById: (id) => apiConfig.privateApi.get(`warehouses/detail/${id}`),
   getWarehouseList: (params) =>
@@ -66,8 +70,55 @@ const PrivateAdminApi = {
 
   getOrderRestock: (params) =>
     apiConfig.privateApi.get("order-restock-management/list", { params }),
+  getOrderRestockDetail: (id) =>
+    apiConfig.privateApi.get(`order-restock-management/detail/${id}`),
+  updateOrder: (id, data) =>
+    apiConfig.privateApi.patch(`order-restock-management/status/${id}`, data),
 
   getColorList: () => apiConfig.privateApi.get("color"),
+  createColor: (data) => apiConfig.privateApi.post("color", data),
+  deleteColor: (id) => apiConfig.privateApi.delete(`color/${id}`),
+
+  getCongiurationDetail: (motorId) =>
+    apiConfig.privateApi.get(`configuration/${motorId}`),
+  updateConfiguration: (motorId, data) =>
+    apiConfig.privateApi.patch(`configuration/${motorId}`, data),
+  createConfiguration: (motorId, data) =>
+    apiConfig.privateApi.post(`configuration/${motorId}`, data),
+  deleteConfiguration: (motorId) =>
+    apiConfig.privateApi.delete(`configuration/${motorId}`),
+
+  getAppearanceDetail: (motorId) =>
+    apiConfig.privateApi.get(`appearance/${motorId}`),
+  updateAppearance: (motorId, data) =>
+    apiConfig.privateApi.patch(`appearance/${motorId}`, data),
+  createAppearance: (motorId, data) =>
+    apiConfig.privateApi.post(`appearance/${motorId}`, data),
+  deleteAppearance: (motorId) =>
+    apiConfig.privateApi.delete(`appearance/${motorId}`),
+
+  getBatteryDetail: (motorId) => apiConfig.privateApi.get(`battery/${motorId}`),
+  updateBattery: (motorId, data) =>
+    apiConfig.privateApi.patch(`battery/${motorId}`, data),
+  createBattery: (motorId, data) =>
+    apiConfig.privateApi.post(`battery/${motorId}`, data),
+  deleteBattery: (motorId) => apiConfig.privateApi.delete(`battery/${motorId}`),
+
+  getSafeFeature: (motorId) =>
+    apiConfig.privateApi.get(`safe-feature/${motorId}`),
+  updateSafeFeature: (motorId, data) =>
+    apiConfig.privateApi.patch(`safe-feature/${motorId}`, data),
+  createSafeFeature: (motorId, data) =>
+    apiConfig.privateApi.post(`safe-feature/${motorId}`, data),
+  deleteSafeFeature: (motorId) =>
+    apiConfig.privateApi.delete(`safe-feature/${motorId}`),
+
+  deleteColorImage: (motorbikeId, colorId, data) =>
+    apiConfig.privateApi.delete(`images/color/${motorbikeId}/${colorId}`, {
+      data: data,
+    }),
+  addImageForMotor: (motorId, data) =>
+    apiConfig.privateApi.post(`images/motorbike/${motorId}`, data),
 };
 
 export default PrivateAdminApi;

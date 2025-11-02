@@ -417,7 +417,7 @@ function InventoryManagement() {
         isDelete={isDelete}
       >
         <p className="text-gray-700">
-          Are you sure you want to delete this staff member? This action cannot
+          Are you sure you want to delete this inventory? This action cannot
           be undone.
         </p>
       </FormModal>

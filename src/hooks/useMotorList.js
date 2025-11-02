@@ -5,12 +5,12 @@ function useMotorList() {
     const [motorList, setMotorList] = useState([])
     const [load, setLoad] = useState(false)
     const [pageNum, setPageNum] = useState(1)
-    const [limit] = useState(30)
+    const [limit] = useState(100)
 
     const fetchMotorList = async () => {
         setLoad(true)
         try {
-            const response = await PrivateAdminApi.getMotorList({pageNum})
+            const response = await PrivateAdminApi.getMotorList({pageNum, limit})
             setMotorList(response.data.data)
         } catch (error) {
             console.log(error.message);

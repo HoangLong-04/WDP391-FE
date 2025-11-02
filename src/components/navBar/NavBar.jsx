@@ -17,12 +17,12 @@ function NavBar() {
         <Link to={'/user/products'} className="hover:underline cursor-pointer text-2xl">
           Products
         </Link>
-        <p className="hover:underline cursor-pointer text-2xl">
+        {/* <p className="hover:underline cursor-pointer text-2xl">
           Promotion services
         </p>
         <p className="hover:underline cursor-pointer text-2xl">
           News
-        </p>
+        </p> */}
         <Link to={'/user/driving-test'} className="hover:underline cursor-pointer text-2xl">
           Driving test
         </Link>

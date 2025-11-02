@@ -12,7 +12,7 @@ function HomePage() {
       <section>
         <Banner />
       </section>
-      <section className="p-5">
+      <section className="p-5 my-5">
         <Carousel />
       </section>
       <section>
@@ -21,9 +21,9 @@ function HomePage() {
       {/* <section className="p-5">
         <TestDrive />
       </section> */}
-      <section>
+      {/* <section>
         <ReviewCarousel />
-      </section>
+      </section> */}
     </div>
   );
 }
