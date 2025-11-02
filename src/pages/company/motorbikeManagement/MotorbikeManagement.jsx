@@ -592,19 +592,6 @@ function MotorbikeManagement() {
     { key: "makeFrom", title: "Made in" },
     // { key: "version", title: "Version" },
     {
-      key: "isDeleted",
-      title: "Available",
-      render: (isDeleted) => (
-        <span
-          className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
-            isDeleted ? "bg-red-500" : "bg-green-500"
-          }`}
-        >
-          {isDeleted ? "Unavailable" : "Available"}
-        </span>
-      ),
-    },
-    {
       key: "action1",
       title: "Update",
       render: (_, item) => (
