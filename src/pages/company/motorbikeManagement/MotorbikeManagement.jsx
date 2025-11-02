@@ -15,6 +15,7 @@ import {
 } from "../../../components/viewModel/motorbikeModel/MotorbikeModel";
 import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import MotorImageForm from "./motorImageForm/MotorImageForm";
+import { Eye, Pencil, Trash2, Plus } from "lucide-react";
 
 function MotorbikeManagement() {
   const [motorList, setMotorList] = useState([]);
@@ -602,9 +603,9 @@ function MotorbikeManagement() {
             setFormModal(true);
             setSelectedId(item.id);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          Update
+          <Pencil className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -617,9 +618,9 @@ function MotorbikeManagement() {
             setDeleteModal(true);
             setSelectedId(item.id);
           }}
-          className="cursor-pointer bg-red-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
         >
-          Delete
+          <Trash2 className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -627,7 +628,7 @@ function MotorbikeManagement() {
       key: "action3",
       title: "Configuration",
       render: (_, item) => (
-        <div className="flex gap-2">
+        <div className="flex gap-2 justify-center">
           <span
             onClick={() => {
               setConfigModal(true);
@@ -635,9 +636,9 @@ function MotorbikeManagement() {
               fetchConfigByMotorId(item.id);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer bg-gray-500 rounded-lg flex justify-center items-center text-white p-2"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
           >
-            View
+            <Eye className="w-5 h-5 text-white" />
           </span>
           <span
             onClick={() => {
@@ -645,9 +646,9 @@ function MotorbikeManagement() {
               setIsEdit(false);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer bg-blue-300 rounded-lg flex justify-center items-center text-white p-2"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-300 rounded-lg hover:bg-blue-400 transition"
           >
-            Add
+            <Plus className="w-5 h-5 text-white" />
           </span>
         </div>
       ),
@@ -656,7 +657,7 @@ function MotorbikeManagement() {
       key: "action4",
       title: "Appearance",
       render: (_, item) => (
-        <div className="flex gap-2">
+        <div className="flex gap-2 justify-center">
           <span
             onClick={() => {
               setAppearanceModal(true);
@@ -664,9 +665,9 @@ function MotorbikeManagement() {
               fetchAppearanceDetail(item.id);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer bg-gray-500 rounded-lg flex justify-center items-center text-white p-2"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
           >
-            View
+            <Eye className="w-5 h-5 text-white" />
           </span>
           <span
             onClick={() => {
@@ -674,9 +675,9 @@ function MotorbikeManagement() {
               setIsEdit(false);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer bg-blue-300 rounded-lg flex justify-center items-center text-white p-2"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-300 rounded-lg hover:bg-blue-400 transition"
           >
-            Add
+            <Plus className="w-5 h-5 text-white" />
           </span>
         </div>
       ),
@@ -685,7 +686,7 @@ function MotorbikeManagement() {
       key: "action5",
       title: "Battery",
       render: (_, item) => (
-        <div className="flex gap-2">
+        <div className="flex gap-2 justify-center">
           <span
             onClick={() => {
               setBatteryModal(true);
@@ -693,9 +694,9 @@ function MotorbikeManagement() {
               fetchBatteryDetail(item.id);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer bg-gray-500 rounded-lg flex justify-center items-center text-white p-2"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
           >
-            View
+            <Eye className="w-5 h-5 text-white" />
           </span>
           <span
             onClick={() => {
@@ -703,9 +704,9 @@ function MotorbikeManagement() {
               setIsEdit(false);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer bg-blue-300 rounded-lg flex justify-center items-center text-white p-2"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-300 rounded-lg hover:bg-blue-400 transition"
           >
-            Add
+            <Plus className="w-5 h-5 text-white" />
           </span>
         </div>
       ),
@@ -714,7 +715,7 @@ function MotorbikeManagement() {
       key: "action6",
       title: "Safe feature",
       render: (_, item) => (
-        <div className="flex gap-2">
+        <div className="flex gap-2 justify-center">
           <span
             onClick={() => {
               setSafeFeatureModal(true);
@@ -722,9 +723,9 @@ function MotorbikeManagement() {
               fetchSafeFeatureDetail(item.id);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer bg-gray-500 rounded-lg flex justify-center items-center text-white p-2"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
           >
-            View
+            <Eye className="w-5 h-5 text-white" />
           </span>
           <span
             onClick={() => {
@@ -732,9 +733,9 @@ function MotorbikeManagement() {
               setIsEdit(false);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer bg-blue-300 rounded-lg flex justify-center items-center text-white p-2"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-300 rounded-lg hover:bg-blue-400 transition"
           >
-            Add
+            <Plus className="w-5 h-5 text-white" />
           </span>
         </div>
       ),
@@ -748,9 +749,9 @@ function MotorbikeManagement() {
             setMotorImageModal(true);
             setSelectedId(item.id);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          Add
+          <Plus className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -764,9 +765,9 @@ function MotorbikeManagement() {
           //   setIsEdit(false);
           //   setSelectedId(item.id);
           // }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          Add
+          <Plus className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -807,9 +808,10 @@ function MotorbikeManagement() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="p-2 rounded-lg cursor-pointer bg-blue-500 hover:bg-blue-600 transition text-white"
+            className="cursor-pointer flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 rounded-lg hover:bg-blue-600 transition text-white"
           >
-            Create motorbike
+            <Plus className="w-5 h-5" />
+            <span>Create</span>
           </button>
         </div>
       </div>
