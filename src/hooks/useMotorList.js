@@ -11,7 +11,9 @@ function useMotorList() {
         setLoad(true)
         try {
             const response = await PrivateAdminApi.getMotorList({pageNum, limit})
-            setMotorList(response.data.data)
+            // Filter out deleted motorbikes
+            const activeMotorbikes = response.data.data.filter(motor => motor.isDeleted === false)
+            setMotorList(activeMotorbikes)
         } catch (error) {
             console.log(error.message);
             
