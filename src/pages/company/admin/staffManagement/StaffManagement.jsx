@@ -7,6 +7,7 @@ import ViewModal from "../../../../components/modal/viewModal/ViewModal";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import { toast } from "react-toastify";
 import StaffForm from "./staffForm/StaffForm";
+import { Eye, Pencil, Trash2, Plus, NotebookPen } from "lucide-react";
 
 function StaffManagement() {
   const [staff, setStaff] = useState([]);
@@ -272,9 +273,9 @@ function StaffManagement() {
                 setViewModal(true);
                 fetchAgencyById(agencyId);
               }}
-              className="cursor-pointer bg-red-500 rounded-lg p-2 flex justify-center items-center text-white"
+              className="cursor-pointer bg-red-500 rounded-lg p-2 flex justify-center items-center text-white hover:bg-red-600 transition-colors"
             >
-              Agency
+              <Eye className="w-5 h-5 text-white" />
             </span>
           )}
         </>
@@ -283,49 +284,85 @@ function StaffManagement() {
     {
       key: "action1",
       title: "Assign",
-      render: (_, item) => (
-        <>
-          {!item.agencyId && (
-            <span
-              onClick={() => {
-                setAssignForm(true);
-                setSelectedId(item.id);
-              }}
-              className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
-            >
-              Assign
-            </span>
-          )}
-        </>
-      ),
+      render: (_, item) => {
+        const restrictedRoles = ["Admin", "Dealer Staff", "EVM Staff"];
+        const allowedRole = "Dealer Manager";
+        let roleNames = [];
+        
+        if (Array.isArray(item.roleNames)) {
+          // Handle array of strings or array of objects
+          roleNames = item.roleNames.map(role => {
+            if (typeof role === 'string') {
+              return role;
+            } else if (role && typeof role === 'object') {
+              return role.roleName || role.name || role;
+            }
+            return String(role);
+          });
+        } else if (typeof item.roleNames === 'string') {
+          roleNames = item.roleNames.split(',').map(r => r.trim()).filter(r => r);
+        }
+        
+        // Normalize role names and compare case-insensitively
+        const normalizedRoleNames = roleNames.map(r => String(r).toLowerCase().trim());
+        const normalizedRestricted = restrictedRoles.map(r => r.toLowerCase().trim());
+        const normalizedAllowed = allowedRole.toLowerCase().trim();
+        
+        const hasRestrictedRole = normalizedRoleNames.some(role => 
+          normalizedRestricted.includes(role)
+        );
+        
+        // Check if staff has Dealer Manager role
+        const hasDealerManagerRole = normalizedRoleNames.includes(normalizedAllowed);
+        
+        return (
+          <>
+            {!item.agencyId && !hasRestrictedRole && hasDealerManagerRole && (
+              <span
+                onClick={async () => {
+                  setSelectedId(item.id);
+                  setAgencyId(null);
+                  // Fetch agency list to ensure fresh data
+                  try {
+                    const response = await PrivateAdminApi.getAgency({ page: 1, limit: 100 });
+                    setAgencyList(response.data.data);
+                  } catch (error) {
+                    console.log(error);
+                  }
+                  setAssignForm(true);
+                }}
+                className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white hover:bg-blue-600 transition-colors"
+              >
+                <NotebookPen className="w-5 h-5 text-white" />
+              </span>
+            )}
+          </>
+        );
+      },
     },
     {
-      key: "action2",
-      title: "Update",
+      key: "actions",
+      title: "Actions",
       render: (_, item) => (
-        <span
-          onClick={() => fetchStaffById(item.id)}
-          className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
-        >
-          Update
-        </span>
-      ),
-    },
-    {
-      key: "action3",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setIsDelete(true);
-            setSelectedId(item.id);
-            setDeleteForm(true);
-            console.log(item.id);
-          }}
-          className="cursor-pointer bg-red-500 rounded-lg p-2 flex justify-center items-center text-white"
-        >
-          Delete
-        </span>
+        <div className="flex gap-2 justify-center items-center">
+          <span
+            onClick={() => fetchStaffById(item.id)}
+            className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white hover:bg-blue-600 transition-colors"
+          >
+            <Pencil className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={() => {
+              setIsDelete(true);
+              setSelectedId(item.id);
+              setDeleteForm(true);
+              console.log(item.id);
+            }}
+            className="cursor-pointer bg-red-500 rounded-lg p-2 flex justify-center items-center text-white hover:bg-red-600 transition-colors"
+          >
+            <Trash2 className="w-5 h-5 text-white" />
+          </span>
+        </div>
       ),
     },
   ];
@@ -378,9 +415,10 @@ function StaffManagement() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="cursor-pointer bg-blue-500 rounded-lg text-white p-2 hover:bg-blue-600 transition "
+            className="cursor-pointer bg-blue-500 rounded-lg text-white p-2 hover:bg-blue-600 transition-colors flex items-center gap-2"
           >
-            Create staff
+            <Plus className="w-5 h-5 text-white" />
+            <span>Create</span>
           </button>
         </div>
       </div>
@@ -407,7 +445,10 @@ function StaffManagement() {
 
       <FormModal
         isOpen={assignForm}
-        onClose={() => setAssignForm(false)}
+        onClose={() => {
+          setAssignForm(false);
+          setAgencyId(null);
+        }}
         title={"Assign staff to agency"}
         onSubmit={handleAssign}
         isSubmitting={isSubmitting}
