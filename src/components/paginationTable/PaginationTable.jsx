@@ -15,44 +15,59 @@ function PaginationTable({
   // tối đa 8 item mỗi trang
   const totalPage = Math.ceil(totalItem / pageSize);
   return (
-    <div className="bg-white rounded-xl shadow-md p-4">
-      {title && <h2 className="text-xl font-semibold mb-4">{title}</h2>}
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+      {title && (
+        <h2 className="text-2xl font-bold mb-6 text-gray-800 border-b border-gray-200 pb-3">
+          {title}
+        </h2>
+      )}
 
-      <div className="overflow-x-scroll h-[450px]">
+      <div className="overflow-x-hidden overflow-y-auto h-[450px] rounded-lg border border-gray-200">
         <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b text-[rgb(181,183,192)]">
+          <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
+            <tr className="border-b border-gray-200">
               {columns.map((col) => (
-                <th key={col.key} className="p-3">
+                <th 
+                  key={col.key} 
+                  className="p-4 text-sm font-semibold text-gray-700 uppercase tracking-wider"
+                >
                   {col.title}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="bg-white divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={columns.length} className="text-center py-6">
-                  <CircularProgress className="animate-spin text-blue-500" />
+                <td colSpan={columns.length} className="text-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <CircularProgress className="text-blue-500" size={40} />
+                    <span className="text-gray-500 text-sm">Loading...</span>
+                  </div>
                 </td>
               </tr>
             ) : data?.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="text-gray-500 text-center py-6"
+                  className="text-center py-12"
                 >
-                  No data available
+                  <div className="flex flex-col items-center gap-2">
+                    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                    </svg>
+                    <span className="text-gray-500 font-medium">No data available</span>
+                  </div>
                 </td>
               </tr>
             ) : (
               data?.map((item, idx) => (
                 <tr
                   key={item.id ?? idx}
-                  className="border-[rgb(181,183,192)] hover:bg-gray-50"
+                  className="border-b border-gray-100 hover:bg-blue-50/50 transition-colors duration-150 group"
                 >
                   {columns.map((col) => (
-                    <td key={col.key} className="p-3">
+                    <td key={col.key} className="p-4 text-sm text-gray-700 group-hover:text-gray-900">
                       {col.render
                         ? col.render(item[col.key], item)
                         : item[col.key]}
@@ -65,24 +80,28 @@ function PaginationTable({
         </table>
       </div>
 
-      <div className="flex justify-end items-center mt-4 gap-4">
+      <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+        <div className="text-sm text-gray-600">
+          Showing page <span className="font-semibold text-gray-800">{page}</span> of{" "}
+          <span className="font-semibold text-gray-800">{totalPage}</span>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={() => setPage(page - 1)}
             disabled={page === 1}
-            className="px-2 cursor-pointer flex items-center justify-center py-1 rounded-md text-sm bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-2 cursor-pointer flex items-center justify-center rounded-lg text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
           >
-            <ArrowBackIosIcon />
+            <ArrowBackIosIcon fontSize="small" />
           </button>
 
           {Array.from({ length: totalPage }, (_, i) => i + 1).map((num) => (
             <button
               key={num}
               onClick={() => setPage(num)}
-              className={`px-2.5 py-1 rounded-md text-sm cursor-pointer ${
+              className={`px-3.5 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all duration-200 ${
                 page === num
-                  ? "bg-black text-white"
-                  : "bg-gray-100 hover:bg-gray-200"
+                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md scale-105"
+                  : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm hover:scale-105"
               }`}
             >
               {num}
@@ -92,9 +111,9 @@ function PaginationTable({
           <button
             onClick={() => setPage(page + 1)}
             disabled={page === totalPage}
-            className="px-2 cursor-pointer flex items-center justify-center py-1 rounded-md text-sm bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-2 cursor-pointer flex items-center justify-center rounded-lg text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
           >
-            <ArrowForwardIosIcon />
+            <ArrowForwardIosIcon fontSize="small" />
           </button>
         </div>
       </div>
