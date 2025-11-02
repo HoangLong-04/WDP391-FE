@@ -1,6 +1,5 @@
 import CircularProgress from "@mui/material/CircularProgress";
-import ArrowBackIosIcon from "@mui/icons-material/ArrowBackIos";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 function PaginationTable({
   title,
@@ -91,7 +90,7 @@ function PaginationTable({
             disabled={page === 1}
             className="px-2 sm:px-3 py-2 cursor-pointer flex items-center justify-center rounded-lg text-xs sm:text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
           >
-            <ArrowBackIosIcon fontSize="small" />
+            <ChevronLeft className="w-4 h-4" />
           </button>
 
           {Array.from({ length: totalPage }, (_, i) => i + 1).map((num) => (
@@ -113,7 +112,7 @@ function PaginationTable({
             disabled={page === totalPage}
             className="px-2 sm:px-3 py-2 cursor-pointer flex items-center justify-center rounded-lg text-xs sm:text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
           >
-            <ArrowForwardIosIcon fontSize="small" />
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>

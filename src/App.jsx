@@ -39,6 +39,12 @@ import OrderRestockAgency from "./pages/agency/dealerManager/orderRestock/OrderR
 import OrderRestockManagement from "./pages/company/orderRestockManagement/OrderRestockManagement";
 import BookingManagement from "./pages/agency/dealerStaff/bookingManagement/BookingManagement";
 import Payment from "./pages/payment/Payment";
+import EvmStaffWarehouseManagement from "./pages/company/evmStaff/warehouseManagement/WarehouseManagement";
+import EvmStaffDiscountManagement from "./pages/company/evmStaff/discountManagement/DiscountManagement";
+import EvmStaffPromotionManagement from "./pages/company/evmStaff/promotionManagement/PromotionManagement";
+import EvmStaffInventoryManagement from "./pages/company/evmStaff/inventoryManagement/InventoryManagement";
+import EvmStaffOrderRestockManagement from "./pages/company/evmStaff/orderRestockManagement/OrderRestockManagement";
+import EvmStaffPricePolicyManagement from "./pages/company/evmStaff/pricePolicyManagement/PricePolicyManagement";
 
 function App() {
   return (
@@ -110,6 +116,31 @@ function App() {
             <Route path="company/color" element={<ColorManagement />} />
             <Route path="company/appearance" element={<AppearanceManagement />} />
             <Route path="company/configuration" element={<ConfigurationManagement />} />
+            {/* EVM Staff Routes */}
+            <Route
+              path="company/evm-staff/warehouse"
+              element={<EvmStaffWarehouseManagement />}
+            />
+            <Route
+              path="company/evm-staff/discount"
+              element={<EvmStaffDiscountManagement />}
+            />
+            <Route
+              path="company/evm-staff/promotion"
+              element={<EvmStaffPromotionManagement />}
+            />
+            <Route
+              path="company/evm-staff/inventory"
+              element={<EvmStaffInventoryManagement />}
+            />
+            <Route
+              path="company/evm-staff/order-restock"
+              element={<EvmStaffOrderRestockManagement />}
+            />
+            <Route
+              path="company/evm-staff/price-policy"
+              element={<EvmStaffPricePolicyManagement />}
+            />
           </Route>
         </Routes>
       </BrowserRouter>
