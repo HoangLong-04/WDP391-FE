@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import EditIcon from "@mui/icons-material/Edit";
+import { Eye, Pencil, Trash2, Plus } from "lucide-react";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import { toast } from "react-toastify";
 import ViewModal from "../../../components/modal/viewModal/ViewModal";
@@ -77,6 +78,7 @@ function PricePolicyManagement() {
     setViewModalLoading(true);
     try {
       const response = await PrivateAdminApi.getAgencyById(id);
+      console.log("Agency data from API:", response.data.data);
       setAgency(response.data.data);
     } catch (error) {
       toast.error(error.message);
@@ -172,9 +174,9 @@ function PricePolicyManagement() {
             setAgencyModal(true);
             fetchAgencyById(agencyId);
           }}
-          className="cursor-pointer text-white p-2 bg-blue-500 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          View
+          <Eye className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -187,9 +189,9 @@ function PricePolicyManagement() {
             setMotorModal(true);
             fetchMotorById(motorbikeId);
           }}
-          className="cursor-pointer text-white p-2 bg-blue-500 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          View
+          <Eye className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -204,9 +206,9 @@ function PricePolicyManagement() {
             setUpdateForm(item);
             setSelectedId(item.id);
           }}
-          className="cursor-pointer text-white p-2 bg-blue-500 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          Update
+          <Pencil className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -219,9 +221,9 @@ function PricePolicyManagement() {
             setSelectedId(item.id);
             setDeleteModal(true);
           }}
-          className="cursor-pointer text-white p-2 bg-red-500 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
         >
-          Delete
+          <Trash2 className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -236,9 +238,10 @@ function PricePolicyManagement() {
               setFormModal(true);
               setIsedit(false);
             }}
-            className="bg-blue-500 rounded-lg hover:bg-blue-600 transition cursor-pointer text-white p-2"
+            className="cursor-pointer flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 rounded-lg hover:bg-blue-600 transition text-white"
           >
-            Create price policy
+            <Plus className="w-5 h-5" />
+            <span>Create</span>
           </button>
         </div>
       </div>
