@@ -21,7 +21,7 @@ function MotorbikeManagement() {
   const [motor, setMotor] = useState({});
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(100);
   const [model, setModel] = useState("");
   const [makeFrom, setMakeFrom] = useState("");
   const [totalItem, setTotalItem] = useState(0);
@@ -188,8 +188,13 @@ function MotorbikeManagement() {
         makeFrom,
         model,
       });
-      setMotorList(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      // Filter các item đã bị xóa (isDeleted = true) để đảm bảo không hiển thị
+      const filteredData = response.data.data?.filter(
+        (motor) => !motor.isDeleted
+      ) || [];
+      
+      setMotorList(filteredData);
+      setTotalItem(response.data.paginationInfo?.total || 0);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -535,8 +540,28 @@ function MotorbikeManagement() {
     try {
       await PrivateAdminApi.deleteMotorbike(selectedId);
       toast.success("Delete successfully");
-      fetchMotorbikeList();
       setDeleteModal(false);
+      
+      // Xóa ngay lập tức khỏi danh sách hiện tại để UX tốt
+      const newList = motorList.filter((motor) => motor.id !== selectedId);
+      setMotorList(newList);
+      
+      // Cập nhật totalItem
+      const newTotal = Math.max(0, totalItem - 1);
+      setTotalItem(newTotal);
+      
+      // Tính số trang tối đa sau khi xóa
+      const maxPageAfterDelete = Math.ceil(newTotal / limit);
+      
+      // Nếu trang hiện tại lớn hơn số trang tối đa hoặc không còn item nào
+      if (page > maxPageAfterDelete && maxPageAfterDelete > 0) {
+        setPage(maxPageAfterDelete);
+      } else if (maxPageAfterDelete === 0) {
+        setPage(1);
+      } else {
+        // Refresh list từ API
+        await fetchMotorbikeList();
+      }
     } catch (error) {
       toast.error(error.message);
     } finally {
