@@ -13,6 +13,7 @@ import {
 } from "../../../components/viewModel/stockModel/StockModel";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import StockForm from "./stockForm/StockForm";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 function StockManagement() {
   const { user } = useAuth();
@@ -160,50 +161,43 @@ function StockManagement() {
       render: (updateAt) => dayjs(updateAt).format("DD/MM/YYYY"),
     },
     {
-      key: "action1",
-      title: "View detail",
+      key: "action",
+      title: "Action",
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setViewModal(true);
-            fetchStockById(item.id);
-          }}
-          className="bg-blue-500 cursor-pointer p-2 rounded-lg text-white"
-        >
-          View
-        </span>
-      ),
-    },
-    {
-      key: "action2",
-      title: "Update",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setIsEdit(true)
-            setFormModal(true)
-            setSelectedId(item.id)
-            setUpdateForm(item)
-          }}
-          className="bg-blue-500 cursor-pointer p-2 rounded-lg text-white"
-        >
-          Update
-        </span>
-      ),
-    },
-    {
-      key: "action3",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setDeleteModal(true)
-            setSelectedId(item.id)
-          }}
-          className="bg-red-500 cursor-pointer p-2 rounded-lg text-white"
-        >
-          Delete
-        </span>
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={() => {
+              setViewModal(true);
+              fetchStockById(item.id);
+            }}
+            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+            title="View detail"
+          >
+            <Eye size={18} />
+          </button>
+          <button
+            onClick={() => {
+              setIsEdit(true)
+              setFormModal(true)
+              setSelectedId(item.id)
+              setUpdateForm(item)
+            }}
+            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+            title="Update"
+          >
+            <Pencil size={18} />
+          </button>
+          <button
+            onClick={() => {
+              setDeleteModal(true)
+              setSelectedId(item.id)
+            }}
+            className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
+            title="Delete"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
       ),
     },
   ];

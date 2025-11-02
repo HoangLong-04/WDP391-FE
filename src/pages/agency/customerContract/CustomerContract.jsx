@@ -16,6 +16,7 @@ import useColorList from "../../../hooks/useColorList";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
+import { Pencil, Trash2, Eye } from "lucide-react";
 
 function CustomerContract() {
   const { user } = useAuth();
@@ -198,55 +199,51 @@ function CustomerContract() {
     { key: "customerId", title: "Customer" },
     { key: "staffId", title: "Staff" },
     { key: "agencyId", title: "Agency" },
-    {
-      key: "electricMotorbikeId",
-      title: "Electric motorbike",
-      render: (electricMotorbikeId) => (
-        <span
-          onClick={() => {
-            setMotorModal(true);
-            fetchMotorById(electricMotorbikeId);
-          }}
-          className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
-        >
-          View
-        </span>
-      ),
-    },
+    { key: "electricMotorbikeId", title: "Electric motorbike" },
     { key: "colorId", title: "Color" },
     {
-      key: "action1",
-      title: "Update",
+      key: "action",
+      title: "Action",
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setIsedit(true);
-            setSelectedId(item.id);
-            setFormModal(true);
-            setUpdateForm({
-              ...item,
-              createDate: dayjs(item.createDate).format('YYYY-MM-DD')
-            })
-          }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
-        >
-          Update
-        </span>
-      ),
-    },
-    {
-      key: "action2",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setDeleteModal(true);
-          }}
-          className="cursor-pointer bg-red-500 rounded-lg flex justify-center items-center text-white p-2"
-        >
-          Delete
-        </span>
+        <div className="flex gap-2 items-center">
+          {item.electricMotorbikeId && (
+            <button
+              onClick={() => {
+                setMotorModal(true);
+                fetchMotorById(item.electricMotorbikeId);
+              }}
+              className="cursor-pointer text-white bg-purple-500 p-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center"
+              title="View motorbike"
+            >
+              <Eye size={18} />
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setIsedit(true);
+              setSelectedId(item.id);
+              setFormModal(true);
+              setUpdateForm({
+                ...item,
+                createDate: dayjs(item.createDate).format('YYYY-MM-DD')
+              })
+            }}
+            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+            title="Update"
+          >
+            <Pencil size={18} />
+          </button>
+          <button
+            onClick={() => {
+              setSelectedId(item.id);
+              setDeleteModal(true);
+            }}
+            className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
+            title="Delete"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
       ),
     },
   ];

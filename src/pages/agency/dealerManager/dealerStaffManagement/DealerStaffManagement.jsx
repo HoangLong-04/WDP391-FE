@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import PaginationTable from "../../../../components/paginationTable/PaginationTable";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import DealerStaffForm from "../dealerStaffForm/DealerStaffForm";
+import { Pencil, Trash2 } from "lucide-react";
 
 function DealerStaffManagement() {
   const { user } = useAuth();
@@ -119,11 +120,6 @@ function DealerStaffManagement() {
     { key: "email", title: "Email" },
     { key: "phone", title: "Phone" },
     { key: "address", title: "Address" },
-    {
-      key: "createAt",
-      title: "Create date",
-      render: (createAt) => dayjs(createAt).format("DD/MM/YYYY"),
-    },
     { key: "roleNames", title: "Roles" },
     {
       key: "isActive",
@@ -157,37 +153,34 @@ function DealerStaffManagement() {
       render: (agencyId) => <>{agencyId && agencyId}</>,
     },
     {
-      key: "action1",
-      title: "Update",
+      key: "action",
+      title: "Action",
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setIsEdit(true);
-            setSelectedId(item.id);
-            setUpdateForm(item);
-            setFormModal(true);
-          }}
-          className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg"
-        >
-          Update
-        </span>
-      ),
-    },
-    {
-      key: "action2",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            console.log(item.id);
-            
-            setSelectedId(item.id);
-            setDeleteModal(true);
-          }}
-          className="cursor-pointer text-white bg-red-500 p-2 rounded-lg"
-        >
-          Delete
-        </span>
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={() => {
+              setIsEdit(true);
+              setSelectedId(item.id);
+              setUpdateForm(item);
+              setFormModal(true);
+            }}
+            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+            title="Update"
+          >
+            <Pencil size={18} />
+          </button>
+          <button
+            onClick={() => {
+              console.log(item.id);
+              setSelectedId(item.id);
+              setDeleteModal(true);
+            }}
+            className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
+            title="Delete"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
       ),
     },
   ];
