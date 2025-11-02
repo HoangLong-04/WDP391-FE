@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
-import EditIcon from "@mui/icons-material/Edit";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import { toast } from "react-toastify";

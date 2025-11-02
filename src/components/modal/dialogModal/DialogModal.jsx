@@ -7,7 +7,7 @@ import IconButton from "@mui/material/IconButton";
 import { useTheme } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import CloseIcon from "@mui/icons-material/Close";
+import { X } from "lucide-react";
 import Box from "@mui/material/Box";
 
 function DialogModal({
@@ -52,7 +52,7 @@ function DialogModal({
             color: (theme) => theme.palette.grey[500],
           }}
         >
-          <CloseIcon />
+          <X className="w-5 h-5" />
         </IconButton>
       </DialogTitle>
 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import EditIcon from "@mui/icons-material/Edit";
+import { Pencil } from "lucide-react";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 
 function CompanyProduct() {
@@ -81,7 +81,7 @@ function CompanyProduct() {
       title: "Action",
       render: () => (
         <span className="cursor-pointer text-blue-500">
-          <EditIcon />
+          <Pencil className="w-5 h-5" />
         </span>
       ),
     },

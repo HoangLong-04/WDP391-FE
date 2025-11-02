@@ -1,4 +1,4 @@
-import CloseIcon from "@mui/icons-material/Close";
+import { X } from "lucide-react";
 
 function BaseModal({ isOpen, onClose, title, children, size = "md" }) {
   if (!isOpen) return null;
@@ -30,7 +30,7 @@ function BaseModal({ isOpen, onClose, title, children, size = "md" }) {
             className="p-2 hover:bg-gray-100 rounded-full cursor-pointer transition-colors duration-200 group"
             aria-label="Close"
           >
-            <CloseIcon className="text-gray-500 group-hover:text-gray-700 transition-colors" />
+            <X className="w-5 h-5 text-gray-500 group-hover:text-gray-700 transition-colors" />
           </button>
         </div>
 
