@@ -573,68 +573,50 @@ function MotorbikeManagement() {
   const columns = [
     {
       key: "id",
-      title: "Motorbike",
+      title: <span className="block text-center">ID</span>,
       render: (id) => (
         <span
           onClick={() => {
             setMotorModal(true);
             fetchMotorById(id);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
+          className="cursor-pointer block text-center"
         >
           {id}
         </span>
       ),
     },
-    { key: "name", title: "Name" },
+    {
+      key: "name",
+      title: <span className="block text-center">Name</span>,
+      render: (name) => <span className="block text-center">{name}</span>,
+    },
     // { key: "price", title: "Price", render: (price) => price.toLocaleString() },
     // { key: "description", title: "Description" },
-    { key: "model", title: "Model" },
-    { key: "makeFrom", title: "Made in" },
-    // { key: "version", title: "Version" },
     {
-      key: "action1",
-      title: "Update",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setUpdateForm(item);
-            setIsEdit(true);
-            setFormModal(true);
-            setSelectedId(item.id);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Pencil className="w-5 h-5 text-white" />
-        </span>
-      ),
+      key: "model",
+      title: <span className="block text-center">Model</span>,
+      render: (model) => <span className="block text-center">{model}</span>,
     },
     {
-      key: "action2",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setDeleteModal(true);
-            setSelectedId(item.id);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
-        >
-          <Trash2 className="w-5 h-5 text-white" />
-        </span>
-      ),
+      key: "makeFrom",
+      title: <span className="block text-center">Made in</span>,
+      render: (madeIn) => <span className="block text-center">{madeIn}</span>,
     },
     {
-      key: "action3",
-      title: "Configuration",
+      key: "version",
+      title: <span className="block text-center">Version</span>,
+      render: (version) => <span className="block text-center">{version}</span>,
+    },
+    {
+      key: "action",
+      title: <span className="block text-center">Action</span>,
       render: (_, item) => (
         <div className="flex gap-2 justify-center">
           <span
             onClick={() => {
-              setConfigModal(true);
-              setIsEdit(true);
-              fetchConfigByMotorId(item.id);
-              setSelectedId(item.id);
+              setMotorModal(true);
+              fetchMotorById(item.id);
             }}
             className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
           >
@@ -642,133 +624,25 @@ function MotorbikeManagement() {
           </span>
           <span
             onClick={() => {
-              setConfigModal(true);
-              setIsEdit(false);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-300 rounded-lg hover:bg-blue-400 transition"
-          >
-            <Plus className="w-5 h-5 text-white" />
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: "action4",
-      title: "Appearance",
-      render: (_, item) => (
-        <div className="flex gap-2 justify-center">
-          <span
-            onClick={() => {
-              setAppearanceModal(true);
+              setUpdateForm(item);
               setIsEdit(true);
-              fetchAppearanceDetail(item.id);
+              setFormModal(true);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
           >
-            <Eye className="w-5 h-5 text-white" />
+            <Pencil className="w-5 h-5 text-white" />
           </span>
           <span
             onClick={() => {
-              setAppearanceModal(true);
-              setIsEdit(false);
+              setDeleteModal(true);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-300 rounded-lg hover:bg-blue-400 transition"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition"
           >
-            <Plus className="w-5 h-5 text-white" />
+            <Trash2 className="w-5 h-5 text-white" />
           </span>
         </div>
-      ),
-    },
-    {
-      key: "action5",
-      title: "Battery",
-      render: (_, item) => (
-        <div className="flex gap-2 justify-center">
-          <span
-            onClick={() => {
-              setBatteryModal(true);
-              setIsEdit(true);
-              fetchBatteryDetail(item.id);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
-          >
-            <Eye className="w-5 h-5 text-white" />
-          </span>
-          <span
-            onClick={() => {
-              setBatteryModal(true);
-              setIsEdit(false);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-300 rounded-lg hover:bg-blue-400 transition"
-          >
-            <Plus className="w-5 h-5 text-white" />
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: "action6",
-      title: "Safe feature",
-      render: (_, item) => (
-        <div className="flex gap-2 justify-center">
-          <span
-            onClick={() => {
-              setSafeFeatureModal(true);
-              setIsEdit(true);
-              fetchSafeFeatureDetail(item.id);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
-          >
-            <Eye className="w-5 h-5 text-white" />
-          </span>
-          <span
-            onClick={() => {
-              setSafeFeatureModal(true);
-              setIsEdit(false);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-300 rounded-lg hover:bg-blue-400 transition"
-          >
-            <Plus className="w-5 h-5 text-white" />
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: "action7",
-      title: "Image for motorbike",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setMotorImageModal(true);
-            setSelectedId(item.id);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Plus className="w-5 h-5 text-white" />
-        </span>
-      ),
-    },
-    {
-      key: "action8",
-      title: "Color for motorbike",
-      render: (_, item) => (
-        <span
-          // onClick={() => {
-          //   setSafeFeatureModal(true);
-          //   setIsEdit(false);
-          //   setSelectedId(item.id);
-          // }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Plus className="w-5 h-5 text-white" />
-        </span>
       ),
     },
   ];
