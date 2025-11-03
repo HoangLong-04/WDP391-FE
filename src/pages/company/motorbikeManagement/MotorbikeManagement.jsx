@@ -22,10 +22,13 @@ function MotorbikeManagement() {
   const [motor, setMotor] = useState({});
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(100);
+  const [limit] = useState(5);
   const [model, setModel] = useState("");
   const [makeFrom, setMakeFrom] = useState("");
   const [totalItem, setTotalItem] = useState(0);
+  const [allMotorList, setAllMotorList] = useState([]);
+  const [modelOptions, setModelOptions] = useState([]);
+  const [makeFromOptions, setMakeFromOptions] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [viewModalLoading, setViewModalLoading] = useState(false);
@@ -184,8 +187,8 @@ function MotorbikeManagement() {
     setLoading(true);
     try {
       const response = await PrivateAdminApi.getMotorList({
-        page,
-        limit,
+        page: 1,
+        limit: 1000,
         makeFrom,
         model,
       });
@@ -194,14 +197,29 @@ function MotorbikeManagement() {
         (motor) => !motor.isDeleted
       ) || [];
       
-      setMotorList(filteredData);
-      setTotalItem(response.data.paginationInfo?.total || 0);
+      setAllMotorList(filteredData);
+      const startIdx = (page - 1) * limit;
+      const endIdx = startIdx + limit;
+      setMotorList(filteredData.slice(startIdx, endIdx));
+      setTotalItem(filteredData.length);
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // Cập nhật tùy chọn filter dựa trên danh sách hiện có trong bộ nhớ
+  useEffect(() => {
+    const uniqueModels = Array.from(
+      new Set(allMotorList.map((it) => it.model).filter(Boolean))
+    );
+    const uniqueMakeFroms = Array.from(
+      new Set(allMotorList.map((it) => it.makeFrom).filter(Boolean))
+    );
+    setModelOptions(uniqueModels);
+    setMakeFromOptions(uniqueMakeFroms);
+  }, [allMotorList]);
 
   const fetchConfigByMotorId = async (id) => {
     setDialogLoading(true);
@@ -495,7 +513,15 @@ function MotorbikeManagement() {
 
   useEffect(() => {
     fetchMotorbikeList();
-  }, [page, limit, makeFrom, model]);
+  }, [makeFrom, model]);
+
+  useEffect(() => {
+    const startIdx = (page - 1) * limit;
+    const endIdx = startIdx + limit;
+    setMotorList(allMotorList.slice(startIdx, endIdx));
+  }, [page, limit, allMotorList]);
+
+  
 
   const handleCreateMotorbike = async (e) => {
     e.preventDefault();
@@ -543,26 +569,14 @@ function MotorbikeManagement() {
       toast.success("Delete successfully");
       setDeleteModal(false);
       
-      // Xóa ngay lập tức khỏi danh sách hiện tại để UX tốt
-      const newList = motorList.filter((motor) => motor.id !== selectedId);
-      setMotorList(newList);
-      
-      // Cập nhật totalItem
-      const newTotal = Math.max(0, totalItem - 1);
+      // Cập nhật danh sách toàn bộ và phân trang client-side
+      const newAll = allMotorList.filter((motor) => motor.id !== selectedId);
+      setAllMotorList(newAll);
+      const newTotal = Math.max(0, newAll.length);
       setTotalItem(newTotal);
-      
-      // Tính số trang tối đa sau khi xóa
-      const maxPageAfterDelete = Math.ceil(newTotal / limit);
-      
-      // Nếu trang hiện tại lớn hơn số trang tối đa hoặc không còn item nào
-      if (page > maxPageAfterDelete && maxPageAfterDelete > 0) {
-        setPage(maxPageAfterDelete);
-      } else if (maxPageAfterDelete === 0) {
-        setPage(1);
-      } else {
-        // Refresh list từ API
-        await fetchMotorbikeList();
-      }
+      const maxPageAfterDelete = Math.ceil(newTotal / limit) || 1;
+      const nextPage = Math.min(page, maxPageAfterDelete);
+      setPage(nextPage);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -649,34 +663,50 @@ function MotorbikeManagement() {
 
   return (
     <div>
-      <div className="my-3 flex justify-end items-center gap-5">
-        <div>
-          <label className="mr-2 font-medium text-gray-600">Made in:</label>
-          <input
-            placeholder="Made in"
+      <div className="my-3 flex flex-wrap justify-end items-center gap-4">
+        <div className="flex items-center gap-2">
+          <label className="font-medium text-gray-600">Made in:</label>
+          <select
             value={makeFrom}
             onChange={(e) => {
               setMakeFrom(e.target.value);
               setPage(1);
             }}
-            className="border border-gray-300 rounded-md px-2 py-1"
-            type="text"
-          />
+            className="border border-gray-300 rounded-md px-2 py-2 min-w-[160px] bg-white"
+          >
+            <option value="">All</option>
+            {makeFromOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
         </div>
-        <div>
-          <label className="mr-2 font-medium text-gray-600">Model:</label>
-          <input
-            placeholder="Model"
+        <div className="flex items-center gap-2">
+          <label className="font-medium text-gray-600">Model:</label>
+          <select
             value={model}
             onChange={(e) => {
               setModel(e.target.value);
               setPage(1);
             }}
-            className="border border-gray-300 rounded-md px-2 py-1"
-            type="text"
-          />
+            className="border border-gray-300 rounded-md px-2 py-2 min-w-[160px] bg-white"
+          >
+            <option value="">All</option>
+            {modelOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setModel("");
+              setMakeFrom("");
+              setPage(1);
+            }}
+            className="px-3 py-2 rounded-md border border-gray-300 hover:bg-gray-100 transition text-gray-700"
+          >
+            Reset
+          </button>
           <button
             onClick={() => {
               setFormModal(true);
