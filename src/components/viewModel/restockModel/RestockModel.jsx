@@ -12,14 +12,12 @@ const formatDate = (date) => {
 };
 export const generalFields = [
   { key: "id", label: "Order id" },
-  { key: "status", label: "Status" },
   {
     key: "wholesalePrice",
     label: "Total amount",
     render: formatCurrency,
   },
   { key: "finalPrice", label: "Final price", render: formatCurrency },
-  { key: "orderAt", label: "Order date", render: formatDate },
 ];
 
 export const groupedFields = [
@@ -29,8 +27,7 @@ export const groupedFields = [
     title: "PRODUCT DETAILS",
     fields: [
       { label: "Motorbike Name", key: "electricMotorbike.name" }, // Nested object access
-      { label: "Motorbike ID", key: "electricMotorbikeId" },
-      { label: "Color ID", key: "colorId" },
+      { label: "Color", key: "color.colorType" },
       { label: "Quantity", key: "quantity", type: "number" },
     ],
   },
@@ -38,9 +35,8 @@ export const groupedFields = [
   // --- WAREHOUSE AND AGENCY INFORMATION ---
   {
     key: "location_info",
-    title: "WAREHOUSE AND AGENCY",
+    title: "WAREHOUSE",
     fields: [
-      { label: "Agency ID", key: "agencyId" },
       { label: "Warehouse Name", key: "warehouse.name" },
       { label: "Warehouse Address", key: "warehouse.address" },
       { label: "Warehouse Location", key: "warehouse.location" },
@@ -69,9 +65,8 @@ export const groupedFields = [
         render: formatCurrency,
       },
       { label: "Subtotal", key: "subtotal", render: formatCurrency },
-      { label: "Price Policy ID", key: "pricePolicyId" },
-      { label: "Promotion ID", key: "promotionId" },
-      { label: "Discount ID", key: "discountId" },
+      { label: "Discount", key: "discountPolicy.name" },
+      { label: "Promotion", key: "promotion.name" },
     ],
   },
   {

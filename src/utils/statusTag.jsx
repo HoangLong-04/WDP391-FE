@@ -15,15 +15,16 @@ export const renderStatusTag = (status) => {
     INACTIVE: { bg: "bg-red-500", label: "Inactive" },
     
     // Contract/Order statuses
-    PENDING: { bg: "bg-yellow-500", label: "Pending" },
+    DRAFT: { bg: "bg-slate-500", label: "Draft" },
+    PENDING: { bg: "bg-amber-500", label: "Pending" },
+    APPROVED: { bg: "bg-indigo-500", label: "Approved" },
     CONFIRMED: { bg: "bg-blue-500", label: "Confirmed" },
-    PROCESSING: { bg: "bg-blue-500", label: "Processing" },
-    DELIVERED: { bg: "bg-green-500", label: "Delivered" },
-    COMPLETED: { bg: "bg-green-500", label: "Completed" },
-    CANCELED: { bg: "bg-red-500", label: "Canceled" },
-    CANCELLED: { bg: "bg-red-500", label: "Cancelled" },
-    DRAFT: { bg: "bg-gray-500", label: "Draft" },
-    PAID: { bg: "bg-green-500", label: "Paid" },
+    PROCESSING: { bg: "bg-sky-500", label: "Processing" },
+    DELIVERED: { bg: "bg-teal-500", label: "Delivered" },
+    PAID: { bg: "bg-emerald-500", label: "Paid" },
+    COMPLETED: { bg: "bg-green-600", label: "Completed" },
+    CANCELED: { bg: "bg-rose-500", label: "Canceled" },
+    CANCELLED: { bg: "bg-rose-500", label: "Cancelled" },
     
     // Default fallback
     default: { bg: "bg-gray-500", label: status },
