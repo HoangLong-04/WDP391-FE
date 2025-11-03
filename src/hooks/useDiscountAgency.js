@@ -10,9 +10,12 @@ function useDiscountAgency() {
   const fetchDiscountList = async () => {
     try {
       const response = await PrivateDealerManagerApi.getDiscountList(
-        user?.agencyId
+        user?.agencyId,
+        { page: 1, limit: 100 }
       );
-      setDiscountList(response.data.data);
+      const all = response.data?.data || [];
+      const activeOnly = all.filter((d) => (d?.status || '').toUpperCase() === 'ACTIVE');
+      setDiscountList(activeOnly);
     } catch (error) {
       console.log(error.message);
     }
