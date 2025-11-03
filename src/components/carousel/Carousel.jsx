@@ -50,12 +50,12 @@ function Carousel() {
         {loading
           ? "Loading..."
           : motorList.map((b) => (
-              <SwiperSlide>
+              <SwiperSlide key={b.id}>
                 <div className="flex justify-center items-center p-2">
                   <BikeCard
                     name={b.name}
                     price={b.price}
-                    image={b.images[0].imageUrl}
+                    image={b?.images?.[0]?.imageUrl || "/assets/placeholder-bike.jpg"}
                     id={b.id}
                   />
                 </div>
