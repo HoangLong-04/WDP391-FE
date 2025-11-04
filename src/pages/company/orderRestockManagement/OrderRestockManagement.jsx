@@ -11,6 +11,8 @@ import {
 import FormModal from "../../../components/modal/formModal/FormModal";
 import RestockForm from "./restockForm/RestockForm";
 import dayjs from "dayjs";
+import { Eye, Pencil } from "lucide-react";
+import { renderStatusTag } from "../../../utils/statusTag";
 
 function OrderRestockManagement() {
   const { agencyList } = useAgencyList();
@@ -39,16 +41,21 @@ function OrderRestockManagement() {
   const fetchOrderRestock = async () => {
     setLoading(true);
     try {
-      const response = await PrivateAdminApi.getOrderRestock({
+      const params = {
         page,
         limit,
-        status,
-        agencyId,
-      });
-      setOrderList(response.data.data);
-      setTotalItem(response.data.paginationInfo);
+      };
+      if (status) params.status = status;
+      if (agencyId) params.agencyId = agencyId;
+      
+      const response = await PrivateAdminApi.getOrderRestock(params);
+      setOrderList(response.data?.data || []);
+      const total = response.data?.paginationInfo?.total;
+      setTotalItem(total ? Number(total) : 0);
     } catch (error) {
       toast.error(error.message);
+      setOrderList([]);
+      setTotalItem(0);
     } finally {
       setLoading(false);
     }
@@ -89,47 +96,50 @@ function OrderRestockManagement() {
 
   const column = [
     { key: "id", title: "Id" },
-    { key: "quantity", title: "Quantity" },
-    { key: "basePrice", title: "Base price" },
-    { key: "wholeSalePrice", title: "Wholesale price" },
-    { key: "discountTotal", title: "Discount total" },
-    { key: "promotionTotal", title: "Promotion total" },
-    { key: "finalPrice", title: "Final price" },
-    { key: "subTotal", title: "Sub total" },
+    { key: "itemQuantity", title: "Quantity" },
+    { key: "subtotal", title: "Sub total" },
     {
       key: "orderAt",
       title: "Order date",
       render: (date) => dayjs(date).format("DD-MM-YYYY"),
     },
-    { key: "status", title: "Status" },
+    { key: "orderType", title: "Order type" },
     {
-      key: "action1",
-      title: "Detail",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setOrderModal(true);
-            fetchOrderRestockDetail(item.id);
-          }}
-          className="cursor-pointer text-white p-2 bg-blue-500 rounded-lg"
-        >
-          View
-        </span>
-      ),
+      key: "status",
+      title: "Status",
+      render: (status) => renderStatusTag(status),
     },
     {
-      key: "action2",
-      title: "Update status",
+      key: "creditChecked",
+      title: "Credit checked",
+      render: (checked) => (checked ? "Yes" : "No"),
+    },
+    {
+      key: "action",
+      title: <span className="block text-center">Action</span>,
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setFormModal(true);
-            setSelectedId(item.id);
-          }}
-          className="cursor-pointer text-white p-2 bg-blue-500 rounded-lg"
-        >
-          Update
-        </span>
+        <div className="flex gap-2 justify-center">
+          <span
+            onClick={() => {
+              setOrderModal(true);
+              fetchOrderRestockDetail(item.id);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
+            title="View detail"
+          >
+            <Eye className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={() => {
+              setFormModal(true);
+              setSelectedId(item.id);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
+            title="Update status"
+          >
+            <Pencil className="w-5 h-5 text-white" />
+          </span>
+        </div>
       ),
     },
   ];
