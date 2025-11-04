@@ -131,20 +131,9 @@ function SharedSidebar() {
           ],
         },
         {
-          label: "Staff",
-          Icon: Settings,
-          children: [
-            {
-              path: "/company/role",
-              label: "Roles",
-              Icon: UserCircle,
-            },
-            {
               path: "/company/all-staff",
-              label: "All staffs",
+              label: "Staffs",
               Icon: Users,
-            },
-          ],
         },
         {
           label: "Policy",

@@ -7,19 +7,21 @@ import ViewModal from "../../../../components/modal/viewModal/ViewModal";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import { toast } from "react-toastify";
 import StaffForm from "./staffForm/StaffForm";
-import { Eye, Pencil, Trash2, Plus, NotebookPen } from "lucide-react";
+import { Pencil, Trash2, Plus, NotebookPen, Building } from "lucide-react";
 
 function StaffManagement() {
   const [staff, setStaff] = useState([]);
   const [agency, setAgency] = useState({});
   const [roleList, setRoleList] = useState([]);
   const [agencyList, setAgencyList] = useState([]);
+  const [availableAgencyList, setAvailableAgencyList] = useState([]);
+  const [agenciesWithManager, setAgenciesWithManager] = useState(new Set());
   const [agencyId, setAgencyId] = useState(null);
 
   const [totalItem, setTotalItem] = useState(null);
   const [page, setPage] = useState(1);
   const [role, setRole] = useState("");
-  const [limit] = useState(10);
+  const [limit] = useState(5);
 
   const [loading, setLoading] = useState(false);
   const [formModalLoading, setFormModalLoading] = useState(false);
@@ -74,18 +76,92 @@ function StaffManagement() {
     fetchAgency();
     fetchAllStaff();
     fetchRole();
-  }, [page, limit]);
+  }, [page, limit, role]);
+
+  // Fetch agency list để tính toán available agencies
+  useEffect(() => {
+    const fetchAgenciesForCheck = async () => {
+      try {
+        const response = await PrivateAdminApi.getAgency({ page: 1, limit: 100 });
+        setAgencyList(response.data.data);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    fetchAgenciesForCheck();
+  }, []);
 
   const fetchAllStaff = async () => {
     setLoading(true);
     try {
-      const response = await PrivateAdminApi.getAllStaff({
-        page,
-        limit,
-        role,
+      // Fetch tất cả staff để filter và phân trang ở client-side
+      let allStaff = [];
+      let currentPage = 1;
+      let hasMore = true;
+      
+      // Fetch tất cả các trang
+      while (hasMore) {
+        const response = await PrivateAdminApi.getAllStaff({
+          page: currentPage,
+          limit: 100, // Fetch nhiều items mỗi lần để giảm số request
+          role,
+        });
+        
+        const staffData = response.data.data;
+        allStaff = [...allStaff, ...staffData];
+        
+        // Kiểm tra xem còn trang nào không
+        const totalPages = Math.ceil(response.data.paginationInfo.total / 100);
+        hasMore = currentPage < totalPages && staffData.length > 0;
+        currentPage++;
+        
+        // Giới hạn tối đa 10 trang để tránh quá nhiều request
+        if (currentPage > 10) break;
+      }
+      
+      // Filter out deleted staff
+      const filteredStaff = allStaff.filter(staff => !staff.isDeleted);
+      
+      // Tính toán agencies đã có Dealer Manager
+      const agenciesWithManagerSet = new Set();
+      filteredStaff.forEach(staff => {
+        if (staff.agencyId) {
+          let roleNames = [];
+          if (Array.isArray(staff.roleNames)) {
+            roleNames = staff.roleNames.map(role => {
+              if (typeof role === 'string') return role;
+              if (role && typeof role === 'object') return role.roleName || role.name || role;
+              return String(role);
+            });
+          } else if (typeof staff.roleNames === 'string') {
+            roleNames = staff.roleNames.split(',').map(r => r.trim()).filter(r => r);
+          }
+          
+          const hasDealerManager = roleNames.some(r => 
+            String(r).toLowerCase().trim() === "dealer manager"
+          );
+          
+          if (hasDealerManager) {
+            agenciesWithManagerSet.add(staff.agencyId);
+          }
+        }
       });
-      setStaff(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      setAgenciesWithManager(agenciesWithManagerSet);
+      
+      // Sắp xếp theo createAt giảm dần (mới nhất trước)
+      const sortedStaff = filteredStaff.sort((a, b) => {
+        const dateA = new Date(a.createAt || 0);
+        const dateB = new Date(b.createAt || 0);
+        return dateB - dateA; // Giảm dần: mới nhất trước
+      });
+      
+      // Phân trang ở client-side
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedStaff = sortedStaff.slice(startIndex, endIndex);
+      
+      setStaff(paginatedStaff);
+      setTotalItem(sortedStaff.length);
     } catch (error) {
       console.log(error);
     } finally {
@@ -216,10 +292,8 @@ function StaffManagement() {
   };
 
   const handleChangeRole = (e) => {
-    const selectedOptions = Array.from(e.target.selectedOptions, (option) =>
-      parseInt(option.value)
-    );
-    setForm({ ...form, role: selectedOptions });
+    const selectedValue = parseInt(e.target.value);
+    setForm({ ...form, role: selectedValue ? [selectedValue] : [] });
   };
 
   const columns = [
@@ -230,11 +304,6 @@ function StaffManagement() {
     { key: "email", title: "Email" },
     { key: "phone", title: "Phone" },
     { key: "address", title: "Address" },
-    {
-      key: "createAt",
-      title: "Create date",
-      render: (createAt) => dayjs(createAt).format("DD/MM/YYYY"),
-    },
     { key: "roleNames", title: "Roles" },
     {
       key: "isActive",
@@ -250,47 +319,14 @@ function StaffManagement() {
       ),
     },
     {
-      key: "isDeleted",
-      title: "Available",
-      render: (isDeleted) => (
-        <div
-          className={`px-3 py-1 rounded-full text-white text-sm font-medium text-center ${
-            isDeleted ? "bg-red-500" : "bg-green-500"
-          }`}
-        >
-          {isDeleted ? "Not" : "Available"}
-        </div>
-      ),
-    },
-    {
-      key: "agencyId",
-      title: "Agency",
-      render: (agencyId) => (
-        <>
-          {agencyId && (
-            <span
-              onClick={() => {
-                setViewModal(true);
-                fetchAgencyById(agencyId);
-              }}
-              className="cursor-pointer bg-red-500 rounded-lg p-2 flex justify-center items-center text-white hover:bg-red-600 transition-colors"
-            >
-              <Eye className="w-5 h-5 text-white" />
-            </span>
-          )}
-        </>
-      ),
-    },
-    {
-      key: "action1",
-      title: "Assign",
+      key: "actions",
+      title: <span className="block text-center">Actions</span>,
       render: (_, item) => {
-        const restrictedRoles = ["Admin", "Dealer Staff", "EVM Staff"];
+        // Check if staff is Dealer Manager and not yet assigned
         const allowedRole = "Dealer Manager";
         let roleNames = [];
         
         if (Array.isArray(item.roleNames)) {
-          // Handle array of strings or array of objects
           roleNames = item.roleNames.map(role => {
             if (typeof role === 'string') {
               return role;
@@ -303,67 +339,81 @@ function StaffManagement() {
           roleNames = item.roleNames.split(',').map(r => r.trim()).filter(r => r);
         }
         
-        // Normalize role names and compare case-insensitively
         const normalizedRoleNames = roleNames.map(r => String(r).toLowerCase().trim());
-        const normalizedRestricted = restrictedRoles.map(r => r.toLowerCase().trim());
         const normalizedAllowed = allowedRole.toLowerCase().trim();
-        
-        const hasRestrictedRole = normalizedRoleNames.some(role => 
-          normalizedRestricted.includes(role)
-        );
-        
-        // Check if staff has Dealer Manager role
         const hasDealerManagerRole = normalizedRoleNames.includes(normalizedAllowed);
+        const canAssign = !item.agencyId && hasDealerManagerRole;
         
+        // Check xem còn agency nào available không
+        const availableAgencies = agencyList.filter(agency => 
+          !agenciesWithManager.has(agency.id)
+        );
+        const hasAvailableAgency = availableAgencies.length > 0;
+
         return (
-          <>
-            {!item.agencyId && !hasRestrictedRole && hasDealerManagerRole && (
+          <div className="flex gap-2 justify-center items-center">
+            {item.agencyId ? (
+              <span
+                onClick={() => {
+                  setViewModal(true);
+                  fetchAgencyById(item.agencyId);
+                }}
+                className="cursor-pointer bg-gray-500 rounded-lg flex justify-center items-center text-white hover:bg-gray-600 transition-colors w-10 h-10"
+                title="View agency"
+              >
+                <Building className="w-5 h-5 text-white" />
+              </span>
+            ) : (
+              <span className="w-10 h-10" />
+            )}
+            {canAssign ? (
               <span
                 onClick={async () => {
+                  if (!hasAvailableAgency) {
+                    toast.warning("All agencies already have Dealer Manager assigned");
+                    return;
+                  }
+                  
                   setSelectedId(item.id);
                   setAgencyId(null);
-                  // Fetch agency list to ensure fresh data
-                  try {
-                    const response = await PrivateAdminApi.getAgency({ page: 1, limit: 100 });
-                    setAgencyList(response.data.data);
-                  } catch (error) {
-                    console.log(error);
-                  }
+                  
+                  // Set available agency list
+                  setAvailableAgencyList(availableAgencies);
                   setAssignForm(true);
                 }}
-                className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white hover:bg-blue-600 transition-colors"
+                className={`rounded-lg flex justify-center items-center text-white transition-colors w-10 h-10 ${
+                  hasAvailableAgency
+                    ? "cursor-pointer bg-green-500 hover:bg-green-600"
+                    : "cursor-not-allowed bg-gray-400 opacity-50"
+                }`}
+                title={hasAvailableAgency ? "Assign to agency" : "No available agency"}
               >
                 <NotebookPen className="w-5 h-5 text-white" />
               </span>
+            ) : (
+              <span className="w-10 h-10" />
             )}
-          </>
+            <span
+              onClick={() => fetchStaffById(item.id)}
+              className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white hover:bg-blue-600 transition-colors w-10 h-10"
+              title="Update"
+            >
+              <Pencil className="w-5 h-5 text-white" />
+            </span>
+            <span
+              onClick={() => {
+                setIsDelete(true);
+                setSelectedId(item.id);
+                setDeleteForm(true);
+              }}
+              className="cursor-pointer bg-red-500 rounded-lg flex justify-center items-center text-white hover:bg-red-600 transition-colors w-10 h-10"
+              title="Delete"
+            >
+              <Trash2 className="w-5 h-5 text-white" />
+            </span>
+          </div>
         );
       },
-    },
-    {
-      key: "actions",
-      title: "Actions",
-      render: (_, item) => (
-        <div className="flex gap-2 justify-center items-center">
-          <span
-            onClick={() => fetchStaffById(item.id)}
-            className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white hover:bg-blue-600 transition-colors"
-          >
-            <Pencil className="w-5 h-5 text-white" />
-          </span>
-          <span
-            onClick={() => {
-              setIsDelete(true);
-              setSelectedId(item.id);
-              setDeleteForm(true);
-              console.log(item.id);
-            }}
-            className="cursor-pointer bg-red-500 rounded-lg p-2 flex justify-center items-center text-white hover:bg-red-600 transition-colors"
-          >
-            <Trash2 className="w-5 h-5 text-white" />
-          </span>
-        </div>
-      ),
     },
   ];
 
@@ -402,11 +452,13 @@ function StaffManagement() {
           >
             <option value="">All</option>
 
-            {roleList.map((r) => (
-              <option key={r.id} value={r.roleName}>
-                {r.roleName}
-              </option>
-            ))}
+            {roleList
+              .filter((r) => r.roleName !== "Customer")
+              .map((r) => (
+                <option key={r.id} value={r.roleName}>
+                  {r.roleName}
+                </option>
+              ))}
           </select>
         </div>
         <div>
@@ -415,10 +467,10 @@ function StaffManagement() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="cursor-pointer bg-blue-500 rounded-lg text-white p-2 hover:bg-blue-600 transition-colors flex items-center gap-2"
+            className="cursor-pointer bg-blue-500 rounded-lg text-white p-2 hover:bg-blue-600 transition-colors flex items-center justify-center w-10 h-10"
+            title="Create"
           >
             <Plus className="w-5 h-5 text-white" />
-            <span>Create</span>
           </button>
         </div>
       </div>
@@ -448,6 +500,7 @@ function StaffManagement() {
         onClose={() => {
           setAssignForm(false);
           setAgencyId(null);
+          setAvailableAgencyList([]);
         }}
         title={"Assign staff to agency"}
         onSubmit={handleAssign}
@@ -461,9 +514,14 @@ function StaffManagement() {
             value={agencyId}
             onChange={(e) => setAgencyId(e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer appearance-none"
+            disabled={availableAgencyList.length === 0}
           >
-            <option value="">Select the agency</option>
-            {agencyList.map((a) => (
+            <option value="">
+              {availableAgencyList.length === 0 
+                ? "No available agency (all agencies have Dealer Manager)" 
+                : "Select the agency"}
+            </option>
+            {availableAgencyList.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} - {a.location}
               </option>
@@ -483,11 +541,18 @@ function StaffManagement() {
           title={isEdit ? "Update staff" : "Create new staff"}
           onSubmit={isEdit ? updateStaff : handleCreateStaff}
           isSubmitting={isSubmitting}
+          isCreate={!isEdit}
+          isUpdate={isEdit}
         >
           <StaffForm
             isEdit={isEdit}
             form={form}
-            roleList={roleList}
+            roleList={roleList.filter(
+              (r) => 
+                r.roleName === "EVM Staff" || 
+                r.roleName === "Evm Staff" ||
+                r.roleName === "Dealer Manager"
+            )}
             handleChangeRole={handleChangeRole}
             setForm={setForm}
             setStaffDetail={setStaffDetail}

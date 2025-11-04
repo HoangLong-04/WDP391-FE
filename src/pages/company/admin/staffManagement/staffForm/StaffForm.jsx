@@ -137,10 +137,12 @@ function StaffForm({
             Role <span className="text-red-500">*</span>
           </label>
           <select
-            value={form.role}
+            value={Array.isArray(form.role) && form.role.length > 0 ? form.role[0] : ""}
             onChange={handleChangeRole}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer appearance-none"
+            required
           >
+            <option value="">Select role</option>
             {roleList.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.roleName}
