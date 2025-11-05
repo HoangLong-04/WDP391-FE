@@ -16,6 +16,7 @@ import {
   inventoryGroupFields,
 } from "../../../components/viewModel/inventoryModel/InventoryModel";
 import { warehouseFields } from "../../../components/viewModel/warehouseModel/WarehouseModel";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 function InventoryManagement() {
   const [inventoryList, setInventoryList] = useState([]);
@@ -249,9 +250,9 @@ function InventoryManagement() {
             setMotorModal(true);
             fetchMotorById(electricMotorbikeId);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          View
+          <Eye className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -264,9 +265,9 @@ function InventoryManagement() {
             setWarehouseModal(true);
             fetchWarehouseById(warehouseId);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          View
+          <Eye className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -290,9 +291,9 @@ function InventoryManagement() {
             setInventoryModal(true);
             fetchInventoryDetail(item.electricMotorbikeId, item.warehouseId);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          View
+          <Eye className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -311,9 +312,9 @@ function InventoryManagement() {
             setIsedit(true);
             setFormModal(true);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          Update
+          <Pencil className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -330,9 +331,9 @@ function InventoryManagement() {
             setIsDelete(true);
             setDeleteForm(true);
           }}
-          className="cursor-pointer bg-red-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
         >
-          Delete
+          <Trash2 className="w-5 h-5 text-white" />
         </span>
       ),
     },
