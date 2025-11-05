@@ -39,12 +39,12 @@ import OrderRestockAgency from "./pages/agency/dealerManager/orderRestock/OrderR
 import OrderRestockManagement from "./pages/company/orderRestockManagement/OrderRestockManagement";
 import BookingManagement from "./pages/agency/dealerStaff/bookingManagement/BookingManagement";
 import Payment from "./pages/payment/Payment";
-import EvmStaffWarehouseManagement from "./pages/company/evmStaff/warehouseManagement/WarehouseManagement";
-import EvmStaffDiscountManagement from "./pages/company/evmStaff/discountManagement/DiscountManagement";
-import EvmStaffPromotionManagement from "./pages/company/evmStaff/promotionManagement/PromotionManagement";
-import EvmStaffInventoryManagement from "./pages/company/evmStaff/inventoryManagement/InventoryManagement";
-import EvmStaffOrderRestockManagement from "./pages/company/evmStaff/orderRestockManagement/OrderRestockManagement";
-import EvmStaffPricePolicyManagement from "./pages/company/evmStaff/pricePolicyManagement/PricePolicyManagement";
+import EvmStaffWarehouseManagement from "./pages/company/evmStaff/warehouseManagement/WarehouseManagementEVMStaff";
+import EvmStaffDiscountManagement from "./pages/company/evmStaff/discountManagement/DiscountManagementEVMStaff";
+import EvmStaffPromotionManagement from "./pages/company/evmStaff/promotionManagement/PromotionManagementEVMStaff";
+import EvmStaffInventoryManagement from "./pages/company/evmStaff/inventoryManagement/InventoryManagementEVMStaff";
+import EvmStaffOrderRestockManagement from "./pages/company/evmStaff/orderRestockManagement/OrderRestockManagementEVMStaff";
+import EvmStaffPricePolicyManagement from "./pages/company/evmStaff/pricePolicyManagement/PricePolicyManagementEVMStaff";
 
 function App() {
   return (

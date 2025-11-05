@@ -1,6 +1,6 @@
 import React from 'react'
 
-function PricePolicyManagement() {
+function PricePolicyManagementEVMStaff() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Price Policy Management</h1>
@@ -9,5 +9,7 @@ function PricePolicyManagement() {
   )
 }
 
-export default PricePolicyManagement
+export default PricePolicyManagementEVMStaff
+
+
 

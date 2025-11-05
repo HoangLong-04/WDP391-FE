@@ -1,6 +1,6 @@
 import React from 'react'
 
-function DiscountManagement() {
+function DiscountManagementEVMStaff() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Discount Management</h1>
@@ -9,5 +9,7 @@ function DiscountManagement() {
   )
 }
 
-export default DiscountManagement
+export default DiscountManagementEVMStaff
+
+
 

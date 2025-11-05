@@ -76,6 +76,11 @@ const PrivateAdminApi = {
     apiConfig.privateApi.get(`order-restock-management/detail/order-item/${orderItemId}`),
   updateOrder: (id, data) =>
     apiConfig.privateApi.patch(`order-restock-management/status/${id}`, data),
+  // Check credit for an order
+  checkCreditOrder: (orderId) =>
+    apiConfig.privateApi.patch(`order-restock-management/checked/${orderId}`),
+  getCreditLine: (params) =>
+    apiConfig.privateApi.get("credit-line/list", { params }),
 
   getColorList: () => apiConfig.privateApi.get("color"),
   createColor: (data) => apiConfig.privateApi.post("color", data),

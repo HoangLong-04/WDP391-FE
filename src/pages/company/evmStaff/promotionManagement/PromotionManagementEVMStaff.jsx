@@ -1,6 +1,6 @@
 import React from 'react'
 
-function PromotionManagement() {
+function PromotionManagementEVMStaff() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Promotion Management</h1>
@@ -9,5 +9,7 @@ function PromotionManagement() {
   )
 }
 
-export default PromotionManagement
+export default PromotionManagementEVMStaff
+
+
 
