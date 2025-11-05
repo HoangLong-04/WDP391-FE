@@ -1,3 +1,4 @@
+import { formatCurrency } from "../../../../utils/currency";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
@@ -210,7 +211,7 @@ function OrderRestockAgency() {
     {
       key: "subtotal",
       title: "Subtotal",
-      render: (val) => (typeof val === "number" ? val.toLocaleString() : val),
+      render: (val) => (typeof val === "number" ? formatCurrency(val) : val),
     },
     {
       key: "orderAt",

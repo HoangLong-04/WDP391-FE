@@ -130,7 +130,7 @@ function InstallmentPlan() {
     {
       key: "processFee",
       title: "Fee",
-      render: (fee) => (fee ? fee.toLocaleString("en-US") + " $" : "0"),
+      render: (fee) => (fee ? `${Number(fee).toLocaleString('vi-VN')} đ` : "0 đ"),
     },
     {
       key: "startAt",

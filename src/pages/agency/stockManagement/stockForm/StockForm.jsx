@@ -8,6 +8,11 @@ function StockForm({
   isEdit,
   updateForm,
   setUpdateForm,
+  deliveredOrders = [],
+  selectedDeliveredOrderId = "",
+  loadingDelivered = false,
+  onChangeDeliveredOrder,
+  onPickDeliveredOrderItem,
 }) {
   const currentForm = isEdit ? updateForm : form;
   const handleChange = (e) => {
@@ -42,6 +47,52 @@ function StockForm({
   const selectClasses = `${inputClasses} bg-white cursor-pointer appearance-none`;
   return (
     <div className="space-y-3">
+      {!isEdit && (
+        <div className="group">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Delivered order
+          </label>
+          <select
+            className={selectClasses}
+            value={selectedDeliveredOrderId}
+            onChange={(e) => onChangeDeliveredOrder && onChangeDeliveredOrder(e.target.value)}
+            disabled={loadingDelivered || deliveredOrders.length === 0}
+          >
+            <option value="">-- Select delivered order --</option>
+            {deliveredOrders.map((o) => (
+              <option key={o.id} value={o.id}>
+                #{o.id} ({(o.items||[]).length} items)
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {!isEdit && selectedDeliveredOrderId && (
+        <div className="group">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Order item
+          </label>
+          <select
+            className={selectClasses}
+            onChange={(e) => {
+              const id = e.target.value;
+              if (!id) return;
+              const order = deliveredOrders.find((o) => String(o.id) === String(selectedDeliveredOrderId));
+              const picked = order?.items?.find((it) => String(it.orderItemId) === String(id));
+              if (picked && onPickDeliveredOrderItem) onPickDeliveredOrderItem(picked);
+            }}
+          >
+            <option value="">-- Select order item --</option>
+            {deliveredOrders
+              .find((o) => String(o.id) === String(selectedDeliveredOrderId))?.items?.map((it) => (
+                <option key={it.orderItemId} value={it.orderItemId}>
+                  #{it.orderItemId}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
           Quantity In Stock <span className="text-red-500">*</span>
@@ -60,7 +111,7 @@ function StockForm({
 
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Wholesale Price (USD) <span className="text-red-500">*</span>
+          Wholesale Price (đ) <span className="text-red-500">*</span>
         </label>
         <input
           type="number"
@@ -68,7 +119,7 @@ function StockForm({
           value={currentForm.price || ""}
           onChange={handleChange}
           className={inputClasses}
-          placeholder="Enter price"
+          placeholder="Enter wholesale price"
           min="0"
           required
         />

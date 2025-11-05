@@ -155,7 +155,7 @@ function StockPromotion() {
     { key: "name", title: "Name" },
     { key: "description", title: "Description" },
     { key: "valueType", title: "Value type" },
-    { key: "value", title: "Value", render: (value) => value.toLocaleString() },
+    { key: "value", title: "Value", render: (value) => `${Number(value).toLocaleString('vi-VN')} đ` },
     {
       key: "startAt",
       title: "Start date",

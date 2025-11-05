@@ -22,7 +22,7 @@ function BikeCard({ image, name, price, id }) {
         </div>
 
         <div className="text-2xl md:text-3xl font-extrabold text-indigo-600">
-          {price.toLocaleString("vi-VN")}$
+          {Number(price).toLocaleString('vi-VN')} đ
         </div>
       </div>
     </div>

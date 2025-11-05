@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import useColorList from "../../../hooks/useColorList";
 import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
+import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import PublicApi from "../../../services/PublicApi";
 import { toast } from "react-toastify";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
@@ -49,6 +50,65 @@ function StockManagement() {
   });
 
   const [selectedId, setSelectedId] = useState('')
+  // Delivered orders and items for prefilling
+  const [deliveredOrders, setDeliveredOrders] = useState([])
+  const [loadingDelivered, setLoadingDelivered] = useState(false)
+  const [selectedDeliveredOrderId, setSelectedDeliveredOrderId] = useState("")
+
+  const fetchDeliveredOrderItems = useCallback(async () => {
+    if (!user?.agencyId) return
+    setLoadingDelivered(true)
+    try {
+      const res = await PrivateDealerManagerApi.getRestockList(user.agencyId, {
+        page: 1,
+        limit: 50,
+        status: 'DELIVERED',
+      })
+      const orders = res.data?.data || []
+      const normalizedOrders = []
+      // Prefer using embedded details if available to avoid extra calls
+      for (const order of orders) {
+        const embeddedItems = order?.orderItems || order?.order_items || []
+        if (embeddedItems.length > 0) {
+          normalizedOrders.push({
+            id: order.id,
+            orderAt: order.orderAt,
+            items: embeddedItems.map((it) => ({
+              orderItemId: it.id,
+              quantity: it.quantity,
+              motorbikeId: it.motorbikeId || it.electricMotorbikeId,
+              colorId: it.colorId,
+              motorbikeName: it.electricMotorbike?.name,
+              colorName: it.color?.colorType,
+            })),
+          })
+        } else {
+          // Fallback: fetch detail if list does not include items
+          const orderDetailRes = await PrivateDealerManagerApi.getRestockDetail(order.id)
+          const detail = orderDetailRes.data?.data
+          const orderItems = detail?.orderItems || []
+          normalizedOrders.push({
+            id: order.id,
+            orderAt: detail?.orderAt || order.orderAt,
+            items: orderItems.map((it) => ({
+              orderItemId: it.id,
+              quantity: it.quantity,
+              motorbikeId: it.motorbikeId || it.electricMotorbikeId,
+              colorId: it.colorId,
+              motorbikeName: it.electricMotorbike?.name,
+              colorName: it.color?.colorType,
+            })),
+          })
+        }
+      }
+      setDeliveredOrders(normalizedOrders)
+    } catch (error) {
+      toast.error(error.message)
+      setDeliveredOrders([])
+    } finally {
+      setLoadingDelivered(false)
+    }
+  }, [user?.agencyId])
   const [isEdit, setIsEdit] = useState(false)
 
   // Track if motorList has been fetched to avoid duplicate fetches
@@ -104,6 +164,13 @@ function StockManagement() {
   useEffect(() => {
     fetchAllStock();
   }, [fetchAllStock]);
+
+  // Load delivered order items when opening create modal
+  const openCreateModal = () => {
+    setFormModal(true)
+    setIsEdit(false)
+    fetchDeliveredOrderItems()
+  }
 
   const fetchStockById = async (id) => {
     setViewModalLoading(true);
@@ -179,7 +246,7 @@ function StockManagement() {
       key: "price",
       title: "Price",
       render: (price) => {
-        return `${price.toLocaleString('vi-VN')} VNĐ`;
+        return `${price.toLocaleString('vi-VN')} đ`;
       },
     },
     {
@@ -277,8 +344,7 @@ function StockManagement() {
         </div>
         <div>
           <button
-            onClick={() => {setFormModal(true) 
-              setIsEdit(false)}}
+            onClick={openCreateModal}
             className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
             <Plus size={20} />
@@ -314,6 +380,39 @@ function StockManagement() {
           isEdit={isEdit}
           setUpdateForm={setUpdateForm}
           updateForm={updateForm}
+          deliveredOrders={deliveredOrders}
+          selectedDeliveredOrderId={selectedDeliveredOrderId}
+          loadingDelivered={loadingDelivered}
+          onChangeDeliveredOrder={(orderId) => setSelectedDeliveredOrderId(orderId)}
+          onPickDeliveredOrderItem={async (item) => {
+            // Prefill fields from delivered order item
+            const motorId = item.motorbikeId
+            const colorId = item.colorId
+            const quantity = item.quantity
+            // Get wholesale price from cached motorbike list; fallback to fetching list
+            let price = 0
+            let motor = motorList.find((m) => String(m.id) === String(motorId))
+            if (!motor) {
+              try {
+                const res = await PublicApi.getMotorList({ page: 1, limit: 100 })
+                const list = res.data?.data || []
+                motor = list.find((m) => String(m.id) === String(motorId))
+              } catch (error) {
+                toast.error(error.message)
+              }
+            }
+            if (motor) {
+              price = motor?.wholeSalePrice ?? motor?.wholesalePrice ?? motor?.price ?? 0
+            }
+            setForm((prev) => ({
+              ...prev,
+              quantity: quantity || 0,
+              price: price || 0,
+              motorbikeId: motorId || "",
+              colorId: colorId || "",
+              agencyId: user?.agencyId,
+            }))
+          }}
         />
       </FormModal>
 
