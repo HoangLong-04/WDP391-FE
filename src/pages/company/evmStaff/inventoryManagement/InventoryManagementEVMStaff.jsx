@@ -1,6 +1,6 @@
 import React from 'react'
 
-function InventoryManagement() {
+function InventoryManagementEVMStaff() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Inventory Management</h1>
@@ -9,5 +9,7 @@ function InventoryManagement() {
   )
 }
 
-export default InventoryManagement
+export default InventoryManagementEVMStaff
+
+
 

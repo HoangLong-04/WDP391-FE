@@ -1,6 +1,6 @@
 import React from 'react'
 
-function WarehouseManagement() {
+function WarehouseManagementEVMStaff() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Warehouse Management</h1>
@@ -9,5 +9,7 @@ function WarehouseManagement() {
   )
 }
 
-export default WarehouseManagement
+export default WarehouseManagementEVMStaff
+
+
 
