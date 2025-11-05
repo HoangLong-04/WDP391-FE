@@ -102,16 +102,16 @@ function SharedSidebar() {
               Icon: Bike,
             },
             { path: "/company/color", label: "Color", Icon: Palette },
-            {
-              path: "/company/appearance",
-              label: "Appearance",
-              Icon: Sparkles,
-            },
-            {
-              path: "/company/configuration",
-              label: "Configuration",
-              Icon: Circle,
-            },
+            // {
+            //   path: "/company/appearance",
+            //   label: "Appearance",
+            //   Icon: Sparkles,
+            // },
+            // {
+            //   path: "/company/configuration",
+            //   label: "Configuration",
+            //   Icon: Circle,
+            // },
           ],
         },
         {
