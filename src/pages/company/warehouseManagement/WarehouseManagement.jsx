@@ -3,6 +3,7 @@ import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import { toast } from "react-toastify";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import FormModal from "../../../components/modal/formModal/FormModal";
+import { Pencil, Trash2 } from "lucide-react";
 
 function WarehouseManagement() {
   const [warehouse, setWarehouse] = useState([]);
@@ -132,9 +133,9 @@ function WarehouseManagement() {
               isActive: item.isActive,
             });
           }}
-          className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          Update
+          <Pencil className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -147,9 +148,9 @@ function WarehouseManagement() {
             setSelectedId(item.id);
             setDeleteModal(true);
           }}
-          className="cursor-pointer text-white bg-red-500 p-2 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
         >
-          Delete
+          <Trash2 className="w-5 h-5 text-white" />
         </span>
       ),
     },
