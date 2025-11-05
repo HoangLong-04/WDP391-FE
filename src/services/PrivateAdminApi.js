@@ -72,6 +72,8 @@ const PrivateAdminApi = {
     apiConfig.privateApi.get("order-restock-management/list", { params }),
   getOrderRestockDetail: (id) =>
     apiConfig.privateApi.get(`order-restock-management/detail/${id}`),
+  getOrderRestockOrderItemDetail: (orderItemId) =>
+    apiConfig.privateApi.get(`order-restock-management/detail/order-item/${orderItemId}`),
   updateOrder: (id, data) =>
     apiConfig.privateApi.patch(`order-restock-management/status/${id}`, data),
 

@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import { renderStatusTag } from "../../../utils/statusTag";
 
 // Function to format currency (assuming VND)
 const formatCurrency = (amount) => {
@@ -11,13 +12,35 @@ const formatDate = (date) => {
   return date ? dayjs(date).format("DD/MM/YYYY") : "-";
 };
 export const generalFields = [
-  { key: "id", label: "Order id" },
+  { key: "orderId", label: "Order id" },
   {
-    key: "wholesalePrice",
-    label: "Total amount",
+    key: "orderSubtotal",
+    label: "Order subtotal",
     render: formatCurrency,
   },
-  { key: "finalPrice", label: "Final price", render: formatCurrency },
+  {
+    key: "orderItemQuantity",
+    label: "Item quantity",
+  },
+  {
+    key: "orderAt",
+    label: "Order date",
+    render: formatDate,
+  },
+  {
+    key: "orderType",
+    label: "Order type",
+  },
+  {
+    key: "orderStatus",
+    label: "Status",
+    render: (status) => renderStatusTag(status),
+  },
+  {
+    key: "creditChecked",
+    label: "Credit checked",
+    render: (checked) => (checked ? "Yes" : "No"),
+  },
 ];
 
 export const groupedFields = [
@@ -51,7 +74,7 @@ export const groupedFields = [
       { label: "Base Price", key: "basePrice", render: formatCurrency },
       {
         label: "Wholesale Price",
-        key: "wholesalePrice",
+        key: "wholeSalePrice",
         render: formatCurrency,
       },
       {
@@ -64,9 +87,28 @@ export const groupedFields = [
         key: "discountTotal",
         render: formatCurrency,
       },
-      { label: "Subtotal", key: "subtotal", render: formatCurrency },
-      { label: "Discount", key: "discountPolicy.name" },
+      { label: "Final Price", key: "finalPrice", render: formatCurrency },
+      { label: "Discount Policy", key: "discountPolicy.name" },
+      { label: "Discount Type", key: "discountPolicy.type" },
+      { label: "Discount Value", key: "discountPolicy.value", render: (value, data) => {
+        const discountPolicy = data?.discountPolicy;
+        if (!discountPolicy) return "-";
+        const valueType = discountPolicy.valueType || discountPolicy.value_type;
+        if (valueType === "PERCENT") {
+          return `${value}%`;
+        }
+        return formatCurrency(value);
+      }},
       { label: "Promotion", key: "promotion.name" },
+      { label: "Promotion Value", key: "promotion.value", render: (value, data) => {
+        const promotion = data?.promotion;
+        if (!promotion) return "-";
+        const valueType = promotion.valueType || promotion.value_type;
+        if (valueType === "PERCENT") {
+          return `${value}%`;
+        }
+        return formatCurrency(value);
+      }},
     ],
   },
   {
