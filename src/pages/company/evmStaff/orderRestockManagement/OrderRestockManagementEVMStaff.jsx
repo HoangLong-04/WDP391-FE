@@ -13,6 +13,7 @@ import RestockForm from "../../orderRestockManagement/restockForm/RestockForm";
 import dayjs from "dayjs";
 import { Eye, Pencil, CheckCircle, Truck, Check, XCircle } from "lucide-react";
 import { renderStatusTag } from "../../../../utils/statusTag";
+import { formatCurrency } from "../../../../utils/currency";
 
 function OrderRestockManagementEVMStaff() {
   const { agencyList } = useAgencyList();
@@ -297,7 +298,7 @@ function OrderRestockManagementEVMStaff() {
         }
       }));
       
-      toast.success(`Credit checked. Final Price: ${finalPrice.toLocaleString()}, Credit Limit: ${creditLimit.toLocaleString()}. ${canApprove ? 'Can approve' : 'Should cancel'}`);
+      toast.success(`Credit checked. Final Price: ${formatCurrency(finalPrice)}, Credit Limit: ${formatCurrency(creditLimit)}. ${canApprove ? 'Can approve' : 'Should cancel'}`);
       
       // Refresh lại order list để cập nhật UI
       fetchOrderRestock();

@@ -1,11 +1,6 @@
 import dayjs from "dayjs";
 import { renderStatusTag } from "../../../utils/statusTag";
-
-// Function to format currency (assuming VND)
-const formatCurrency = (amount) => {
-  if (amount === null || amount === undefined) return "0";
-  return amount.toLocaleString();
-};
+import { formatCurrency } from "../../../utils/currency";
 
 // Function to format date and time
 const formatDate = (date) => {

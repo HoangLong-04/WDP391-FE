@@ -10,7 +10,7 @@ export const getStockGeneralFields = (motorList = [], colorList = []) => [
   {
     key: "price",
     label: "Price",
-    render: (value) => value ? `${value.toLocaleString()} VND` : "-",
+    render: (value) => (value != null ? `${Number(value).toLocaleString('vi-VN')} đ` : "-"),
   },
   {
     key: "motorbikeId",
@@ -40,7 +40,7 @@ export const stockGeneralFields = [
   {
     key: "price",
     label: "Price",
-    render: (value) => value ? `${value.toLocaleString()} VND` : "-",
+    render: (value) => (value != null ? `${Number(value).toLocaleString('vi-VN')} đ` : "-"),
   },
 ];
 
@@ -66,7 +66,7 @@ export const stockGroupedFields = [
       {
         key: "motorbike.price",
         label: "Base Price",
-        render: (value) => value ? `${value.toLocaleString()} $` : "-",
+        render: (value) => (value != null ? `${Number(value).toLocaleString('vi-VN')} đ` : "-"),
       },
       {
         key: "motorbike.makeFrom",
@@ -103,7 +103,7 @@ export const stockGroupedFields = [
                         <span className="font-medium">Discount:</span>{" "}
                         {promo.valueType === "PERCENT" 
                           ? `${promo.value}%` 
-                          : `${promo.value.toLocaleString()} VND`}
+                          : `${Number(promo.value).toLocaleString('vi-VN')} đ`}
                       </p>
                       <p>
                         <span className="font-medium">Period:</span>{" "}

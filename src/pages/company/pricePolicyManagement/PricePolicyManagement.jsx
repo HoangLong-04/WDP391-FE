@@ -1,3 +1,4 @@
+import { formatCurrency } from "../../../utils/currency";
 import React, { useEffect, useState } from "react";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
@@ -161,7 +162,7 @@ function PricePolicyManagement() {
       key: "wholesalePrice",
       title: "Price",
       render: (wholesalePrice) => {
-        return `${wholesalePrice.toLocaleString()} đ`;
+        return formatCurrency(wholesalePrice);
       },
     },
     {

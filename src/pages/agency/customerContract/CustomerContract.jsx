@@ -181,13 +181,13 @@ function CustomerContract() {
     {
       key: "totalAmount",
       title: "Total amount",
-      render: (amount) => amount.toLocaleString(),
+      render: (amount) => `${Number(amount).toLocaleString('vi-VN')} đ`,
     },
     { key: "depositAmount", title: "Deposit amount" },
     {
       key: "finalAmount",
       title: "Final amount",
-      render: (amount) => amount.toLocaleString(),
+      render: (amount) => `${Number(amount).toLocaleString('vi-VN')} đ`,
     },
     {
       key: "createDate",
