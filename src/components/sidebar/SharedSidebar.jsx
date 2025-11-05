@@ -87,6 +87,11 @@ function SharedSidebar() {
           label: "Catalogue",
           Icon: Package,
         },
+        {
+          path: "/agency/quotation-management",
+          label: "Quotation management",
+          Icon: FileText,
+        },
       ];
     }
 

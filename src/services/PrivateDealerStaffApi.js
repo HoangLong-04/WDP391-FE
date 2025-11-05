@@ -8,5 +8,10 @@ const PrivateDealerStaff = {
   getStockList: (agencyId, params) =>
     apiConfig.privateApi.get(`agency-stock/list/${agencyId}`, { params }),
   getStockById: (id) => apiConfig.privateApi.get(`agency-stock/detail/${id}`),
+  createQuotation: (data) => apiConfig.privateApi.post("quotation", data),
+  getQuotationList: (agencyId, params) =>
+    apiConfig.privateApi.get(`quotation/list/${agencyId}`, { params }),
+  getStockPromotionListStaff: (agencyId) =>
+    apiConfig.privateApi.get(`stock-promotion/list/staff/${agencyId}`),
 };
 export default PrivateDealerStaff;
