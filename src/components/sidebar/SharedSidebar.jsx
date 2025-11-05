@@ -82,6 +82,11 @@ function SharedSidebar() {
           label: "Booking management",
           Icon: PenTool,
         },
+        {
+          path: "/agency/catalogue",
+          label: "Catalogue",
+          Icon: Package,
+        },
       ];
     }
 

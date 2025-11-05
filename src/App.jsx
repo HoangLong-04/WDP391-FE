@@ -38,6 +38,7 @@ import ConfigurationManagement from "./pages/company/configuration/Configuration
 import OrderRestockAgency from "./pages/agency/dealerManager/orderRestock/OrderRestockAgency";
 import OrderRestockManagement from "./pages/company/orderRestockManagement/OrderRestockManagement";
 import BookingManagement from "./pages/agency/dealerStaff/bookingManagement/BookingManagement";
+import Catalogue from "./pages/agency/dealerStaff/catalogue/Catalogue";
 import Payment from "./pages/payment/Payment";
 import EvmStaffWarehouseManagement from "./pages/company/evmStaff/warehouseManagement/WarehouseManagementEVMStaff";
 import EvmStaffDiscountManagement from "./pages/company/evmStaff/discountManagement/DiscountManagementEVMStaff";
@@ -86,6 +87,7 @@ function App() {
             <Route path="agency/customer-contract" element={<CustomerContract />} />
             <Route path="agency/customer-management" element={<CustomerManagement />} />
             <Route path="agency/booking-management" element={<BookingManagement />} />
+            <Route path="agency/catalogue" element={<Catalogue />} />
           </Route>
 
           {/* Private company */}
