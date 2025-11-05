@@ -61,11 +61,50 @@ function OrderRestockManagement() {
     }
   };
 
-  const fetchOrderRestockDetail = async (id) => {
+  const fetchOrderRestockDetail = async (item) => {
     setViewModalLoading(true);
     try {
-      const response = await PrivateAdminApi.getOrderRestockDetail(id);
-      setOrderRestock(response.data.data);
+      const orderId = item.id;
+      
+      // Gọi API đầu tiên để lấy order detail
+      const orderDetailResponse = await PrivateAdminApi.getOrderRestockDetail(orderId);
+      const orderDetail = orderDetailResponse.data.data;
+      
+      // Kiểm tra nếu order có orderItems và lấy orderItemId đầu tiên
+      const orderItems = orderDetail?.orderItems || [];
+      if (orderItems.length === 0) {
+        toast.error("This order has no items to display");
+        setViewModalLoading(false);
+        return;
+      }
+      
+      // Lấy orderItemId đầu tiên từ orderItems
+      const orderItemId = orderItems[0]?.id;
+      if (!orderItemId) {
+        toast.error("Cannot find order item ID");
+        setViewModalLoading(false);
+        return;
+      }
+      
+      // Gọi API thứ hai để lấy order item detail
+      const orderItemResponse = await PrivateAdminApi.getOrderRestockOrderItemDetail(orderItemId);
+      const orderItemDetail = orderItemResponse.data.data;
+      
+      // Merge dữ liệu từ cả 2 API: order detail + order item detail
+      const mergedData = {
+        ...orderItemDetail, // Order item detail (có nested objects)
+        // Thêm thông tin order vào root level để dễ truy cập
+        orderId: orderDetail.id,
+        orderSubtotal: orderDetail.subtotal,
+        orderItemQuantity: orderDetail.itemQuantity,
+        orderAt: orderDetail.orderAt,
+        orderType: orderDetail.orderType,
+        orderStatus: orderDetail.status,
+        creditChecked: orderDetail.creditChecked,
+        agencyId: orderDetail.agencyId,
+      };
+      
+      setOrderRestock(mergedData);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -122,7 +161,7 @@ function OrderRestockManagement() {
           <span
             onClick={() => {
               setOrderModal(true);
-              fetchOrderRestockDetail(item.id);
+              fetchOrderRestockDetail(item);
             }}
             className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
             title="View detail"
