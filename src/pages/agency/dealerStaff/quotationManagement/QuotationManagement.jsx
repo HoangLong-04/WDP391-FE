@@ -8,6 +8,7 @@ import { formatCurrency } from "../../../../utils/currency";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import BaseModal from "../../../../components/modal/baseModal/BaseModal";
+import FormModal from "../../../../components/modal/formModal/FormModal";
 import { Eye, CheckCircle, XCircle, Clock, RotateCcw, Loader2, FileText } from "lucide-react";
 import CircularProgress from "@mui/material/CircularProgress";
 
@@ -28,6 +29,17 @@ function QuotationManagement() {
   const [quotationDetail, setQuotationDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState(null);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [selectedQuotationForContract, setSelectedQuotationForContract] = useState(null);
+  const [contractSubmitting, setContractSubmitting] = useState(false);
+  const [contractForm, setContractForm] = useState({
+    title: "",
+    content: "",
+    finalPrice: 0,
+    signDate: "",
+    contractPaidType: "FULL",
+  });
 
   useEffect(() => {
     if (user?.agencyId) {
@@ -73,22 +85,67 @@ function QuotationManagement() {
     }
   };
 
-  const handleUpdateStatus = async (newStatus) => {
-    if (!quotationDetail?.id) return;
-    
+  const handleUpdateStatus = async (quotationId, newStatus) => {
     setUpdatingStatus(true);
+    setUpdatingStatusId(quotationId);
     try {
-      await PrivateDealerStaffApi.updateQuotation(quotationDetail.id, { status: newStatus });
+      await PrivateDealerStaffApi.updateQuotation(quotationId, { status: newStatus });
       toast.success(`Quotation status updated to ${newStatus}`);
-      // Refresh detail
-      const res = await PrivateDealerStaffApi.getQuotationDetail(quotationDetail.id);
-      setQuotationDetail(res.data?.data || null);
-      // Refresh list
       fetchQuotations();
     } catch (error) {
       toast.error(error.message || "Failed to update quotation status");
     } finally {
       setUpdatingStatus(false);
+      setUpdatingStatusId(null);
+    }
+  };
+
+  const handleOpenContractModal = async (quotation) => {
+    // Fetch full detail to get customer info
+    try {
+      const res = await PrivateDealerStaffApi.getQuotationDetail(quotation.id);
+      const detail = res.data?.data || quotation;
+      setSelectedQuotationForContract(detail);
+      setContractForm({
+        title: `Contract for ${detail.customer?.name || "customer"}`,
+        content: `Contract created from quotation #${detail.id}`,
+        finalPrice: detail.finalPrice || 0,
+        signDate: dayjs().format("YYYY-MM-DD"),
+        contractPaidType: "FULL",
+      });
+      setIsContractModalOpen(true);
+    } catch (error) {
+      toast.error(error.message || "Failed to load quotation detail");
+    }
+  };
+
+  const handleCreateContract = async (e) => {
+    e.preventDefault();
+    if (!selectedQuotationForContract) return;
+    
+    setContractSubmitting(true);
+    try {
+      const payload = {
+        title: contractForm.title,
+        content: contractForm.content,
+        finalPrice: Number(contractForm.finalPrice),
+        signDate: contractForm.signDate ? new Date(contractForm.signDate).toISOString() : new Date().toISOString(),
+        contractPaidType: contractForm.contractPaidType,
+        customerId: selectedQuotationForContract.customerId,
+        staffId: user?.id || user?.userId,
+        agencyId: user?.agencyId,
+        electricMotorbikeId: selectedQuotationForContract.motorbikeId,
+        colorId: selectedQuotationForContract.colorId,
+        quotationId: selectedQuotationForContract.id,
+      };
+      await PrivateDealerStaffApi.createCustomerContract(payload);
+      toast.success("Contract created successfully");
+      setIsContractModalOpen(false);
+      navigate("/agency/customer-contract");
+    } catch (error) {
+      toast.error(error.message || "Failed to create contract");
+    } finally {
+      setContractSubmitting(false);
     }
   };
 
@@ -139,8 +196,7 @@ function QuotationManagement() {
     {
       key: "createDate",
       title: "Create Date",
-      // Show as data time (Z means UTC); render in UTC to avoid local timezone shift
-      render: (date) => dayjs.utc(date).format("DD/MM/YYYY HH:mm"),
+      render: (date) => dayjs.utc(date).format("DD/MM/YYYY"),
     },
     {
       key: "type",
@@ -190,20 +246,62 @@ function QuotationManagement() {
     {
       key: "validUntil",
       title: "Valid Until",
-      render: (date) => dayjs.utc(date).format("DD/MM/YYYY HH:mm"),
+      render: (date) => dayjs.utc(date).format("DD/MM/YYYY"),
     },
     {
       key: "action",
       title: "Action",
-      render: (_, row) => (
-        <button
-          onClick={() => handleViewDetail(row.id)}
-          className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-          title="View Detail"
-        >
-          <Eye size={18} />
-        </button>
-      ),
+      render: (_, row) => {
+        const isUpdating = updatingStatus && updatingStatusId === row.id;
+        return (
+          <div className="flex gap-2 items-center">
+            <button
+              onClick={() => handleViewDetail(row.id)}
+              className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+              title="View Detail"
+            >
+              <Eye size={18} />
+            </button>
+            {row.status === "DRAFT" && (
+              <>
+                <button
+                  onClick={() => handleUpdateStatus(row.id, "ACCEPTED")}
+                  disabled={isUpdating}
+                  className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Accept"
+                >
+                  {isUpdating ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <CheckCircle size={18} />
+                  )}
+                </button>
+                <button
+                  onClick={() => handleUpdateStatus(row.id, "REJECTED")}
+                  disabled={isUpdating}
+                  className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Reject"
+                >
+                  {isUpdating ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <XCircle size={18} />
+                  )}
+                </button>
+              </>
+            )}
+            {row.status === "ACCEPTED" && (
+              <button
+                onClick={() => handleOpenContractModal(row)}
+                className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
+                title="Create Contract"
+              >
+                <FileText size={18} />
+              </button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -307,7 +405,7 @@ function QuotationManagement() {
                   </h3>
                   <p className="text-sm text-gray-600">
                     Created: {quotationDetail.createDate 
-                      ? dayjs.utc(quotationDetail.createDate).format("DD/MM/YYYY HH:mm") 
+                      ? dayjs.utc(quotationDetail.createDate).format("DD/MM/YYYY") 
                       : "-"}
                   </p>
                 </div>
@@ -329,7 +427,7 @@ function QuotationManagement() {
                   <span className="text-gray-600">Valid Until:</span>
                   <span className="ml-2 font-medium text-gray-800">
                     {quotationDetail.validUntil 
-                      ? dayjs.utc(quotationDetail.validUntil).format("DD/MM/YYYY HH:mm") 
+                      ? dayjs.utc(quotationDetail.validUntil).format("DD/MM/YYYY") 
                       : "-"}
                   </span>
                 </div>
@@ -418,88 +516,78 @@ function QuotationManagement() {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            {quotationDetail.status === "ACCEPTED" && (
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-5 border border-green-200">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">Create Contract</h4>
-                <button
-                  onClick={() => navigate("/agency/customer-contract", { state: { quotationId: quotationDetail.id } })}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
-                >
-                  <FileText size={18} />
-                  Create Contract
-                </button>
-              </div>
-            )}
-            {canUpdateStatus(quotationDetail) && (
-              <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">Update Status</h4>
-                <div className="flex flex-wrap gap-3">
-                  {quotationDetail.status === "DRAFT" && (
-                    <>
-                      <button
-                        onClick={() => handleUpdateStatus("ACCEPTED")}
-                        disabled={updatingStatus}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {updatingStatus ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <CheckCircle size={18} />
-                        )}
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => handleUpdateStatus("REJECTED")}
-                        disabled={updatingStatus}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {updatingStatus ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <XCircle size={18} />
-                        )}
-                        Reject
-                      </button>
-                    </>
-                  )}
-                  {isExpired(quotationDetail.validUntil) && quotationDetail.status !== "EXPIRED" && (
-                    <button
-                      onClick={() => handleUpdateStatus("EXPIRED")}
-                      disabled={updatingStatus}
-                      className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <Clock size={18} />
-                      )}
-                      Mark as Expired
-                    </button>
-                  )}
-                  {(quotationDetail.type === "ORDER" || quotationDetail.type === "PRE_ORDER") &&
-                   (quotationDetail.status === "ACCEPTED" || quotationDetail.status === "DRAFT") && (
-                    <button
-                      onClick={() => handleUpdateStatus("REVERSED")}
-                      disabled={updatingStatus}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <RotateCcw size={18} />
-                      )}
-                      Mark as Reversed
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           <div className="text-center py-12 text-gray-500">No data available</div>
         )}
       </BaseModal>
+      <FormModal
+        isOpen={isContractModalOpen}
+        onClose={() => {
+          setIsContractModalOpen(false);
+          setSelectedQuotationForContract(null);
+        }}
+        title="Create Contract"
+        isDelete={false}
+        isCreate={true}
+        onSubmit={handleCreateContract}
+        isSubmitting={contractSubmitting}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Title *</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border rounded-lg"
+              value={contractForm.title}
+              onChange={(e) => setContractForm((prev) => ({ ...prev, title: e.target.value }))}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Content *</label>
+            <textarea
+              className="w-full px-3 py-2 border rounded-lg"
+              rows="3"
+              value={contractForm.content}
+              onChange={(e) => setContractForm((prev) => ({ ...prev, content: e.target.value }))}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Final Price *</label>
+            <input
+              type="number"
+              className="w-full px-3 py-2 border rounded-lg bg-gray-100"
+              value={contractForm.finalPrice}
+              readOnly
+              disabled
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Sign Date *</label>
+            <input
+              type="date"
+              className="w-full px-3 py-2 border rounded-lg"
+              value={contractForm.signDate}
+              onChange={(e) => setContractForm((prev) => ({ ...prev, signDate: e.target.value }))}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Contract Paid Type *</label>
+            <select
+              className="w-full px-3 py-2 border rounded-lg"
+              value={contractForm.contractPaidType}
+              onChange={(e) => setContractForm((prev) => ({ ...prev, contractPaidType: e.target.value }))}
+              required
+            >
+              <option value="FULL">FULL</option>
+              <option value="DEBT">DEBT</option>
+            </select>
+          </div>
+        </div>
+      </FormModal>
     </div>
   );
 }
