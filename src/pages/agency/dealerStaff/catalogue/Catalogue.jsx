@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { formatCurrency } from "../../../../utils/currency";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
+import { FileText } from "lucide-react";
 
 function Catalogue() {
   const { user } = useAuth();
@@ -137,6 +138,9 @@ function Catalogue() {
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                       <div>
                         <div className="text-3xl md:text-4xl font-extrabold tracking-wide uppercase mb-2">{motor?.model || name}</div>
+                        {motor?.name && (
+                          <div className="text-base text-gray-700 font-semibold mb-1">{motor.name}</div>
+                        )}
                         <div className="text-sm text-gray-500">Listed price</div>
                         <div className="text-2xl font-bold text-indigo-700">{formatCurrency(selectedDetail.price)}</div>
                       </div>
@@ -148,7 +152,11 @@ function Catalogue() {
                          )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mt-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 mt-4">
+                      <div>
+                        <div className="text-sm text-gray-500">Name</div>
+                        <div className="text-lg font-semibold mt-1">{motor?.name || '-'}</div>
+                      </div>
                        <div>
                         <div className="text-sm text-gray-500">Color</div>
                         <div className="flex items-center gap-2 mt-1">
@@ -263,9 +271,10 @@ function Catalogue() {
                       }
                     }
                   }}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all font-medium"
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all font-medium inline-flex items-center gap-2"
                 >
-                  Tạo báo giá
+                  <FileText size={18} />
+                  Create Quotation
                 </button>
               </div>
             </>
