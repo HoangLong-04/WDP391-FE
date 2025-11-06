@@ -21,5 +21,7 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.get(`customer-contract/list/${agencyId}`, { params }),
   getCustomerContractDetail: (contractId) =>
     apiConfig.privateApi.get(`customer-contract/detail/${contractId}`),
+  createCustomerContract: (data) =>
+    apiConfig.privateApi.post("customer-contract", data),
 };
 export default PrivateDealerStaff;
