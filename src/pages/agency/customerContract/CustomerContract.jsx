@@ -3,10 +3,15 @@ import { useAuth } from "../../../hooks/useAuth";
 import useDealerStaffList from "../../../hooks/useDealerStaffList";
 import useCustomerList from "../../../hooks/useCustomerList";
 import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
+import PrivateDealerStaffApi from "../../../services/PrivateDealerStaffApi";
 import { toast } from "react-toastify";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import { formatCurrency } from "../../../utils/currency";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
+
+dayjs.extend(utc);
 import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import {
   motorGeneralFields,
@@ -18,6 +23,8 @@ import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
 import { Pencil, Trash2, Eye, Plus } from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
+import BaseModal from "../../../components/modal/baseModal/BaseModal";
+import CircularProgress from "@mui/material/CircularProgress";
 
 function CustomerContract() {
   const { user } = useAuth();
@@ -29,12 +36,20 @@ function CustomerContract() {
   const [motorbike, setMotorbike] = useState({});
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5); // Default to 5 for Dealer Staff, can be changed if needed
   const [staffId, setStaffId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [status, setStatus] = useState("");
   const [contractType, setContractType] = useState("");
   const [totalItem, setTotalItem] = useState(0);
+
+  // Auto-set staffId for Dealer Staff
+  useEffect(() => {
+    const isDealerStaff = user?.roles?.includes("Dealer Staff");
+    if (isDealerStaff && user?.id) {
+      setStaffId(String(user.id));
+    }
+  }, [user]);
 
   const [loading, setLoading] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
@@ -42,7 +57,10 @@ function CustomerContract() {
 
   const [motorModal, setMotorModal] = useState(false);
   const [formModal, setFormModal] = useState(false);
-  const [deleteModal, setDeleteModal] = useState(false)
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [contractDetail, setContractDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -90,12 +108,21 @@ function CustomerContract() {
   const fetchCustomerContractList = async () => {
     setLoading(true);
     try {
-      const response = await PrivateDealerManagerApi.getCustomerContractList(
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      const response = await api.getCustomerContractList(
         user?.agencyId,
         { page, limit, staffId, customerId, status, contractType }
       );
-      setCustomerContractList(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      const list = response.data.data || [];
+      // Sort by newest first (signDate)
+      list.sort((a, b) => {
+        const dateA = new Date(a.signDate || 0);
+        const dateB = new Date(b.signDate || 0);
+        return dateB - dateA;
+      });
+      setCustomerContractList(list);
+      setTotalItem(response.data.paginationInfo?.total || 0);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -174,106 +201,136 @@ function CustomerContract() {
     }
   }
 
+  const handleViewDetail = async (contractId) => {
+    setLoadingDetail(true);
+    setIsDetailModalOpen(true);
+    try {
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      const res = await api.getCustomerContractDetail(contractId);
+      setContractDetail(res.data?.data || null);
+    } catch (error) {
+      toast.error(error.message || "Failed to load contract detail");
+      setIsDetailModalOpen(false);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const getNestedValue = (obj, path) => {
+    if (!obj || !path) return null;
+    return path
+      .split(".")
+      .reduce(
+        (currentObj, key) =>
+          currentObj && currentObj[key] !== undefined ? currentObj[key] : null,
+        obj
+      );
+  };
+
   const columns = [
     { key: "id", title: "Id" },
+    {
+      key: "contractCode",
+      title: "Contract Code",
+      render: (code) => (
+        <span className="font-mono text-xs">{code}</span>
+      ),
+    },
     { key: "title", title: "Title" },
-    { key: "content", title: "Content" },
     {
-      key: "totalAmount",
-      title: "Total amount",
-      render: (amount) => `${Number(amount).toLocaleString('vi-VN')} đ`,
-    },
-    { key: "depositAmount", title: "Deposit amount" },
-    {
-      key: "finalAmount",
-      title: "Final amount",
-      render: (amount) => `${Number(amount).toLocaleString('vi-VN')} đ`,
+      key: "finalPrice",
+      title: "Final Price",
+      render: (price) => formatCurrency(price),
     },
     {
-      key: "createDate",
-      title: "Create date",
-      render: (date) => dayjs(date).format("DD-MM-YYYY"),
+      key: "signDate",
+      title: "Sign Date",
+      render: (date) => date ? dayjs.utc(date).format("DD/MM/YYYY") : "-",
     },
-    { key: "contractPaidType", title: "Contract paid type" },
-    { key: "contractType", title: "Contract type" },
+    {
+      key: "deliveryDate",
+      title: "Delivery Date",
+      render: (date) => date ? dayjs.utc(date).format("DD/MM/YYYY") : "-",
+    },
+    { key: "contractPaidType", title: "Contract Paid Type" },
     {
       key: "status",
       title: "Status",
       render: (status) => renderStatusTag(status),
     },
-    { key: "customerId", title: "Customer" },
-    { key: "staffId", title: "Staff" },
-    { key: "agencyId", title: "Agency" },
-    { key: "electricMotorbikeId", title: "Electric motorbike" },
-    { key: "colorId", title: "Color" },
     {
       key: "action",
       title: "Action",
-      render: (_, item) => (
-        <div className="flex gap-2 items-center">
-          {item.electricMotorbikeId && (
+      render: (_, item) => {
+        const isDealerStaff = user?.roles?.includes("Dealer Staff");
+        return (
+          <div className="flex gap-2 items-center">
             <button
-              onClick={() => {
-                setMotorModal(true);
-                fetchMotorById(item.electricMotorbikeId);
-              }}
-              className="cursor-pointer text-white bg-purple-500 p-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center"
-              title="View motorbike"
+              onClick={() => handleViewDetail(item.id)}
+              className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+              title="View Detail"
             >
               <Eye size={18} />
             </button>
-          )}
-          <button
-            onClick={() => {
-              setIsedit(true);
-              setSelectedId(item.id);
-              setFormModal(true);
-              setUpdateForm({
-                ...item,
-                createDate: dayjs(item.createDate).format('YYYY-MM-DD')
-              })
-            }}
-            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-            title="Update"
-          >
-            <Pencil size={18} />
-          </button>
-          <button
-            onClick={() => {
-              setSelectedId(item.id);
-              setDeleteModal(true);
-            }}
-            className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
-            title="Delete"
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
-      ),
+            {!isDealerStaff && (
+              <>
+                <button
+                  onClick={() => {
+                    setIsedit(true);
+                    setSelectedId(item.id);
+                    setFormModal(true);
+                    setUpdateForm({
+                      ...item,
+                      createDate: dayjs(item.createDate).format('YYYY-MM-DD')
+                    })
+                  }}
+                  className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+                  title="Update"
+                >
+                  <Pencil size={18} />
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedId(item.id);
+                    setDeleteModal(true);
+                  }}
+                  className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
+                  title="Delete"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
   return (
     <div>
       <div className="my-3 flex justify-end items-center gap-5">
-        <div>
-          <label className="mr-2 font-medium text-gray-600">Staff:</label>
-          <select
-            className="border border-gray-300 rounded-md px-2 py-1"
-            value={staffId}
-            onChange={(e) => {
-              setStaffId(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All</option>
-            {staffList.map((staff) => (
-              <option value={staff.id}>
-                {staff.fullname} - {staff.id}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!user?.roles?.includes("Dealer Staff") && (
+          <div>
+            <label className="mr-2 font-medium text-gray-600">Staff:</label>
+            <select
+              className="border border-gray-300 rounded-md px-2 py-1"
+              value={staffId}
+              onChange={(e) => {
+                setStaffId(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All</option>
+              {staffList.map((staff) => (
+                <option value={staff.id}>
+                  {staff.fullname} - {staff.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="mr-2 font-medium text-gray-600">Customer:</label>
           <select
@@ -394,6 +451,199 @@ function CustomerContract() {
           be undone.
         </p>
       </FormModal>
+      <BaseModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setContractDetail(null);
+        }}
+        title="Contract Detail"
+        size="lg"
+      >
+        {loadingDetail ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : contractDetail ? (
+          <div className="space-y-6">
+            {/* Header Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                    {contractDetail.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 font-mono">
+                    {contractDetail.contractCode}
+                  </p>
+                </div>
+                <div>
+                  {renderStatusTag(contractDetail.status)}
+                </div>
+              </div>
+              <p className="text-sm text-gray-700">{contractDetail.content}</p>
+            </div>
+
+            {/* Price Section */}
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 border-2 border-indigo-200">
+              <p className="text-sm text-gray-600 mb-1">Final Price</p>
+              <p className="text-2xl font-bold text-indigo-700">
+                {formatCurrency(contractDetail.finalPrice)}
+              </p>
+            </div>
+
+            {/* Dates Section */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <p className="text-sm text-gray-600 mb-1">Sign Date</p>
+                <p className="font-medium text-gray-800">
+                  {contractDetail.signDate 
+                    ? dayjs.utc(contractDetail.signDate).format("DD/MM/YYYY") 
+                    : "-"}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <p className="text-sm text-gray-600 mb-1">Delivery Date</p>
+                <p className="font-medium text-gray-800">
+                  {contractDetail.deliveryDate 
+                    ? dayjs.utc(contractDetail.deliveryDate).format("DD/MM/YYYY") 
+                    : "-"}
+                </p>
+              </div>
+            </div>
+
+            {/* Contract Info */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Contract Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Contract Paid Type</p>
+                  <p className="font-medium text-gray-800">
+                    {contractDetail.contractPaidType || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Quotation ID</p>
+                  <p className="font-medium text-gray-800">
+                    {contractDetail.quotationId || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Information */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Customer Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Name</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.name") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Phone</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.phone") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Email</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.email") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Address</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.address") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Date of Birth</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.dob") 
+                      ? dayjs.utc(getNestedValue(contractDetail, "customer.dob")).format("DD/MM/YYYY") 
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Credential ID</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.credentialId") || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Staff Information */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Staff Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Username</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "staff.username") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Email</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "staff.email") || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Product Information */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Product Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Motorbike Name</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "electricMotorbike.name") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Model</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "electricMotorbike.model") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Version</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "electricMotorbike.version") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Make From</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "electricMotorbike.makeFrom") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Color</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "color.colorType") || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">No data available</div>
+        )}
+      </BaseModal>
     </div>
   );
 }

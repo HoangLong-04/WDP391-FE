@@ -46,6 +46,8 @@ const PrivateDealerManagerApi = {
 
   getCustomerContractList: (agencyId, params) =>
     apiConfig.privateApi.get(`customer-contract/list/${agencyId}`, { params }),
+  getCustomerContractDetail: (contractId) =>
+    apiConfig.privateApi.get(`customer-contract/detail/${contractId}`),
   createCustomerContract: (data) =>
     apiConfig.privateApi.post("customer-contract", data),
   updateCustomerContract: (id, data) =>

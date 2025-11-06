@@ -92,6 +92,11 @@ function SharedSidebar() {
           label: "Quotation management",
           Icon: FileText,
         },
+        {
+          path: "/agency/customer-contract",
+          label: "Customer contract",
+          Icon: FileText,
+        },
       ];
     }
 
