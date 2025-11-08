@@ -9,7 +9,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import BaseModal from "../../../../components/modal/baseModal/BaseModal";
 import FormModal from "../../../../components/modal/formModal/FormModal";
-import { Eye, CheckCircle, XCircle, Clock, RotateCcw, Loader2, FileText } from "lucide-react";
+import { Eye, CheckCircle, XCircle, Clock, RotateCcw, Loader2, FileText, Trash2 } from "lucide-react";
 import CircularProgress from "@mui/material/CircularProgress";
 
 dayjs.extend(utc);
@@ -40,10 +40,15 @@ function QuotationManagement() {
     signDate: "",
     contractPaidType: "FULL",
   });
+  const [quotationIdsWithContracts, setQuotationIdsWithContracts] = useState(new Set());
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [selectedQuotationForDelete, setSelectedQuotationForDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (user?.agencyId) {
       fetchQuotations();
+      fetchQuotationIdsWithContracts();
     }
   }, [page, limit, type, status, quoteCode, user?.agencyId]);
 
@@ -68,6 +73,41 @@ function QuotationManagement() {
       toast.error(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchQuotationIdsWithContracts = async () => {
+    if (!user?.agencyId) return;
+    try {
+      let allContracts = [];
+      let currentPage = 1;
+      const pageSize = 100;
+      let hasMore = true;
+
+      // Fetch all contracts with pagination
+      while (hasMore) {
+        const response = await PrivateDealerStaffApi.getCustomerContractList(
+          user.agencyId,
+          { page: currentPage, limit: pageSize }
+        );
+        const contracts = response.data?.data || [];
+        allContracts = [...allContracts, ...contracts];
+        
+        const totalItems = response.data?.paginationInfo?.total || 0;
+        hasMore = allContracts.length < totalItems;
+        currentPage++;
+      }
+
+      // Extract quotationIds that have contracts (filter out null/undefined)
+      const quotationIds = new Set(
+        allContracts
+          .map((contract) => contract.quotationId)
+          .filter((id) => id != null && id !== undefined)
+      );
+      setQuotationIdsWithContracts(quotationIds);
+    } catch (error) {
+      // Silently fail - don't show error if contract list fetch fails
+      console.error("Failed to fetch contracts:", error);
     }
   };
 
@@ -141,11 +181,45 @@ function QuotationManagement() {
       await PrivateDealerStaffApi.createCustomerContract(payload);
       toast.success("Contract created successfully");
       setIsContractModalOpen(false);
+      // Update the set of quotationIds with contracts
+      setQuotationIdsWithContracts((prev) => new Set([...prev, selectedQuotationForContract.id]));
       navigate("/agency/customer-contract");
     } catch (error) {
       toast.error(error.message || "Failed to create contract");
     } finally {
       setContractSubmitting(false);
+    }
+  };
+
+  const handleOpenDeleteModal = (quotation) => {
+    setSelectedQuotationForDelete(quotation);
+    setDeleteModal(true);
+  };
+
+  const handleDeleteQuotation = async (e) => {
+    e.preventDefault();
+    if (!selectedQuotationForDelete) return;
+    
+    setDeleting(true);
+    try {
+      await PrivateDealerStaffApi.deleteQuotation(selectedQuotationForDelete.id);
+      toast.success("Quotation deleted successfully");
+      setDeleteModal(false);
+      setSelectedQuotationForDelete(null);
+      // Refresh quotations list
+      fetchQuotations();
+      // If this quotation had a contract, remove it from the set
+      if (quotationIdsWithContracts.has(selectedQuotationForDelete.id)) {
+        setQuotationIdsWithContracts((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(selectedQuotationForDelete.id);
+          return newSet;
+        });
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to delete quotation");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -293,12 +367,29 @@ function QuotationManagement() {
             {row.status === "ACCEPTED" && (
               <button
                 onClick={() => handleOpenContractModal(row)}
-                className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
-                title="Create Contract"
+                disabled={quotationIdsWithContracts.has(row.id)}
+                className={`p-2 rounded-md transition-colors ${
+                  quotationIdsWithContracts.has(row.id)
+                    ? "bg-gray-400 text-white cursor-not-allowed opacity-60"
+                    : "bg-indigo-500 text-white hover:bg-indigo-600"
+                }`}
+                title={
+                  quotationIdsWithContracts.has(row.id)
+                    ? "Contract already created for this quotation"
+                    : "Create Contract"
+                }
               >
                 <FileText size={18} />
               </button>
             )}
+            {/* Show delete button for all statuses, even if contract exists */}
+            <button
+              onClick={() => handleOpenDeleteModal(row)}
+              className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+              title="Delete Quotation"
+            >
+              <Trash2 size={18} />
+            </button>
           </div>
         );
       },
@@ -587,6 +678,23 @@ function QuotationManagement() {
             </select>
           </div>
         </div>
+      </FormModal>
+      <FormModal
+        isOpen={deleteModal}
+        onClose={() => {
+          setDeleteModal(false);
+          setSelectedQuotationForDelete(null);
+        }}
+        title="Confirm Delete"
+        isDelete={true}
+        onSubmit={handleDeleteQuotation}
+        isSubmitting={deleting}
+      >
+        <p className="text-gray-700">
+          Are you sure you want to delete quotation{" "}
+          <span className="font-semibold">{selectedQuotationForDelete?.quoteCode || selectedQuotationForDelete?.id}</span>?
+          This action cannot be undone.
+        </p>
       </FormModal>
     </div>
   );
