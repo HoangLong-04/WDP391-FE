@@ -38,14 +38,17 @@ function PaginationTable({
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
             {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="text-center py-12">
-                  <div className="flex flex-col items-center gap-3">
-                    <CircularProgress className="text-blue-500" size={40} />
-                    <span className="text-gray-500 text-sm">Loading...</span>
-                  </div>
-                </td>
-              </tr>
+              <>
+                {Array.from({ length: pageSize || 5 }).map((_, idx) => (
+                  <tr key={`skeleton-${idx}`} className="border-b border-gray-100">
+                    {columns.map((col) => (
+                      <td key={col.key} className="p-2 sm:p-3 md:p-4">
+                        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </>
             ) : data?.length === 0 ? (
               <tr>
                 <td
@@ -64,8 +67,10 @@ function PaginationTable({
               data?.map((item, idx) => (
                 <tr
                   key={item.id ?? idx}
+                  className={`border-b border-gray-100 hover:bg-blue-50/50 transition-colors duration-150 group ${
+                    onRowClick ? "cursor-pointer" : ""
+                  }`}
                   onClick={() => onRowClick && onRowClick(item)}
-                  className={`border-b border-gray-100 hover:bg-blue-50/50 transition-colors duration-150 group ${onRowClick ? 'cursor-pointer' : ''}`}
                 >
                   {columns.map((col) => (
                     <td key={col.key} className="p-2 sm:p-3 md:p-4 text-xs sm:text-sm text-gray-700 group-hover:text-gray-900 whitespace-nowrap">

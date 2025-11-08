@@ -9,7 +9,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import BaseModal from "../../../../components/modal/baseModal/BaseModal";
 import FormModal from "../../../../components/modal/formModal/FormModal";
-import { Eye, CheckCircle, XCircle, Clock, RotateCcw, Loader2, FileText, Trash2, Wallet, CreditCard, HandCoins, CheckCircle2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, RotateCcw, Loader2, FileText, Trash2, Wallet, CreditCard, HandCoins } from "lucide-react";
 import CircularProgress from "@mui/material/CircularProgress";
 
 dayjs.extend(utc);
@@ -41,9 +41,9 @@ function QuotationManagement() {
     contractPaidType: "FULL",
   });
   const [quotationIdsWithContracts, setQuotationIdsWithContracts] = useState(new Set());
-  const [quotationIdsWithDeposits, setQuotationIdsWithDeposits] = useState(new Set());
-  const [quotationToDepositMap, setQuotationToDepositMap] = useState(new Map()); // Map quotationId -> depositId
-  const [depositStatusMap, setDepositStatusMap] = useState(new Map()); // Map quotationId -> depositStatus
+  const [quotationDepositMap, setQuotationDepositMap] = useState(new Map()); // Map quotationId -> deposit info
+  const [loadingDeposits, setLoadingDeposits] = useState(false);
+  const [quotationDetailCache, setQuotationDetailCache] = useState(new Map()); // Cache quotation details
   const [deleteModal, setDeleteModal] = useState(false);
   const [selectedQuotationForDelete, setSelectedQuotationForDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -60,9 +60,14 @@ function QuotationManagement() {
     if (user?.agencyId) {
       fetchQuotations();
       fetchQuotationIdsWithContracts();
-      fetchQuotationIdsWithDeposits();
     }
   }, [page, limit, type, status, quoteCode, user?.agencyId]);
+
+  useEffect(() => {
+    if (quotations.length > 0) {
+      fetchDepositsForQuotations();
+    }
+  }, [quotations]);
 
   const fetchQuotations = async () => {
     if (!user?.agencyId) return;
@@ -81,6 +86,25 @@ function QuotationManagement() {
       list.sort((a, b) => new Date(b.createDate) - new Date(a.createDate));
       setQuotations(list);
       setTotalItem(res.data?.paginationInfo?.total || 0);
+      
+      // Check if quotation list includes depositId or deposit info
+      const depositMap = new Map();
+      list.forEach(quotation => {
+        // If quotation list response already has depositId, fetch deposit
+        if (quotation.depositId) {
+          // Will fetch deposit in fetchDepositsForQuotations
+        } else if (quotation.deposit) {
+          // If deposit info is directly in quotation list
+          depositMap.set(quotation.id, quotation.deposit);
+        }
+      });
+      if (depositMap.size > 0) {
+        setQuotationDepositMap(prev => {
+          const newMap = new Map(prev);
+          depositMap.forEach((value, key) => newMap.set(key, value));
+          return newMap;
+        });
+      }
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -123,89 +147,133 @@ function QuotationManagement() {
     }
   };
 
-  const fetchQuotationIdsWithDeposits = async () => {
-    if (!user?.agencyId) return;
-    try {
-      let allDeposits = [];
-      let currentPage = 1;
-      const pageSize = 100;
-      let hasMore = true;
-
-      // Fetch all deposits with pagination
-      while (hasMore) {
-        const response = await PrivateDealerStaffApi.getDepositList(
-          user.agencyId,
-          { page: currentPage, limit: pageSize }
-        );
-        const deposits = response.data?.data || [];
-        allDeposits = [...allDeposits, ...deposits];
-        
-        const totalItems = response.data?.paginationInfo?.total || 0;
-        hasMore = allDeposits.length < totalItems;
-        currentPage++;
+  const fetchDepositsForQuotations = async () => {
+    if (quotations.length === 0) return;
+    
+    setLoadingDeposits(true);
+    const depositMap = new Map();
+    const depositIdsToFetch = [];
+    const quotationIdsToFetch = [];
+    
+    // First, check if quotations already have depositId or deposit info
+    quotations.forEach(quotation => {
+      // Check if already in map (from quotation list)
+      if (quotationDepositMap.has(quotation.id)) {
+        return; // Skip if already have deposit info
       }
-
-      // Extract quotationIds that have deposits and create maps
-      const quotationIds = new Set();
-      const quotationToDeposit = new Map();
-      const depositStatus = new Map();
       
-      // Fetch deposit detail for each deposit to get accurate status
-      for (const deposit of allDeposits) {
-        if (deposit.quotationId != null && deposit.quotationId !== undefined) {
-          try {
-            // Fetch deposit detail to get accurate status from GET /deposit/{depositId}
-            const depositDetailResponse = await PrivateDealerStaffApi.getDepositById(deposit.id);
-            // Get status from response.data.data.status
-            const depositDetail = depositDetailResponse.data?.data;
-            const accurateStatus = depositDetail?.status;
-            
-            console.log(`Deposit ${deposit.id} for quotation ${deposit.quotationId}:`, {
-              listStatus: deposit.status,
-              detailStatus: accurateStatus,
-              depositDetail: depositDetail
-            });
-            
-            if (accurateStatus) {
-              quotationIds.add(deposit.quotationId);
-              quotationToDeposit.set(deposit.quotationId, deposit.id);
-              depositStatus.set(deposit.quotationId, accurateStatus);
-            } else {
-              // Fallback to status from list if not found in detail
-              quotationIds.add(deposit.quotationId);
-              quotationToDeposit.set(deposit.quotationId, deposit.id);
-              depositStatus.set(deposit.quotationId, deposit.status || "PENDING");
-            }
-          } catch (error) {
-            // If fetch detail fails, use status from list
-            console.error(`Failed to fetch deposit detail for ${deposit.id}:`, error);
-            if (deposit.quotationId) {
-              quotationIds.add(deposit.quotationId);
-              quotationToDeposit.set(deposit.quotationId, deposit.id);
-              depositStatus.set(deposit.quotationId, deposit.status || "PENDING");
-            }
+      // Check if quotation list response has depositId
+      if (quotation.depositId) {
+        depositIdsToFetch.push({ quotationId: quotation.id, depositId: quotation.depositId });
+      } else {
+        // Need to fetch quotation detail to get depositId
+        quotationIdsToFetch.push(quotation.id);
+      }
+    });
+    
+    // Fetch deposits by depositId (parallel)
+    if (depositIdsToFetch.length > 0) {
+      const depositPromises = depositIdsToFetch.map(async ({ quotationId, depositId }) => {
+        try {
+          const depositRes = await PrivateDealerStaffApi.getDepositById(depositId);
+          const deposit = depositRes.data?.data;
+          if (deposit) {
+            return { quotationId, deposit };
           }
+        } catch (err) {
+          // Deposit not found or error - ignore
         }
-      }
+        return null;
+      });
       
-      console.log("Deposit Status Map:", Array.from(depositStatus.entries()));
-      console.log("Quotation IDs with Deposits:", Array.from(quotationIds));
-      
-      setQuotationIdsWithDeposits(quotationIds);
-      setQuotationToDepositMap(quotationToDeposit);
-      setDepositStatusMap(depositStatus);
-    } catch (error) {
-      // Silently fail - don't show error if deposit list fetch fails
-      console.error("Failed to fetch deposits:", error);
+      const depositResults = await Promise.all(depositPromises);
+      depositResults.forEach(result => {
+        if (result) {
+          depositMap.set(result.quotationId, result.deposit);
+        }
+      });
     }
+    
+    // Fetch quotation details only for those that need it (parallel)
+    if (quotationIdsToFetch.length > 0) {
+      const detailPromises = quotationIdsToFetch.map(async (quotationId) => {
+        try {
+          const res = await PrivateDealerStaffApi.getQuotationDetail(quotationId);
+          const detail = res.data?.data;
+          
+          // Cache the detail for later use
+          setQuotationDetailCache(prev => {
+            const newCache = new Map(prev);
+            newCache.set(quotationId, detail);
+            return newCache;
+          });
+          
+          // Check if quotation detail includes depositId or deposit info
+          if (detail?.depositId) {
+            try {
+              const depositRes = await PrivateDealerStaffApi.getDepositById(detail.depositId);
+              const deposit = depositRes.data?.data;
+              if (deposit) {
+                return { quotationId, deposit };
+              }
+            } catch (err) {
+              // Deposit not found or error - ignore
+            }
+          } else if (detail?.deposit) {
+            // If deposit info is directly in quotation detail
+            return { quotationId, deposit: detail.deposit };
+          }
+        } catch (err) {
+          // Quotation detail error - ignore
+        }
+        return null;
+      });
+      
+      const detailResults = await Promise.all(detailPromises);
+      detailResults.forEach(result => {
+        if (result) {
+          depositMap.set(result.quotationId, result.deposit);
+        }
+      });
+    }
+    
+    // Update deposit map
+    if (depositMap.size > 0) {
+      setQuotationDepositMap(prev => {
+        const newMap = new Map(prev);
+        depositMap.forEach((value, key) => newMap.set(key, value));
+        return newMap;
+      });
+    }
+    
+    setLoadingDeposits(false);
   };
 
-  const handleViewDetail = async (quotationId) => {
+  const handleRowClick = async (quotation) => {
     setLoadingDetail(true);
     setIsDetailModalOpen(true);
+    
+    // Check cache first
+    const cachedDetail = quotationDetailCache.get(quotation.id);
+    if (cachedDetail) {
+      setQuotationDetail(cachedDetail);
+      setLoadingDetail(false);
+      return;
+    }
+    
     try {
-      const res = await PrivateDealerStaffApi.getQuotationDetail(quotationId);
-      setQuotationDetail(res.data?.data || null);
+      const res = await PrivateDealerStaffApi.getQuotationDetail(quotation.id);
+      const detail = res.data?.data || null;
+      setQuotationDetail(detail);
+      
+      // Cache the detail
+      if (detail) {
+        setQuotationDetailCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(quotation.id, detail);
+          return newCache;
+        });
+      }
     } catch (error) {
       toast.error(error.message || "Failed to load quotation detail");
       setIsDetailModalOpen(false);
@@ -229,14 +297,12 @@ function QuotationManagement() {
     }
   };
 
-  const handleOpenContractModal = async (quotation) => {
+  const handleOpenContractModal = async (quotation, contractPaidType = "FULL") => {
     // Fetch full detail to get customer info
     try {
       const res = await PrivateDealerStaffApi.getQuotationDetail(quotation.id);
       const detail = res.data?.data || quotation;
       setSelectedQuotationForContract(detail);
-      // If status is HOLDING, set contractPaidType to DEBT, otherwise FULL
-      const contractPaidType = detail.status === "HOLDING" ? "DEBT" : "FULL";
       setContractForm({
         title: `Contract for ${detail.customer?.name || "customer"}`,
         content: `Contract created from quotation #${detail.id}`,
@@ -247,6 +313,138 @@ function QuotationManagement() {
       setIsContractModalOpen(true);
     } catch (error) {
       toast.error(error.message || "Failed to load quotation detail");
+    }
+  };
+
+  const handleOpenDepositModal = (quotation) => {
+    setSelectedQuotationForDeposit(quotation);
+    const depositAmount = Math.round((quotation.finalPrice * 20) / 100);
+    setDepositForm({
+      depositPercent: 20,
+      depositAmount: depositAmount,
+      holdDays: dayjs().add(7, 'days').format("YYYY-MM-DD"),
+    });
+    setDepositModal(true);
+  };
+
+  const handleCreateDeposit = async (e) => {
+    e.preventDefault();
+    if (!selectedQuotationForDeposit) return;
+    
+    setDepositSubmitting(true);
+    try {
+      const payload = {
+        depositPercent: Number(depositForm.depositPercent),
+        depositAmount: Number(depositForm.depositAmount),
+        holdDays: depositForm.holdDays ? new Date(depositForm.holdDays).toISOString() : new Date().toISOString(),
+        quotationId: selectedQuotationForDeposit.id,
+      };
+      const response = await PrivateDealerStaffApi.createDeposit(payload);
+      const deposit = response.data?.data || response.data;
+      
+      toast.success("Deposit created successfully");
+      setDepositModal(false);
+      setSelectedQuotationForDeposit(null);
+      
+      // Update deposit map with the created deposit
+      if (deposit && deposit.id) {
+        // Fetch full deposit detail to get latest status
+        try {
+          const depositDetailRes = await PrivateDealerStaffApi.getDepositById(deposit.id);
+          const depositDetail = depositDetailRes.data?.data;
+          if (depositDetail) {
+            setQuotationDepositMap((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(selectedQuotationForDeposit.id, depositDetail);
+              return newMap;
+            });
+          } else {
+            // Fallback to use deposit from response
+            setQuotationDepositMap((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(selectedQuotationForDeposit.id, deposit);
+              return newMap;
+            });
+          }
+        } catch (err) {
+          // If fetch fails, use deposit from response
+          setQuotationDepositMap((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(selectedQuotationForDeposit.id, deposit);
+            return newMap;
+          });
+        }
+      }
+      
+      // Refresh quotations list
+      fetchQuotations();
+    } catch (error) {
+      toast.error(error.message || "Failed to create deposit");
+    } finally {
+      setDepositSubmitting(false);
+    }
+  };
+
+  const handleReceivedDeposit = async (quotationId) => {
+    setUpdatingStatus(true);
+    setUpdatingStatusId(quotationId);
+    try {
+      let depositInfo = quotationDepositMap.get(quotationId);
+      
+      // If deposit info not in map, try to get from quotation detail
+      if (!depositInfo) {
+        try {
+          const res = await PrivateDealerStaffApi.getQuotationDetail(quotationId);
+          const detail = res.data?.data;
+          if (detail?.depositId) {
+            const depositRes = await PrivateDealerStaffApi.getDepositById(detail.depositId);
+            depositInfo = depositRes.data?.data;
+            if (depositInfo) {
+              setQuotationDepositMap((prev) => {
+                const newMap = new Map(prev);
+                newMap.set(quotationId, depositInfo);
+                return newMap;
+              });
+            }
+          } else if (detail?.deposit) {
+            depositInfo = detail.deposit;
+            setQuotationDepositMap((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(quotationId, depositInfo);
+              return newMap;
+            });
+          }
+        } catch (err) {
+          // Error fetching deposit - continue anyway
+        }
+      }
+      
+      if (depositInfo && depositInfo.id) {
+        // Update deposit status to HOLDING
+        await PrivateDealerStaffApi.updateDepositStatus(depositInfo.id, { 
+          status: "HOLDING",
+          depositPercent: depositInfo.depositPercent,
+          depositAmount: depositInfo.depositAmount,
+          holdDays: depositInfo.holdDays || depositInfo.holdDay,
+        });
+        
+        // Update deposit status in map
+        setQuotationDepositMap((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(quotationId, { ...depositInfo, status: "HOLDING" });
+          return newMap;
+        });
+        
+        toast.success("Deposit received, status updated to HOLDING");
+        fetchQuotations();
+      } else {
+        toast.error("Deposit not found for this quotation");
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to update deposit status");
+    } finally {
+      setUpdatingStatus(false);
+      setUpdatingStatusId(null);
     }
   };
 
@@ -311,112 +509,6 @@ function QuotationManagement() {
       toast.error(error.message || "Failed to delete quotation");
     } finally {
       setDeleting(false);
-    }
-  };
-
-  const handleOpenDepositModal = (quotation) => {
-    // Check if deposit already exists
-    if (quotationIdsWithDeposits.has(quotation.id)) {
-      toast.error("Deposit already exists for this quotation");
-      return;
-    }
-    
-    setSelectedQuotationForDeposit(quotation);
-    const depositAmount = Math.round((quotation.finalPrice * 20) / 100);
-    setDepositForm({
-      depositPercent: 20,
-      depositAmount: depositAmount,
-      holdDays: dayjs().add(7, 'days').format("YYYY-MM-DD"),
-    });
-    setDepositModal(true);
-  };
-
-  const handleCreateDeposit = async (e) => {
-    e.preventDefault();
-    if (!selectedQuotationForDeposit) return;
-    
-    setDepositSubmitting(true);
-    try {
-      const payload = {
-        depositPercent: Number(depositForm.depositPercent),
-        depositAmount: Number(depositForm.depositAmount),
-        holdDays: depositForm.holdDays ? new Date(depositForm.holdDays).toISOString() : new Date().toISOString(),
-        quotationId: selectedQuotationForDeposit.id,
-      };
-      const response = await PrivateDealerStaffApi.createDeposit(payload);
-      console.log("Create Deposit Response:", response);
-      
-      // Try multiple ways to get depositId from response
-      const depositId = response.data?.data?.id || 
-                        response.data?.id || 
-                        response.data?.data?.depositId ||
-                        response?.id;
-      
-      console.log("Extracted Deposit ID:", depositId);
-      console.log("Full response structure:", JSON.stringify(response, null, 2));
-      
-      // Update quotation status to PENDING after creating deposit
-      await PrivateDealerStaffApi.updateQuotation(selectedQuotationForDeposit.id, { status: "PENDING" });
-      toast.success("Deposit created successfully, status updated to PENDING");
-      setDepositModal(false);
-      setSelectedQuotationForDeposit(null);
-      
-      // Update the set of quotationIds with deposits and maps
-      if (depositId) {
-        setQuotationIdsWithDeposits((prev) => new Set([...prev, selectedQuotationForDeposit.id]));
-        setQuotationToDepositMap((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(selectedQuotationForDeposit.id, depositId);
-          return newMap;
-        });
-        setDepositStatusMap((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(selectedQuotationForDeposit.id, "PENDING");
-          return newMap;
-        });
-      } else {
-        console.warn("Deposit ID not found in response, will fetch from list");
-      }
-      
-      // Refresh quotations list and deposits to get updated status
-      fetchQuotations();
-      fetchQuotationIdsWithDeposits();
-    } catch (error) {
-      toast.error(error.message || "Failed to create deposit");
-    } finally {
-      setDepositSubmitting(false);
-    }
-  };
-
-  const handleReceivedDeposit = async (quotationId) => {
-    setUpdatingStatus(true);
-    setUpdatingStatusId(quotationId);
-    try {
-      // Get depositId for this quotation
-      const depositId = quotationToDepositMap.get(quotationId);
-      
-      if (depositId) {
-        // Update deposit status first
-        await PrivateDealerStaffApi.updateDepositStatus(depositId, { status: "RECEIVED" });
-        // Update deposit status in map
-        setDepositStatusMap((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(quotationId, "RECEIVED");
-          return newMap;
-        });
-      }
-      
-      // Update quotation status to HOLDING
-      await PrivateDealerStaffApi.updateQuotation(quotationId, { status: "HOLDING" });
-      toast.success("Deposit received, status updated to HOLDING");
-      fetchQuotations();
-      // Refresh deposits to get updated status
-      fetchQuotationIdsWithDeposits();
-    } catch (error) {
-      toast.error(error.message || "Failed to update status");
-    } finally {
-      setUpdatingStatus(false);
-      setUpdatingStatusId(null);
     }
   };
 
@@ -523,25 +615,17 @@ function QuotationManagement() {
       key: "depositStatus",
       title: "Deposit Status",
       render: (_, row) => {
-        const depositStatus = depositStatusMap.get(row.id);
-        if (!depositStatus) {
-          return <span className="text-gray-400 text-xs">-</span>;
-        }
+        const depositInfo = quotationDepositMap.get(row.id);
+        if (!depositInfo) return <span className="text-gray-400">-</span>;
         const statusColors = {
           PENDING: "bg-yellow-100 text-yellow-700",
-          RECEIVED: "bg-green-100 text-green-700",
-          CANCELLED: "bg-red-100 text-red-700",
+          HOLDING: "bg-blue-100 text-blue-700",
+          APPLIED: "bg-green-100 text-green-700",
+          EXPIRED: "bg-red-100 text-red-700",
         };
-        const statusLabel = {
-          PENDING: "PENDING",
-          RECEIVED: "RECEIVED",
-          CANCELLED: "CANCELLED",
-        };
-        const colorClass = statusColors[depositStatus] || "bg-gray-100 text-gray-700";
-        const label = statusLabel[depositStatus] || depositStatus;
         return (
-          <span className={`px-2 py-1 rounded text-xs ${colorClass}`}>
-            {label}
+          <span className={`px-2 py-1 rounded text-xs ${statusColors[depositInfo.status] || "bg-gray-100 text-gray-700"}`}>
+            {depositInfo.status || "-"}
           </span>
         );
       },
@@ -552,8 +636,9 @@ function QuotationManagement() {
       render: (_, row) => {
         const isUpdating = updatingStatus && updatingStatusId === row.id;
         const hasContract = quotationIdsWithContracts.has(row.id);
-        const hasDeposit = quotationIdsWithDeposits.has(row.id);
-        const depositStatus = depositStatusMap.get(row.id);
+        const depositInfo = quotationDepositMap.get(row.id);
+        const isATStore = row.type === "AT_STORE";
+        const isOrderOrPreOrder = row.type === "ORDER" || row.type === "PRE_ORDER";
         
         return (
           <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
@@ -586,73 +671,208 @@ function QuotationManagement() {
               </>
             )}
             
-            {/* AT_STORE type: Show Full Payment and Deposit buttons when ACCEPTED and no deposit yet */}
-            {row.status === "ACCEPTED" && row.type === "AT_STORE" && !hasContract && !hasDeposit && (
+            {/* If has contract, only show delete button */}
+            {hasContract && (
+              <button
+                onClick={() => handleOpenDeleteModal(row)}
+                className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                title="Delete Quotation"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
+            
+            {/* If no contract */}
+            {!hasContract && (
               <>
-                <button
-                  onClick={() => handleOpenContractModal(row)}
-                  className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
-                  title="Trả Full (Create Contract)"
-                >
-                  <CreditCard size={18} />
-                </button>
-                <button
-                  onClick={() => handleOpenDepositModal(row)}
-                  className="p-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors"
-                  title="Trả Góp (Create Deposit)"
-                >
-                  <HandCoins size={18} />
-                </button>
+                {/* AT_STORE type: Show Trả góp / Trả full / Delete */}
+                {isATStore && row.status === "ACCEPTED" && !depositInfo && (
+                  <>
+                    <button
+                      onClick={() => handleOpenDepositModal(row)}
+                      className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                      title="Trả góp (Create Deposit)"
+                    >
+                      <CreditCard size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleOpenContractModal(row, "FULL")}
+                      className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                      title="Trả full (Create Contract)"
+                    >
+                      <Wallet size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteModal(row)}
+                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                      title="Delete Quotation"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
+                
+                {/* AT_STORE with deposit PENDING or quotation status PENDING: Show "Đã nhận cọc" button */}
+                {isATStore && row.status === "ACCEPTED" && depositInfo && depositInfo.status === "PENDING" && (
+                  <>
+                    <button
+                      onClick={() => handleReceivedDeposit(row.id)}
+                      disabled={isUpdating}
+                      className="p-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Đã nhận cọc"
+                    >
+                      {isUpdating ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <HandCoins size={18} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteModal(row)}
+                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                      title="Delete Quotation"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
+                
+                {/* AT_STORE with quotation status PENDING: Show "Đã nhận cọc" button */}
+                {isATStore && row.status === "PENDING" && (
+                  <>
+                    <button
+                      onClick={() => handleReceivedDeposit(row.id)}
+                      disabled={isUpdating}
+                      className="p-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Đã nhận cọc"
+                    >
+                      {isUpdating ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <HandCoins size={18} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteModal(row)}
+                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                      title="Delete Quotation"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
+                
+                {/* AT_STORE with deposit HOLDING: Show "Tạo installment plan" button */}
+                {isATStore && depositInfo && depositInfo.status === "HOLDING" && (
+                  <>
+                    <button
+                      onClick={() => {}}
+                      className="p-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors"
+                      title="Tạo installment plan"
+                    >
+                      <FileText size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteModal(row)}
+                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                      title="Delete Quotation"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
+                
+                {/* ORDER or PRE_ORDER: Show Đặt cọc / Delete */}
+                {isOrderOrPreOrder && row.status === "ACCEPTED" && !depositInfo && (
+                  <>
+                    <button
+                      onClick={() => handleOpenDepositModal(row)}
+                      className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                      title="Đặt cọc (Create Deposit)"
+                    >
+                      <CreditCard size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteModal(row)}
+                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                      title="Delete Quotation"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
+                
+                {/* ORDER or PRE_ORDER with deposit PENDING: Show "Đã nhận cọc" button */}
+                {isOrderOrPreOrder && row.status === "ACCEPTED" && depositInfo && depositInfo.status === "PENDING" && (
+                  <>
+                    <button
+                      onClick={() => handleReceivedDeposit(row.id)}
+                      disabled={isUpdating}
+                      className="p-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Đã nhận cọc"
+                    >
+                      {isUpdating ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <HandCoins size={18} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteModal(row)}
+                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                      title="Delete Quotation"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
+                
+                {/* ORDER or PRE_ORDER with quotation status PENDING: Show "Đã nhận cọc" button */}
+                {isOrderOrPreOrder && row.status === "PENDING" && (
+                  <>
+                    <button
+                      onClick={() => handleReceivedDeposit(row.id)}
+                      disabled={isUpdating}
+                      className="p-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Đã nhận cọc"
+                    >
+                      {isUpdating ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <HandCoins size={18} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteModal(row)}
+                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                      title="Delete Quotation"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
+                
+                {/* ORDER or PRE_ORDER with deposit HOLDING: Show "Tạo hợp đồng" button */}
+                {isOrderOrPreOrder && depositInfo && depositInfo.status === "HOLDING" && (
+                  <>
+                    <button
+                      onClick={() => handleOpenContractModal(row, "DEBT")}
+                      className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
+                      title="Tạo hợp đồng khách hàng"
+                    >
+                      <FileText size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteModal(row)}
+                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                      title="Delete Quotation"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
               </>
             )}
-            
-            {/* ORDER or PRE_ORDER type: Show Deposit button when ACCEPTED and no deposit yet */}
-            {(row.type === "ORDER" || row.type === "PRE_ORDER") && row.status === "ACCEPTED" && !hasContract && !hasDeposit && (
-              <button
-                onClick={() => handleOpenDepositModal(row)}
-                className="p-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors"
-                title="Create Deposit"
-              >
-                <Wallet size={18} />
-              </button>
-            )}
-            
-            {/* PENDING status or ACCEPTED with PENDING deposit: Show Received Deposit button */}
-            {(row.status === "PENDING" || (row.status === "ACCEPTED" && hasDeposit && depositStatus === "PENDING")) && (
-              <button
-                onClick={() => handleReceivedDeposit(row.id)}
-                disabled={isUpdating}
-                className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Đã nhận cọc"
-              >
-                {isUpdating ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <CheckCircle2 size={18} />
-                )}
-              </button>
-            )}
-            
-            {/* HOLDING status or deposit status is RECEIVED: Show Create Contract button */}
-            {(row.status === "HOLDING" || (hasDeposit && depositStatus === "RECEIVED")) && !hasContract && (
-              <button
-                onClick={() => handleOpenContractModal(row)}
-                className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
-                title="Create Contract"
-              >
-                <FileText size={18} />
-              </button>
-            )}
-            
-            
-            {/* Show delete button for all statuses */}
-            <button
-              onClick={() => handleOpenDeleteModal(row)}
-              className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-              title="Delete Quotation"
-            >
-              <Trash2 size={18} />
-            </button>
           </div>
         );
       },
@@ -728,13 +948,13 @@ function QuotationManagement() {
       <PaginationTable
         columns={columns}
         data={quotations}
-        loading={loading}
+        loading={loading || loadingDeposits}
         page={page}
         pageSize={limit}
         setPage={setPage}
         title="Quotation Management"
         totalItem={totalItem}
-        onRowClick={(row) => handleViewDetail(row.id)}
+        onRowClick={handleRowClick}
       />
       <BaseModal
         isOpen={isDetailModalOpen}
@@ -932,18 +1152,14 @@ function QuotationManagement() {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Contract Paid Type *</label>
             <select
-              className={`w-full px-3 py-2 border rounded-lg ${selectedQuotationForContract?.status === "HOLDING" ? "bg-gray-100" : ""}`}
+              className="w-full px-3 py-2 border rounded-lg"
               value={contractForm.contractPaidType}
               onChange={(e) => setContractForm((prev) => ({ ...prev, contractPaidType: e.target.value }))}
-              disabled={selectedQuotationForContract?.status === "HOLDING"}
               required
             >
               <option value="FULL">FULL</option>
               <option value="DEBT">DEBT</option>
             </select>
-            {selectedQuotationForContract?.status === "HOLDING" && (
-              <p className="text-xs text-gray-500 mt-1">Contract type is set to DEBT for deposit-based quotations</p>
-            )}
           </div>
         </div>
       </FormModal>
@@ -994,8 +1210,8 @@ function QuotationManagement() {
                   depositAmount: amount
                 }));
               }}
-              min={1}
-              max={100}
+              min="1"
+              max="100"
               required
             />
           </div>
@@ -1003,17 +1219,11 @@ function QuotationManagement() {
             <label className="block text-sm font-semibold text-gray-700 mb-1">Deposit Amount *</label>
             <input
               type="number"
-              className="w-full px-3 py-2 border rounded-lg"
+              className="w-full px-3 py-2 border rounded-lg bg-gray-100"
               value={depositForm.depositAmount}
-              onChange={(e) => setDepositForm((prev) => ({ ...prev, depositAmount: Number(e.target.value) }))}
-              min={0}
-              required
+              readOnly
+              disabled
             />
-            {selectedQuotationForDeposit && (
-              <p className="text-xs text-gray-500 mt-1">
-                Final Price: {formatCurrency(selectedQuotationForDeposit.finalPrice)}
-              </p>
-            )}
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Hold Days *</label>
