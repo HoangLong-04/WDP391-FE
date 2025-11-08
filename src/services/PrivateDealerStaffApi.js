@@ -25,5 +25,13 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.get(`customer-contract/detail/${contractId}`),
   createCustomerContract: (data) =>
     apiConfig.privateApi.post("customer-contract", data),
+  createDeposit: (data) =>
+    apiConfig.privateApi.post("deposit", data),
+  getDepositList: (agencyId, params) =>
+    apiConfig.privateApi.get(`deposit/list/${agencyId}`, { params }),
+  getDepositById: (depositId) =>
+    apiConfig.privateApi.get(`deposit/${depositId}`),
+  updateDepositStatus: (depositId, data) =>
+    apiConfig.privateApi.patch(`deposit/${depositId}`, data),
 };
 export default PrivateDealerStaff;

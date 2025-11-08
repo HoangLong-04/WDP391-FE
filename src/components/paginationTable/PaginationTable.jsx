@@ -10,6 +10,7 @@ function PaginationTable({
   loading,
   pageSize,
   totalItem,
+  onRowClick,
 }) {
   // tối đa 8 item mỗi trang
   const totalPage = Math.ceil(totalItem / pageSize);
@@ -63,7 +64,8 @@ function PaginationTable({
               data?.map((item, idx) => (
                 <tr
                   key={item.id ?? idx}
-                  className="border-b border-gray-100 hover:bg-blue-50/50 transition-colors duration-150 group"
+                  onClick={() => onRowClick && onRowClick(item)}
+                  className={`border-b border-gray-100 hover:bg-blue-50/50 transition-colors duration-150 group ${onRowClick ? 'cursor-pointer' : ''}`}
                 >
                   {columns.map((col) => (
                     <td key={col.key} className="p-2 sm:p-3 md:p-4 text-xs sm:text-sm text-gray-700 group-hover:text-gray-900 whitespace-nowrap">
