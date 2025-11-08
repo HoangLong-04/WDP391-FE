@@ -15,6 +15,8 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.get(`quotation/detail/${quotationId}`),
   updateQuotation: (quotationId, data) =>
     apiConfig.privateApi.patch(`quotation/${quotationId}`, data),
+  deleteQuotation: (quotationId) =>
+    apiConfig.privateApi.delete(`quotation/${quotationId}`),
   getStockPromotionListStaff: (agencyId) =>
     apiConfig.privateApi.get(`stock-promotion/list/staff/${agencyId}`),
   getCustomerContractList: (agencyId, params) =>
