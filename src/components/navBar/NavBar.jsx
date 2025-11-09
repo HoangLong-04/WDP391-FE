@@ -9,6 +9,7 @@ function NavBar() {
     { path: "/user/home", label: "Home" },
     { path: "/user/products", label: "Products" },
     { path: "/user/driving-test", label: "Driving Test" },
+    { path: "/user/customer-contract", label: "Customer contract" },
   ];
 
   const isActive = (path) => {

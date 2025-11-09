@@ -47,6 +47,7 @@ import EvmStaffPromotionManagement from "./pages/company/evmStaff/promotionManag
 import EvmStaffInventoryManagement from "./pages/company/evmStaff/inventoryManagement/InventoryManagementEVMStaff";
 import EvmStaffOrderRestockManagement from "./pages/company/evmStaff/orderRestockManagement/OrderRestockManagementEVMStaff";
 import EvmStaffPricePolicyManagement from "./pages/company/evmStaff/pricePolicyManagement/PricePolicyManagementEVMStaff";
+import ContractForCustomer from "./pages/customer/customerContract/ContractForCustomer";
 
 function App() {
   return (
@@ -58,10 +59,12 @@ function App() {
 
           {/* Public */}
           <Route path="/payment" element={<Payment />} />
+          
           <Route path="/" element={<AuthenLayout />}>
             <Route path="login" element={<Login />} />
           </Route>
           <Route path="/" element={<UserLayout />}>
+          <Route path="user/customer-contract" element={<ContractForCustomer />} />
             <Route path="user/home" element={<HomePage />} />
             <Route path="user/driving-test" element={<DrivingTest />} />
             <Route path="user/bike/:id" element={<BikeDetail />} />
