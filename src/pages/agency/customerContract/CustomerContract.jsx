@@ -21,10 +21,11 @@ import useColorList from "../../../hooks/useColorList";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
-import { Pencil, Trash2, Plus, CreditCard } from "lucide-react";
+import { Pencil, Trash2, Plus, CreditCard, CheckCircle } from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
 import BaseModal from "../../../components/modal/baseModal/BaseModal";
 import CircularProgress from "@mui/material/CircularProgress";
+import ConfirmModal from "../../../components/modal/confirmModal/ConfirmModal";
 
 function CustomerContract() {
   const { user } = useAuth();
@@ -72,6 +73,13 @@ function CustomerContract() {
     customerContractId: "",
     installmentPlanId: "",
   });
+  const [installmentContractDetail, setInstallmentContractDetail] = useState(null);
+  const [isInstallmentDetailModalOpen, setIsInstallmentDetailModalOpen] = useState(false);
+  const [loadingInstallmentDetail, setLoadingInstallmentDetail] = useState(false);
+  const [installmentContractMap, setInstallmentContractMap] = useState({}); // Map customerContractId -> installmentContractId
+  const [isPaymentConfirmModalOpen, setIsPaymentConfirmModalOpen] = useState(false);
+  const [selectedPaymentForConfirm, setSelectedPaymentForConfirm] = useState(null);
+  const [isMarkingPaymentAsPaid, setIsMarkingPaymentAsPaid] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -134,6 +142,31 @@ function CustomerContract() {
       });
       setCustomerContractList(list);
       setTotalItem(response.data.paginationInfo?.total || 0);
+      
+      // Check for installment contracts for DEBT contracts
+      const newMap = {};
+      const checkPromises = list
+        .filter(contract => contract.contractPaidType === "DEBT" && contract.status === "PENDING")
+        .map(async (contract) => {
+          try {
+            const res = await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(contract.id);
+            const installmentContract = res.data?.data;
+            if (installmentContract?.id) {
+              newMap[contract.id] = installmentContract.id;
+            }
+          } catch (error) {
+            // 404 means no installment contract exists - that's fine
+            if (error.response?.status !== 404) {
+              console.error(`Error checking installment contract for contract ${contract.id}:`, error);
+            }
+          }
+        });
+      
+      // Wait for all checks to complete
+      await Promise.all(checkPromises);
+      
+      // Merge with existing map to preserve newly created contracts
+      setInstallmentContractMap(prev => ({ ...prev, ...newMap }));
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -219,7 +252,16 @@ function CustomerContract() {
       const isDealerStaff = user?.roles?.includes("Dealer Staff");
       const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
       const res = await api.getCustomerContractDetail(contractId);
-      setContractDetail(res.data?.data || null);
+      const contractDetail = res.data?.data || null;
+      setContractDetail(contractDetail);
+      
+      // Update installment contract map if contract detail has installmentContractId
+      if (contractDetail?.installmentContractId) {
+        setInstallmentContractMap(prev => ({
+          ...prev,
+          [contractId]: contractDetail.installmentContractId
+        }));
+      }
     } catch (error) {
       toast.error(error.message || "Failed to load contract detail");
       setIsDetailModalOpen(false);
@@ -247,7 +289,47 @@ function CustomerContract() {
     }
   };
 
-  const handleOpenInstallmentContractModal = (contract) => {
+  const handleOpenInstallmentContractModal = async (contract) => {
+    // Only allow for DEBT contracts
+    if (contract.contractPaidType !== "DEBT") {
+      toast.error("Only DEBT contracts can have installment contracts");
+      return;
+    }
+
+    // First check in local map
+    const existingInstallmentId = installmentContractMap[contract.id];
+    if (existingInstallmentId) {
+      toast.warning("This contract already has an installment contract. Please view it instead.");
+      handleViewInstallmentContract(existingInstallmentId);
+      return;
+    }
+
+    // Use the dedicated API to check if installment contract exists
+    try {
+      const res = await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(contract.id);
+      const installmentContract = res.data?.data;
+      
+      if (installmentContract?.id) {
+        toast.warning("This contract already has an installment contract. Please view it instead.");
+        setInstallmentContractMap(prev => ({
+          ...prev,
+          [contract.id]: installmentContract.id
+        }));
+        handleViewInstallmentContract(installmentContract.id);
+        return;
+      }
+    } catch (error) {
+      // If 404 or not found, it means no installment contract exists - that's fine
+      if (error.response?.status === 404) {
+        // No installment contract exists, proceed with creation
+      } else {
+        console.error("Error checking installment contract:", error);
+        toast.error("Failed to verify contract status. Please try again.");
+        return; // Don't proceed if we can't verify
+      }
+    }
+
+    // If no installment contract found, proceed with creation
     setInstallmentContractForm({
       startDate: "",
       penaltyValue: 0,
@@ -262,19 +344,116 @@ function CustomerContract() {
 
   const handleCreateInstallmentContract = async (e) => {
     e.preventDefault();
+    
+    // Validate all required fields before submitting
+    if (!installmentContractForm.startDate) {
+      toast.error("Please select a start date");
+      return;
+    }
+    if (!installmentContractForm.installmentPlanId) {
+      toast.error("Please select an installment plan");
+      return;
+    }
+    if (!installmentContractForm.penaltyType) {
+      toast.error("Please select a penalty type");
+      return;
+    }
+    if (installmentContractForm.penaltyValue === null || installmentContractForm.penaltyValue === undefined || installmentContractForm.penaltyValue < 0) {
+      toast.error("Please enter a valid penalty value (must be >= 0)");
+      return;
+    }
+    if (!installmentContractForm.customerContractId) {
+      toast.error("Customer contract ID is missing");
+      return;
+    }
+
     setSubmit(true);
     try {
+      // Final check using the dedicated API before creating
+      try {
+        const res = await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(
+          installmentContractForm.customerContractId
+        );
+        const existingInstallment = res.data?.data;
+        
+        if (existingInstallment?.id) {
+          toast.warning("This contract already has an installment contract. Please view it instead.");
+          setInstallmentContractMap(prev => ({
+            ...prev,
+            [installmentContractForm.customerContractId]: existingInstallment.id
+          }));
+          setInstallmentContractModal(false);
+          handleViewInstallmentContract(existingInstallment.id);
+          setSubmit(false);
+          return;
+        }
+      } catch (checkError) {
+        // If 404, it means no installment contract exists - that's fine, continue
+        if (checkError.response?.status !== 404) {
+          console.error("Error checking installment contract before create:", checkError);
+          toast.error("Failed to verify contract status. Please try again.");
+          setSubmit(false);
+          return;
+        }
+      }
+
+      // Prepare data with all required fields
       const sendData = {
-        ...installmentContractForm,
         startDate: new Date(installmentContractForm.startDate).toISOString(),
         penaltyValue: Number(installmentContractForm.penaltyValue),
+        penaltyType: installmentContractForm.penaltyType,
+        status: installmentContractForm.status || "ACTIVE",
         customerContractId: Number(installmentContractForm.customerContractId),
         installmentPlanId: Number(installmentContractForm.installmentPlanId),
       };
-      await PrivateDealerManagerApi.createInstallmentContract(sendData);
-      toast.success("Create installment contract successfully");
+
+      // Verify all fields are present
+      if (!sendData.startDate || !sendData.penaltyType || !sendData.customerContractId || !sendData.installmentPlanId) {
+        toast.error("Please fill in all required fields");
+        setSubmit(false);
+        return;
+      }
+
+      const response = await PrivateDealerManagerApi.createInstallmentContract(sendData);
+      const installmentContractId = response.data?.data?.id;
+      if (installmentContractId) {
+        // Store the mapping immediately
+        setInstallmentContractMap(prev => ({
+          ...prev,
+          [installmentContractForm.customerContractId]: installmentContractId
+        }));
+        
+        // Generate payment schedules after creating contract
+        try {
+          await PrivateDealerManagerApi.generateInstallmentPayments(installmentContractId);
+          toast.success("Installment contract created and payment schedules generated successfully");
+        } catch (generateError) {
+          console.error("Error generating payment schedules:", generateError);
+          toast.warning("Contract created but failed to generate payment schedules. Please try again later.");
+        }
+      } else {
+        toast.success("Create installment contract successfully");
+      }
       setInstallmentContractModal(false);
-      fetchCustomerContractList();
+      
+      // Refresh the list to update UI
+      await fetchCustomerContractList();
+      
+      // Double check by fetching contract detail to ensure map is updated
+      try {
+        const contractDetailRes = await PrivateDealerManagerApi.getCustomerContractDetail(
+          installmentContractForm.customerContractId
+        );
+        const contractDetail = contractDetailRes.data?.data;
+        if (contractDetail?.installmentContractId) {
+          setInstallmentContractMap(prev => ({
+            ...prev,
+            [installmentContractForm.customerContractId]: contractDetail.installmentContractId
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching contract detail after creation:", error);
+      }
       setInstallmentContractForm({
         startDate: "",
         penaltyValue: 0,
@@ -284,9 +463,96 @@ function CustomerContract() {
         installmentPlanId: "",
       });
     } catch (error) {
-      toast.error(error.message || "Failed to create installment contract");
+      // Better error handling
+      const errorMessage = error.response?.data?.message || error.message || "Failed to create installment contract";
+      if (errorMessage.includes("Unique") || errorMessage.includes("unique constraint") || errorMessage.includes("customerContractId")) {
+        toast.warning("This contract already has an installment contract. Fetching details...");
+        setInstallmentContractModal(false);
+        
+        // Try to fetch the existing installment contract using the dedicated API
+        try {
+          const res = await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(
+            installmentContractForm.customerContractId
+          );
+          const existingInstallment = res.data?.data;
+          
+          if (existingInstallment?.id) {
+            setInstallmentContractMap(prev => ({
+              ...prev,
+              [installmentContractForm.customerContractId]: existingInstallment.id
+            }));
+            handleViewInstallmentContract(existingInstallment.id);
+          } else {
+            // If we can't find it, refresh the list
+            fetchCustomerContractList();
+          }
+        } catch (fetchError) {
+          console.error("Error fetching installment contract after unique constraint error:", fetchError);
+          // Refresh the list as fallback
+          fetchCustomerContractList();
+        }
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setSubmit(false);
+    }
+  };
+
+  const handleViewInstallmentContract = async (installmentContractId) => {
+    setLoadingInstallmentDetail(true);
+    setIsInstallmentDetailModalOpen(true);
+    try {
+      const res = await PrivateDealerManagerApi.getInstallmentContractDetail(installmentContractId);
+      setInstallmentContractDetail(res.data?.data || null);
+    } catch (error) {
+      toast.error(error.message || "Failed to load installment contract detail");
+      setIsInstallmentDetailModalOpen(false);
+    } finally {
+      setLoadingInstallmentDetail(false);
+    }
+  };
+
+  const handleMarkPaymentAsPaid = (payment) => {
+    if (payment.status === "PAID") {
+      toast.info("This payment is already marked as PAID");
+      return;
+    }
+
+    setSelectedPaymentForConfirm(payment);
+    setIsPaymentConfirmModalOpen(true);
+  };
+
+  const handleConfirmMarkPaymentAsPaid = async () => {
+    if (!selectedPaymentForConfirm) return;
+
+    setIsMarkingPaymentAsPaid(true);
+    try {
+      const payment = selectedPaymentForConfirm;
+      const updateData = {
+        dueDate: payment.dueDate ? new Date(payment.dueDate).toISOString() : new Date().toISOString(),
+        paidDate: new Date().toISOString(),
+        amountDue: payment.amountDue || 0,
+        amountPaid: payment.amountDue || 0, // Mark as fully paid
+        penaltyAmount: payment.penaltyAmount || 0,
+        status: "PAID",
+      };
+
+      await PrivateDealerManagerApi.updateInstallmentPayment(payment.id, updateData);
+      toast.success("Payment marked as PAID successfully");
+      
+      setIsPaymentConfirmModalOpen(false);
+      setSelectedPaymentForConfirm(null);
+      
+      // Refresh installment contract detail to show updated status
+      if (installmentContractDetail?.id) {
+        const res = await PrivateDealerManagerApi.getInstallmentContractDetail(installmentContractDetail.id);
+        setInstallmentContractDetail(res.data?.data || null);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to update payment status");
+    } finally {
+      setIsMarkingPaymentAsPaid(false);
     }
   };
 
@@ -337,20 +603,40 @@ function CustomerContract() {
       title: "Action",
       render: (_, item) => {
         const isDealerStaff = user?.roles?.includes("Dealer Staff");
-        const canCreateInstallment = item.status === "PENDING" && item.contractPaidType;
+        // Only show installment contract button for DEBT contracts with PENDING status
+        const canShowInstallmentButton = item.status === "PENDING" && item.contractPaidType === "DEBT";
+        // Check installment contract ID from map
+        const installmentContractId = installmentContractMap[item.id];
+        const hasInstallmentContract = !!installmentContractId;
+        
         return (
           <div className="flex gap-2 items-center">
-            {canCreateInstallment && !isDealerStaff && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleOpenInstallmentContractModal(item);
-                }}
-                className="cursor-pointer text-white bg-green-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
-                title="Create Installment Contract"
-              >
-                <CreditCard size={18} />
-              </button>
+            {canShowInstallmentButton && !isDealerStaff && (
+              <>
+                {hasInstallmentContract ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewInstallmentContract(installmentContractId);
+                    }}
+                    className="cursor-pointer text-white bg-purple-500 p-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center"
+                    title="View Installment Contract"
+                  >
+                    <CreditCard size={18} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenInstallmentContractModal(item);
+                    }}
+                    className="cursor-pointer text-white bg-green-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
+                    title="Create Installment Contract"
+                  >
+                    <CreditCard size={18} />
+                  </button>
+                )}
+              </>
             )}
             {!isDealerStaff && (
               <>
@@ -621,7 +907,7 @@ function CustomerContract() {
               required
             >
               <option value="FIXED">FIXED</option>
-              <option value="PERCENTAGE">PERCENTAGE</option>
+              <option value="DAILY">DAILY</option>
             </select>
           </div>
 
@@ -839,6 +1125,267 @@ function CustomerContract() {
           <div className="text-center py-12 text-gray-500">No data available</div>
         )}
       </BaseModal>
+
+      <BaseModal
+        isOpen={isInstallmentDetailModalOpen}
+        onClose={() => {
+          setIsInstallmentDetailModalOpen(false);
+          setInstallmentContractDetail(null);
+        }}
+        title="Installment Contract Detail"
+        size="lg"
+      >
+        {loadingInstallmentDetail ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : installmentContractDetail ? (
+          <div className="space-y-6">
+            {/* Header Section */}
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-6 border border-purple-100">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                    Installment Contract #{installmentContractDetail.id}
+                  </h3>
+                </div>
+                <div>
+                  {renderStatusTag(installmentContractDetail.status)}
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Summary */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 border-2 border-indigo-200">
+                <p className="text-sm text-gray-600 mb-1">Pre Paid Total</p>
+                <p className="text-xl font-bold text-indigo-700">
+                  {formatCurrency(installmentContractDetail.prePaidTotal || 0)}
+                </p>
+              </div>
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-200">
+                <p className="text-sm text-gray-600 mb-1">Total Debt Paid</p>
+                <p className="text-xl font-bold text-green-700">
+                  {formatCurrency(installmentContractDetail.totalDebtPaid || 0)}
+                </p>
+              </div>
+              <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-lg p-4 border-2 border-orange-200">
+                <p className="text-sm text-gray-600 mb-1">Penalty Value</p>
+                <p className="text-xl font-bold text-orange-700">
+                  {formatCurrency(installmentContractDetail.penaltyValue || 0)}
+                </p>
+              </div>
+            </div>
+
+            {/* Contract Info */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Contract Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Start Date</p>
+                  <p className="font-medium text-gray-800">
+                    {installmentContractDetail.startDate 
+                      ? dayjs.utc(installmentContractDetail.startDate).format("DD/MM/YYYY HH:mm") 
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Penalty Type</p>
+                  <p className="font-medium text-gray-800">
+                    {installmentContractDetail.penaltyType || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Contract Info */}
+            {installmentContractDetail.customerContract && (
+              <div className="bg-white rounded-lg p-5 border border-gray-200">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                  Customer Contract Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Title</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.customerContract.title || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+                    <p className="font-medium text-gray-800">
+                      {formatCurrency(installmentContractDetail.customerContract.totalAmount || 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Deposit Amount</p>
+                    <p className="font-medium text-gray-800">
+                      {formatCurrency(installmentContractDetail.customerContract.depositAmount || 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Contract Type</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.customerContract.type || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Status</p>
+                    <p className="font-medium text-gray-800">
+                      {renderStatusTag(installmentContractDetail.customerContract.status)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Installment Plan Info */}
+            {installmentContractDetail.installmentPlan && (
+              <div className="bg-white rounded-lg p-5 border border-gray-200">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                  Installment Plan Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan.name || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Tensor</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan.tensor || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Interest Rate</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan.interestRate || 0}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Total Paid Months</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan.totalPaidMonth || 0} months
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Interest Paid Type</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan.interestPaidType || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Pre Paid Percent</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan.prePaidPercent || 0}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Process Fee</p>
+                    <p className="font-medium text-gray-800">
+                      {formatCurrency(installmentContractDetail.installmentPlan.processFee || 0)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Installment Payments */}
+            {installmentContractDetail.installmentPayments && installmentContractDetail.installmentPayments.length > 0 && (
+              <div className="bg-white rounded-lg p-5 border border-gray-200">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                  Installment Payments ({installmentContractDetail.installmentPayments.length})
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Period</th>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Due Date</th>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Paid Date</th>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Amount Due</th>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Amount Paid</th>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Penalty</th>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Status</th>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {installmentContractDetail.installmentPayments.map((payment) => (
+                        <tr key={payment.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-2 text-gray-800">
+                            {payment.period 
+                              ? dayjs.utc(payment.period).format("DD/MM/YYYY") 
+                              : "-"}
+                          </td>
+                          <td className="px-4 py-2 text-gray-800">
+                            {payment.dueDate 
+                              ? dayjs.utc(payment.dueDate).format("DD/MM/YYYY") 
+                              : "-"}
+                          </td>
+                          <td className="px-4 py-2 text-gray-800">
+                            {payment.paidDate 
+                              ? dayjs.utc(payment.paidDate).format("DD/MM/YYYY") 
+                              : "-"}
+                          </td>
+                          <td className="px-4 py-2 text-gray-800">
+                            {formatCurrency(payment.amountDue || 0)}
+                          </td>
+                          <td className="px-4 py-2 text-gray-800">
+                            {formatCurrency(payment.amountPaid || 0)}
+                          </td>
+                          <td className="px-4 py-2 text-gray-800">
+                            {formatCurrency(payment.penaltyAmount || 0)}
+                          </td>
+                          <td className="px-4 py-2">
+                            {renderStatusTag(payment.status)}
+                          </td>
+                          <td className="px-4 py-2">
+                            {payment.status !== "PAID" && (
+                              <button
+                                onClick={() => handleMarkPaymentAsPaid(payment)}
+                                className="cursor-pointer text-white bg-green-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
+                                title="Mark as PAID"
+                              >
+                                <CheckCircle size={18} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">No data available</div>
+        )}
+      </BaseModal>
+
+      <ConfirmModal
+        isOpen={isPaymentConfirmModalOpen}
+        onClose={() => {
+          setIsPaymentConfirmModalOpen(false);
+          setSelectedPaymentForConfirm(null);
+        }}
+        onConfirm={handleConfirmMarkPaymentAsPaid}
+        isSubmitting={isMarkingPaymentAsPaid}
+        title="Mark Payment as PAID"
+        message={
+          selectedPaymentForConfirm
+            ? `Are you sure you want to mark payment #${selectedPaymentForConfirm.id} as PAID? Amount: ${formatCurrency(selectedPaymentForConfirm.amountDue || 0)}`
+            : "Are you sure you want to mark this payment as PAID?"
+        }
+        confirmText="Mark as PAID"
+        cancelText="Cancel"
+        type="warning"
+      />
     </div>
   );
 }
