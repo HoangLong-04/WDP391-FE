@@ -75,6 +75,18 @@ const PrivateDealerManagerApi = {
 
   createInstallmentContract: (data) =>
     apiConfig.privateApi.post("installment-contract", data),
+  getInstallmentContractDetail: (installmentContractId) =>
+    apiConfig.privateApi.get(`installment-contract/installment-contract/detail/${installmentContractId}`),
+  getInstallmentContractByCustomerContractId: (customerContractId) =>
+    apiConfig.privateApi.get(`installment-contract/installment-contract/customer-contract/${customerContractId}`),
+  updateInstallmentContract: (installmentContractId, data) =>
+    apiConfig.privateApi.patch(`installment-contract/installment-contract/update/${installmentContractId}`, data),
+  generateInstallmentPayments: (installmentContractId) =>
+    apiConfig.privateApi.post(`installment-contract/generate-payment/${installmentContractId}`),
+  getInstallmentPaymentDetail: (installmentPaymentId) =>
+    apiConfig.privateApi.get(`installment-contract/installlment-payment/detail/${installmentPaymentId}`),
+  updateInstallmentPayment: (installmentPaymentId, data) =>
+    apiConfig.privateApi.patch(`installment-contract/installment-payment/update/${installmentPaymentId}`, data),
 };
 
 export default PrivateDealerManagerApi;
