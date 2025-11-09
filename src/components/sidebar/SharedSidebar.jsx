@@ -103,6 +103,11 @@ function SharedSidebar() {
     if (userRole === "Admin") {
       return [
         {
+          path: "/company/dashboard",
+          label: "Dashboard",
+          Icon: LayoutDashboard,
+        },
+        {
           label: "Product",
           Icon: Square,
           children: [
