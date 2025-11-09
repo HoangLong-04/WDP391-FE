@@ -21,7 +21,7 @@ import useColorList from "../../../hooks/useColorList";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
-import { Pencil, Trash2, Eye, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, CreditCard } from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
 import BaseModal from "../../../components/modal/baseModal/BaseModal";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -61,6 +61,17 @@ function CustomerContract() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [contractDetail, setContractDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [installmentContractModal, setInstallmentContractModal] = useState(false);
+  const [installmentPlanList, setInstallmentPlanList] = useState([]);
+  const [loadingInstallmentPlans, setLoadingInstallmentPlans] = useState(false);
+  const [installmentContractForm, setInstallmentContractForm] = useState({
+    startDate: "",
+    penaltyValue: 0,
+    penaltyType: "FIXED",
+    status: "ACTIVE",
+    customerContractId: "",
+    installmentPlanId: "",
+  });
 
   const [form, setForm] = useState({
     title: "",
@@ -217,6 +228,68 @@ function CustomerContract() {
     }
   };
 
+  const handleRowClick = (item) => {
+    handleViewDetail(item.id);
+  };
+
+  const fetchInstallmentPlans = async () => {
+    setLoadingInstallmentPlans(true);
+    try {
+      const response = await PrivateDealerManagerApi.getInstallmentPlan(
+        user?.agencyId,
+        { page: 1, limit: 100, status: "ACTIVE" }
+      );
+      setInstallmentPlanList(response.data.data || []);
+    } catch (error) {
+      toast.error(error.message || "Failed to load installment plans");
+    } finally {
+      setLoadingInstallmentPlans(false);
+    }
+  };
+
+  const handleOpenInstallmentContractModal = (contract) => {
+    setInstallmentContractForm({
+      startDate: "",
+      penaltyValue: 0,
+      penaltyType: "FIXED",
+      status: "ACTIVE",
+      customerContractId: contract.id,
+      installmentPlanId: "",
+    });
+    setInstallmentContractModal(true);
+    fetchInstallmentPlans();
+  };
+
+  const handleCreateInstallmentContract = async (e) => {
+    e.preventDefault();
+    setSubmit(true);
+    try {
+      const sendData = {
+        ...installmentContractForm,
+        startDate: new Date(installmentContractForm.startDate).toISOString(),
+        penaltyValue: Number(installmentContractForm.penaltyValue),
+        customerContractId: Number(installmentContractForm.customerContractId),
+        installmentPlanId: Number(installmentContractForm.installmentPlanId),
+      };
+      await PrivateDealerManagerApi.createInstallmentContract(sendData);
+      toast.success("Create installment contract successfully");
+      setInstallmentContractModal(false);
+      fetchCustomerContractList();
+      setInstallmentContractForm({
+        startDate: "",
+        penaltyValue: 0,
+        penaltyType: "FIXED",
+        status: "ACTIVE",
+        customerContractId: "",
+        installmentPlanId: "",
+      });
+    } catch (error) {
+      toast.error(error.message || "Failed to create installment contract");
+    } finally {
+      setSubmit(false);
+    }
+  };
+
   const getNestedValue = (obj, path) => {
     if (!obj || !path) return null;
     return path
@@ -264,19 +337,26 @@ function CustomerContract() {
       title: "Action",
       render: (_, item) => {
         const isDealerStaff = user?.roles?.includes("Dealer Staff");
+        const canCreateInstallment = item.status === "PENDING" && item.contractPaidType;
         return (
           <div className="flex gap-2 items-center">
-            <button
-              onClick={() => handleViewDetail(item.id)}
-              className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-              title="View Detail"
-            >
-              <Eye size={18} />
-            </button>
+            {canCreateInstallment && !isDealerStaff && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenInstallmentContractModal(item);
+                }}
+                className="cursor-pointer text-white bg-green-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
+                title="Create Installment Contract"
+              >
+                <CreditCard size={18} />
+              </button>
+            )}
             {!isDealerStaff && (
               <>
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setIsedit(true);
                     setSelectedId(item.id);
                     setFormModal(true);
@@ -291,7 +371,8 @@ function CustomerContract() {
                   <Pencil size={18} />
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setSelectedId(item.id);
                     setDeleteModal(true);
                   }}
@@ -405,6 +486,7 @@ function CustomerContract() {
         setPage={setPage}
         totalItem={totalItem}
         title={"Customer contract"}
+        onRowClick={handleRowClick}
       />
       <GroupModal
         data={motorbike}
@@ -450,6 +532,119 @@ function CustomerContract() {
           Are you sure you want to delete this staff member? This action cannot
           be undone.
         </p>
+      </FormModal>
+
+      <FormModal
+        isOpen={installmentContractModal}
+        onClose={() => {
+          setInstallmentContractModal(false);
+          setInstallmentContractForm({
+            startDate: "",
+            penaltyValue: 0,
+            penaltyType: "FIXED",
+            status: "ACTIVE",
+            customerContractId: "",
+            installmentPlanId: "",
+          });
+        }}
+        onSubmit={handleCreateInstallmentContract}
+        isSubmitting={submit}
+        title={"Create Installment Contract"}
+        isDelete={false}
+        isCreate={true}
+      >
+        <div className="space-y-3">
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Start Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="datetime-local"
+              name="startDate"
+              value={installmentContractForm.startDate}
+              onChange={(e) =>
+                setInstallmentContractForm({
+                  ...installmentContractForm,
+                  startDate: e.target.value,
+                })
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
+              required
+            />
+          </div>
+
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Installment Plan <span className="text-red-500">*</span>
+            </label>
+            {loadingInstallmentPlans ? (
+              <div className="flex justify-center py-4">
+                <CircularProgress size={24} />
+              </div>
+            ) : (
+              <select
+                name="installmentPlanId"
+                value={installmentContractForm.installmentPlanId}
+                onChange={(e) =>
+                  setInstallmentContractForm({
+                    ...installmentContractForm,
+                    installmentPlanId: e.target.value,
+                  })
+                }
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer"
+                required
+              >
+                <option value="">Select Installment Plan</option>
+                {installmentPlanList.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name} - {plan.tensor} ({plan.totalPaidMonth} months, {plan.interestPaidType})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Penalty Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="penaltyType"
+              value={installmentContractForm.penaltyType}
+              onChange={(e) =>
+                setInstallmentContractForm({
+                  ...installmentContractForm,
+                  penaltyType: e.target.value,
+                })
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer"
+              required
+            >
+              <option value="FIXED">FIXED</option>
+              <option value="PERCENTAGE">PERCENTAGE</option>
+            </select>
+          </div>
+
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Penalty Value <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              name="penaltyValue"
+              value={installmentContractForm.penaltyValue}
+              onChange={(e) =>
+                setInstallmentContractForm({
+                  ...installmentContractForm,
+                  penaltyValue: e.target.value ? Number(e.target.value) : 0,
+                })
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
+              min={0}
+              required
+            />
+          </div>
+        </div>
       </FormModal>
       <BaseModal
         isOpen={isDetailModalOpen}
