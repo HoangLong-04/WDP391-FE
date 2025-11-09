@@ -72,6 +72,9 @@ const PrivateDealerManagerApi = {
   getWarehouseList: () => apiConfig.privateApi.get("warehouses/list"),
 
   getPromotionList: () => apiConfig.privateApi.get("promotion/agency/list"),
+
+  createInstallmentContract: (data) =>
+    apiConfig.privateApi.post("installment-contract", data),
 };
 
 export default PrivateDealerManagerApi;
