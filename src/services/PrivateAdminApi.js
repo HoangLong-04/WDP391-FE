@@ -126,6 +126,22 @@ const PrivateAdminApi = {
     }),
   addImageForMotor: (motorId, data) =>
     apiConfig.privateApi.post(`images/motorbike/${motorId}`, data),
+
+  // Report APIs
+  getTotalContractRevenue: (params) =>
+    apiConfig.privateApi.get("report/total-contract/revenue", { params }),
+  getQuarterRevenue: (params) =>
+    apiConfig.privateApi.get("report/total-contract/revenue/quarter", { params }),
+  getTotalAgencies: () =>
+    apiConfig.privateApi.get("report/total/agencies"),
+  getTotalWarehouses: () =>
+    apiConfig.privateApi.get("report/total/warehouses"),
+  getTotalMotorbikes: () =>
+    apiConfig.privateApi.get("report/total/motorbikes"),
+  getTotalApBatches: (params) =>
+    apiConfig.privateApi.get("report/total/ap-batches", { params }),
+  getTop10Motorbikes: () =>
+    apiConfig.privateApi.get("report/top-10/motorbikes"),
 };
 
 export default PrivateAdminApi;
