@@ -13,7 +13,7 @@ function CustomerManagement() {
   const [customerList, setCustomerList] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(0);
 
   const [loading, setLoading] = useState(false);
@@ -47,10 +47,10 @@ function CustomerManagement() {
     setLoading(true);
     try {
       const response = await PrivateDealerManagerApi.getCustomerList(
-        user?.agencyId
+        user?.agencyId, {page, limit}
       );
       setCustomerList(response.data.data);
-      setTotalItem(response.data.paginationInfo);
+      setTotalItem(response.data.paginationInfo.total);
     } catch (error) {
       toast.error(error.message);
     } finally {

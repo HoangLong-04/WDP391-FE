@@ -9,8 +9,8 @@ const PrivateDealerManagerApi = {
     apiConfig.privateApi.patch(`manager/staff/${id}`, data),
   deleteStaff: (id) => apiConfig.privateApi.delete(`manager/staff/${id}`),
 
-  getCustomerList: (agencyId) =>
-    apiConfig.privateApi.get(`customer/list/${agencyId}`),
+  getCustomerList: (agencyId, params) =>
+    apiConfig.privateApi.get(`customer/list/${agencyId}`, { params }),
   createCustomer: (data) => apiConfig.privateApi.post(`customer`, data),
   updateCustomer: (id, data) =>
     apiConfig.privateApi.patch(`customer/${id}`, data),
@@ -64,7 +64,8 @@ const PrivateDealerManagerApi = {
   createRestock: (data) => apiConfig.privateApi.post("order-restock", data),
   deleteRestock: (orderId) =>
     apiConfig.privateApi.delete(`order-restock/${orderId}`),
-  sendApproveToAdmin: (id) => apiConfig.privateApi.patch(`order-restock/accept/${id}`),
+  sendApproveToAdmin: (id) =>
+    apiConfig.privateApi.patch(`order-restock/accept/${id}`),
 
   getDiscountList: (agencyId, params) =>
     apiConfig.privateApi.get(`discount/agency/list/${agencyId}`, { params }),
@@ -76,17 +77,31 @@ const PrivateDealerManagerApi = {
   createInstallmentContract: (data) =>
     apiConfig.privateApi.post("installment-contract", data),
   getInstallmentContractDetail: (installmentContractId) =>
-    apiConfig.privateApi.get(`installment-contract/installment-contract/detail/${installmentContractId}`),
+    apiConfig.privateApi.get(
+      `installment-contract/installment-contract/detail/${installmentContractId}`
+    ),
   getInstallmentContractByCustomerContractId: (customerContractId) =>
-    apiConfig.privateApi.get(`installment-contract/installment-contract/customer-contract/${customerContractId}`),
+    apiConfig.privateApi.get(
+      `installment-contract/installment-contract/customer-contract/${customerContractId}`
+    ),
   updateInstallmentContract: (installmentContractId, data) =>
-    apiConfig.privateApi.patch(`installment-contract/installment-contract/update/${installmentContractId}`, data),
+    apiConfig.privateApi.patch(
+      `installment-contract/installment-contract/update/${installmentContractId}`,
+      data
+    ),
   generateInstallmentPayments: (installmentContractId) =>
-    apiConfig.privateApi.post(`installment-contract/generate-payment/${installmentContractId}`),
+    apiConfig.privateApi.post(
+      `installment-contract/generate-payment/${installmentContractId}`
+    ),
   getInstallmentPaymentDetail: (installmentPaymentId) =>
-    apiConfig.privateApi.get(`installment-contract/installlment-payment/detail/${installmentPaymentId}`),
+    apiConfig.privateApi.get(
+      `installment-contract/installlment-payment/detail/${installmentPaymentId}`
+    ),
   updateInstallmentPayment: (installmentPaymentId, data) =>
-    apiConfig.privateApi.patch(`installment-contract/installment-payment/update/${installmentPaymentId}`, data),
+    apiConfig.privateApi.patch(
+      `installment-contract/installment-payment/update/${installmentPaymentId}`,
+      data
+    ),
 };
 
 export default PrivateDealerManagerApi;

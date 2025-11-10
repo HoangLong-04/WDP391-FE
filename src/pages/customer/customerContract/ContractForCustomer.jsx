@@ -70,6 +70,18 @@ function ContractForCustomer() {
     }
   };
 
+  const handleMakeFullPayment = async (id) => {
+    try {
+      const response = await PublicApi.payFullContract("web", {
+        customerContractId: id,
+      });
+      toast.success("Request payment success");
+      window.location.href = response.data.data.paymentUrl;
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
   const handleNext = () => {
     if (page < Math.ceil(totalItems / limit)) {
       setPage((p) => p + 1);
@@ -156,6 +168,7 @@ function ContractForCustomer() {
           ) : contractList.length > 0 ? (
             contractList.map((c) => (
               <Contract
+              contractId={c.id}
                 agencyId={c.agencyId}
                 colorId={c.colorId}
                 content={c.content}
@@ -177,6 +190,7 @@ function ContractForCustomer() {
                   handleGetContractDetail(c.installmentContract.id)
                 }
                 loading={viewLoading}
+                onPay={() => handleMakeFullPayment(c.id)}
               />
             ))
           ) : (

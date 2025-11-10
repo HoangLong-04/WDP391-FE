@@ -27,6 +27,11 @@ const PublicApi = {
       `vnpay/customer-installment-payment?platform=${platform}`,
       data
     ),
+  payFullContract: (platform, data) =>
+    apiConfig.publicApi.post(
+      `vnpay/customer-contract/full/payment?platform=${platform}`,
+      data
+    ),
 };
 
 export default PublicApi;
