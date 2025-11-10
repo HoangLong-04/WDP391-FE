@@ -10,7 +10,7 @@ function useCustomerList() {
   const fetchCustomerList = async () => {
     try {
       const response = await PrivateDealerManagerApi.getCustomerList(
-        user?.agencyId
+        user?.agencyId, {page: 1, limit: 50}
       );
       setCustomerList(response.data.data);
     } catch (error) {

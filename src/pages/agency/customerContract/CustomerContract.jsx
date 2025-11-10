@@ -84,9 +84,9 @@ function CustomerContract() {
   const [form, setForm] = useState({
     title: "",
     content: "",
-    totalAmount: 0,
+    finalPrice: 0,
     depositAmount: 0,
-    createDate: "",
+    signDate: "",
     contractPaidType: "",
     contractType: "",
     status: "",
@@ -99,9 +99,9 @@ function CustomerContract() {
   const [updateForm, setUpdateForm] = useState({
     title: "",
     content: "",
-    totalAmount: 0,
+    finalPrice: 0,
     depositAmount: 0,
-    createDate: "",
+    signDate: "",
     contractPaidType: "",
     contractType: "",
     status: "",
@@ -196,9 +196,9 @@ function CustomerContract() {
       setForm({
         title: "",
         content: "",
-        totalAmount: 0,
+        finalPrice: 0,
         depositAmount: 0,
-        createDate: "",
+        signDate: "",
         contractPaidType: "",
         contractType: "",
         status: "",
@@ -648,7 +648,7 @@ function CustomerContract() {
                     setFormModal(true);
                     setUpdateForm({
                       ...item,
-                      createDate: dayjs(item.createDate).format('YYYY-MM-DD')
+                      signDate: dayjs(item.signDate).format('YYYY-MM-DD')
                     })
                   }}
                   className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
@@ -1216,7 +1216,7 @@ function CustomerContract() {
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Total Amount</p>
                     <p className="font-medium text-gray-800">
-                      {formatCurrency(installmentContractDetail.customerContract.totalAmount || 0)}
+                      {formatCurrency(installmentContractDetail.customerContract.finalPrice || 0)}
                     </p>
                   </div>
                   <div>

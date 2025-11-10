@@ -10,7 +10,7 @@ function useDealerStaffList() {
   const fetchStaffList = async () => {
     try {
       const response = await PrivateDealerManagerApi.getStaffListByAgencyId(
-        user?.agencyId
+        user?.agencyId, {page: 1, limit: 30}
       );
       setStaffList(response.data.data);
     } catch (error) {

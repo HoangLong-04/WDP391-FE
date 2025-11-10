@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 
 function Contract({
   title,
+  contractId,
   content,
   totalAmount,
   depositAmount,
@@ -20,18 +21,21 @@ function Contract({
   contractDocuments,
   onViewDetail,
   onOpen,
+  onPay,
   loading,
 }) {
   return (
     <div className="bg-white shadow-lg rounded-2xl p-6 space-y-4 border border-gray-200">
       {/* Header */}
       <div className="flex justify-between items-center border-b pb-3">
-        <h2 className="text-xl font-semibold">{title}</h2>
+        <h2 className="text-xl font-semibold">
+          {title} - #{contractId}
+        </h2>
         <span
           className={`px-3 py-1 rounded-full text-sm font-medium ${
-            status === "PENDING"
-              ? "bg-yellow-100 text-yellow-700"
-              : status === "ACCEPTED"
+            status === "DELIVERED"
+              ? "bg-gray-100 text-gray-700"
+              : status === "COMPLETED"
               ? "bg-green-100 text-green-700"
               : "bg-gray-100 text-gray-700"
           }`}
@@ -58,6 +62,13 @@ function Contract({
           label="Total Amount"
           value={`${totalAmount?.toLocaleString()} VND`}
         />
+        <div />
+        {status !== 'COMPLETED' || installmentContract && <div>
+          <button onClick={onPay} className="bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg text-white cursor-pointer">
+            Pay
+          </button>
+        </div>}
+        
       </div>
 
       {/* Nội dung mô tả */}
