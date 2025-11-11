@@ -21,6 +21,12 @@ const PublicApi = {
     ),
   getCustomerContractDetail: (id) =>
     apiConfig.publicApi.get(`customer/installment-detail/${id}`),
+  getQuotationList: (credentialId, params) =>
+    apiConfig.publicApi.get(`customer/list/quotation/${credentialId}`, {
+      params,
+    }),
+  getDeposit: (quotationId) =>
+    apiConfig.publicApi.get(`customer/deposit/${quotationId}`),
 
   payCustomerInstallment: (platform, data) =>
     apiConfig.publicApi.post(
@@ -30,6 +36,11 @@ const PublicApi = {
   payFullContract: (platform, data) =>
     apiConfig.publicApi.post(
       `vnpay/customer-contract/full/payment?platform=${platform}`,
+      data
+    ),
+  paymentDeposit: (platform, data) =>
+    apiConfig.publicApi.post(
+      `vnpay/customer/deposit/payment?platform=${platform}`,
       data
     ),
 };

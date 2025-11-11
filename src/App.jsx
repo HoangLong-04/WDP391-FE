@@ -48,6 +48,7 @@ import EvmStaffInventoryManagement from "./pages/company/evmStaff/inventoryManag
 import EvmStaffOrderRestockManagement from "./pages/company/evmStaff/orderRestockManagement/OrderRestockManagementEVMStaff";
 import EvmStaffPricePolicyManagement from "./pages/company/evmStaff/pricePolicyManagement/PricePolicyManagementEVMStaff";
 import ContractForCustomer from "./pages/customer/customerContract/ContractForCustomer";
+import CustomerQuotation from "./pages/customer/customerQuotation/CustomerQuotation";
 
 function App() {
   return (
@@ -59,12 +60,19 @@ function App() {
 
           {/* Public */}
           <Route path="/payment" element={<Payment />} />
-          
+
           <Route path="/" element={<AuthenLayout />}>
             <Route path="login" element={<Login />} />
           </Route>
           <Route path="/" element={<UserLayout />}>
-          <Route path="user/customer-contract" element={<ContractForCustomer />} />
+            <Route
+              path="user/customer-contract"
+              element={<ContractForCustomer />}
+            />
+            <Route
+              path="user/customer-quotation"
+              element={<CustomerQuotation />}
+            />
             <Route path="user/home" element={<HomePage />} />
             <Route path="user/driving-test" element={<DrivingTest />} />
             <Route path="user/bike/:id" element={<BikeDetail />} />
@@ -87,12 +95,27 @@ function App() {
               element={<InstallmentPlan />}
             />
             <Route path="agency/stock-promotion" element={<StockPromotion />} />
-            <Route path="agency/order-restock" element={<OrderRestockAgency />} />
-            <Route path="agency/customer-contract" element={<CustomerContract />} />
-            <Route path="agency/customer-management" element={<CustomerManagement />} />
-            <Route path="agency/booking-management" element={<BookingManagement />} />
+            <Route
+              path="agency/order-restock"
+              element={<OrderRestockAgency />}
+            />
+            <Route
+              path="agency/customer-contract"
+              element={<CustomerContract />}
+            />
+            <Route
+              path="agency/customer-management"
+              element={<CustomerManagement />}
+            />
+            <Route
+              path="agency/booking-management"
+              element={<BookingManagement />}
+            />
             <Route path="agency/catalogue" element={<Catalogue />} />
-            <Route path="agency/quotation-management" element={<QuotationManagement />} />
+            <Route
+              path="agency/quotation-management"
+              element={<QuotationManagement />}
+            />
           </Route>
 
           {/* Private company */}
@@ -121,8 +144,14 @@ function App() {
             <Route path="company/dealerManager" element={<DealerManager />} />
             <Route path="company/motorbike" element={<MotorbikeManagement />} />
             <Route path="company/color" element={<ColorManagement />} />
-            <Route path="company/appearance" element={<AppearanceManagement />} />
-            <Route path="company/configuration" element={<ConfigurationManagement />} />
+            <Route
+              path="company/appearance"
+              element={<AppearanceManagement />}
+            />
+            <Route
+              path="company/configuration"
+              element={<ConfigurationManagement />}
+            />
             {/* EVM Staff Routes */}
             <Route
               path="company/evm-staff/warehouse"
