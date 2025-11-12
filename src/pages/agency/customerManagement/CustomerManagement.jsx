@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
-import PaginationTable from "../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../components/dataTable/DataTable";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import CustomerForm from "./customerForm/CustomerForm";
 import { Pencil, Trash2, Plus } from "lucide-react";
@@ -43,11 +43,12 @@ function CustomerManagement() {
   const [isEdit, setIsedit] = useState(false);
   const [selectedId, setSelectedId] = useState("");
 
-  const fetchCustomerList = async () => {
+  const fetchCustomerList = useCallback(async () => {
+    if (!user?.agencyId) return;
     setLoading(true);
     try {
       const response = await PrivateDealerManagerApi.getCustomerList(
-        user?.agencyId, {page, limit}
+        user.agencyId, {page, limit}
       );
       setCustomerList(response.data.data);
       setTotalItem(response.data.paginationInfo.total);
@@ -56,7 +57,7 @@ function CustomerManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.agencyId, page, limit]);
 
   const handleCreateCustomer = async (e) => {
     setSubmit(true);
@@ -114,7 +115,11 @@ function CustomerManagement() {
 
   useEffect(() => {
     fetchCustomerList();
-  }, [page, limit]);
+  }, [fetchCustomerList]);
+
+  const handleViewDetail = (item) => {
+    // Can add view detail modal if needed
+  };
 
   const columns = [
     { key: "id", title: "Id" },
@@ -126,41 +131,34 @@ function CustomerManagement() {
     {
       key: "dob",
       title: "Dob",
-      render: (dob) => dayjs(dob).format("DD-MM-YYYY"),
+      render: (dob) => dob ? dayjs(dob).format("DD-MM-YYYY") : "-",
     },
     { key: "agencyId", title: "Agency" },
+  ];
+
+  const actions = [
     {
-      key: "action",
-      title: "Action",
-      render: (_, item) => (
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() => {
-              setSelectedId(item.id);
-              setFormModal(true);
-              setIsedit(true);
-              setUpdateForm({
-                ...item,
-                dob: dayjs(item.dob).format("YYYY-MM-DD"),
-              });
-            }}
-            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-            title="Update"
-          >
-            <Pencil size={18} />
-          </button>
-          <button
-            onClick={() => {
-              setSelectedId(item.id);
-              setDeleteModal(true);
-            }}
-            className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
-            title="Delete"
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
-      ),
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: (item) => {
+        setSelectedId(item.id);
+        setFormModal(true);
+        setIsedit(true);
+        setUpdateForm({
+          ...item,
+          dob: item.dob ? dayjs(item.dob).format("YYYY-MM-DD") : "",
+        });
+      },
+    },
+    {
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setSelectedId(item.id);
+        setDeleteModal(true);
+      },
     },
   ];
 
@@ -179,15 +177,17 @@ function CustomerManagement() {
           </button>
         </div>
       </div>
-      <PaginationTable
+      <DataTable
+        title="Customer Management"
         columns={columns}
         data={customerList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Customer management"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
 
       <FormModal
