@@ -345,46 +345,66 @@ function Catalogue() {
                   </div>
                 )}
               </div>
-              {hasStock && (
-                <div className="mt-6 flex justify-end">
-                  <button
-                    onClick={async () => {
-                      setQuoteModal(true);
-                      // Load stock promotions when opening modal
-                      if (user?.agencyId) {
-                        try {
-                          const res = await PrivateDealerStaffApi.getStockPromotionListStaff(user.agencyId);
-                          // API returns { statusCode, message, data: [...] }
-                          const promotions = res.data?.data || [];
-                          setStockPromotions(promotions);
-                          // Reset to base price, no auto-selection
-                          setSelectedPromotion(null);
-                          setSelectedPromotionId("");
-                          setQuoteForm((prev) => ({
-                            ...prev,
-                            basePrice: Number(selectedDetail.price || 0),
-                            promotionPrice: 0,
-                            finalPrice: Number(selectedDetail.price || 0),
-                          }));
-                        } catch (error) {
-                          console.error("Error loading promotions:", error);
-                          // Fallback to base price
-                          setQuoteForm((prev) => ({
-                            ...prev,
-                            basePrice: Number(selectedDetail.price || 0),
-                            promotionPrice: 0,
-                            finalPrice: Number(selectedDetail.price || 0),
-                          }));
-                        }
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={async () => {
+                    setQuoteModal(true);
+                    if (hasStock && user?.agencyId) {
+                      // Load stock promotions only if has stock
+                      try {
+                        const res = await PrivateDealerStaffApi.getStockPromotionListStaff(user.agencyId);
+                        // API returns { statusCode, message, data: [...] }
+                        const promotions = res.data?.data || [];
+                        setStockPromotions(promotions);
+                        // Reset to base price, no auto-selection
+                        setSelectedPromotion(null);
+                        setSelectedPromotionId("");
+                        setQuoteForm((prev) => ({
+                          ...prev,
+                          type: "AT_STORE", // Default for in-stock items
+                          basePrice: Number(selectedDetail.price || 0),
+                          promotionPrice: 0,
+                          finalPrice: Number(selectedDetail.price || 0),
+                          motorbikeId: selectedDetail.motorbikeId || "",
+                          colorId: selectedDetail.colorId || "",
+                        }));
+                      } catch (error) {
+                        console.error("Error loading promotions:", error);
+                        // Fallback to base price
+                        setQuoteForm((prev) => ({
+                          ...prev,
+                          type: "AT_STORE",
+                          basePrice: Number(selectedDetail.price || 0),
+                          promotionPrice: 0,
+                          finalPrice: Number(selectedDetail.price || 0),
+                          motorbikeId: selectedDetail.motorbikeId || "",
+                          colorId: selectedDetail.colorId || "",
+                        }));
                       }
-                    }}
-                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all font-medium inline-flex items-center gap-2"
-                  >
-                    <FileText size={18} />
-                    Create Quotation
-                  </button>
-                </div>
-              )}
+                    } else {
+                      // For items without stock, set PRE_ORDER type
+                      setStockPromotions([]);
+                      setSelectedPromotion(null);
+                      setSelectedPromotionId("");
+                      // Get first color from motor if available
+                      const firstColor = motorDetail?.colors?.[0];
+                      setQuoteForm((prev) => ({
+                        ...prev,
+                        type: "PRE_ORDER", // Only PRE_ORDER for out-of-stock items
+                        basePrice: 0,
+                        promotionPrice: 0,
+                        finalPrice: 0,
+                        motorbikeId: motorDetail?.id || "",
+                        colorId: firstColor?.color?.id || "",
+                      }));
+                    }
+                  }}
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all font-medium inline-flex items-center gap-2"
+                >
+                  <FileText size={18} />
+                  Create Quotation
+                </button>
+              </div>
             </>
           ) : (
             <div className="text-gray-500">No data.</div>
@@ -544,6 +564,21 @@ function Catalogue() {
               customerId = res.data?.data?.id || res.data?.id;
               if (!customerId) throw new Error("Cannot get created customer id");
             }
+            // Get motorbikeId and colorId - from selectedDetail if has stock, otherwise from motorDetail and form
+            const motorbikeId = hasStock 
+              ? Number(selectedDetail.motorbikeId)
+              : Number(quoteForm.motorbikeId || motorDetail?.id);
+            const colorId = hasStock
+              ? Number(selectedDetail.colorId)
+              : Number(quoteForm.colorId || motorDetail?.colors?.[0]?.color?.id);
+            
+            if (!motorbikeId) {
+              throw new Error("Cannot get motorbike ID. Please try again.");
+            }
+            if (!colorId) {
+              throw new Error("Cannot get color ID. Please select a color.");
+            }
+
             const payload = {
               type: quoteForm.type,
               customerId,
@@ -551,8 +586,8 @@ function Catalogue() {
               promotionPrice: Number(quoteForm.promotionPrice || 0),
               finalPrice: Number(quoteForm.finalPrice || 0),
               validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
-              motorbikeId: Number(selectedDetail.motorbikeId),
-              colorId: Number(selectedDetail.colorId),
+              motorbikeId,
+              colorId,
               dealerStaffId,
               agencyId,
             };
@@ -608,13 +643,17 @@ function Catalogue() {
              <p className="font-semibold mb-2">Preview</p>
              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-700">
                {(() => {
-                 const colorType = motorDetail?.colors?.find((c) => String(c.color?.id) === String(selectedDetail?.colorId))?.color?.colorType;
+                 const colorIdToShow = hasStock 
+                   ? selectedDetail?.colorId 
+                   : quoteForm.colorId || motorDetail?.colors?.[0]?.color?.id;
+                 const colorType = motorDetail?.colors?.find((c) => String(c.color?.id) === String(colorIdToShow))?.color?.colorType;
                  return (
                    <>
                      <span className="inline-flex items-center gap-2">Color: <span className="w-4 h-4 rounded-full border" style={{ backgroundColor: colorType || '#ccc' }} /><span className="capitalize">{colorType || 'Unknown'}</span></span>
-                     <span>Quantity: <span className="font-medium">{selectedDetail?.quantity}</span></span>
+                     {hasStock && <span>Quantity: <span className="font-medium">{selectedDetail?.quantity || 0}</span></span>}
                      <span>Price: <span className="font-medium">{formatCurrency(quoteForm.finalPrice || 0)}</span></span>
-                     {selectedPromotion && (
+                     <span>Type: <span className="font-medium">{quoteForm.type}</span></span>
+                     {hasStock && selectedPromotion && (
                        <span className="text-green-600">Promotion: {selectedPromotion.name}</span>
                      )}
                    </>
@@ -628,55 +667,65 @@ function Catalogue() {
               className="w-full px-3 py-2 border rounded-lg"
               value={quoteForm.type}
               onChange={(e) => setQuoteForm((p) => ({ ...p, type: e.target.value }))}
+              disabled={!hasStock} // Disable if no stock (only PRE_ORDER allowed)
             >
-               <option value="AT_STORE">AT_STORE</option>
-               <option value="ORDER">ORDER</option>
-               <option value="PRE_ORDER">PRE_ORDER</option>
+              {hasStock ? (
+                <>
+                  <option value="AT_STORE">AT_STORE</option>
+                  <option value="ORDER">ORDER</option>
+                </>
+              ) : (
+                <option value="PRE_ORDER">PRE_ORDER</option>
+              )}
             </select>
+            {!hasStock && (
+              <p className="text-xs text-gray-500 mt-1">Only PRE_ORDER is available for items not in stock</p>
+            )}
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Promotion (optional)</label>
-            <select
-              className="w-full px-3 py-2 border rounded-lg"
-              value={selectedPromotionId}
-              onChange={(e) => {
-                const promoId = e.target.value;
-                setSelectedPromotionId(promoId);
-                if (!promoId) {
-                  // No promotion selected
-                  setSelectedPromotion(null);
-                  const basePrice = Number(selectedDetail.price || 0);
-                  setQuoteForm((prev) => ({
-                    ...prev,
-                    basePrice,
-                    promotionPrice: 0,
-                    finalPrice: basePrice,
-                  }));
-                } else {
-                  // Find selected promotion
-                  const promoItem = stockPromotions.find((p) => {
-                    return String(p.id) === String(promoId);
-                  });
-                  if (promoItem) {
-                    setSelectedPromotion(promoItem);
+          {hasStock && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Promotion (optional)</label>
+              <select
+                className="w-full px-3 py-2 border rounded-lg"
+                value={selectedPromotionId}
+                onChange={(e) => {
+                  const promoId = e.target.value;
+                  setSelectedPromotionId(promoId);
+                  if (!promoId) {
+                    // No promotion selected
+                    setSelectedPromotion(null);
                     const basePrice = Number(selectedDetail.price || 0);
-                    let promotionPrice = 0;
-                    if (promoItem.valueType === "PERCENT") {
-                      promotionPrice = (basePrice * Number(promoItem.value || 0)) / 100;
-                    } else {
-                      promotionPrice = Number(promoItem.value || 0);
-                    }
-                    const finalPrice = basePrice - promotionPrice;
                     setQuoteForm((prev) => ({
                       ...prev,
                       basePrice,
-                      promotionPrice,
-                      finalPrice: Math.max(0, finalPrice),
+                      promotionPrice: 0,
+                      finalPrice: basePrice,
                     }));
+                  } else {
+                    // Find selected promotion
+                    const promoItem = stockPromotions.find((p) => {
+                      return String(p.id) === String(promoId);
+                    });
+                    if (promoItem) {
+                      setSelectedPromotion(promoItem);
+                      const basePrice = Number(selectedDetail.price || 0);
+                      let promotionPrice = 0;
+                      if (promoItem.valueType === "PERCENT") {
+                        promotionPrice = (basePrice * Number(promoItem.value || 0)) / 100;
+                      } else {
+                        promotionPrice = Number(promoItem.value || 0);
+                      }
+                      const finalPrice = basePrice - promotionPrice;
+                      setQuoteForm((prev) => ({
+                        ...prev,
+                        basePrice,
+                        promotionPrice,
+                        finalPrice: Math.max(0, finalPrice),
+                      }));
+                    }
                   }
-                }
-              }}
-            >
+                }}
+              >
               <option value="">-- No Promotion --</option>
               {stockPromotions && stockPromotions.length > 0 ? (
                 stockPromotions
@@ -709,25 +758,56 @@ function Catalogue() {
               ) : (
                 <option value="" disabled>No promotions available</option>
               )}
-            </select>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Base price</label>
-              <input type="number" className="w-full px-3 py-2 border rounded-lg bg-gray-100" value={quoteForm.basePrice}
-                disabled readOnly />
+              </select>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Promotion price</label>
-              <input type="number" className="w-full px-3 py-2 border rounded-lg bg-gray-100" value={quoteForm.promotionPrice}
-                disabled readOnly />
+          )}
+          {hasStock && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Base price</label>
+                <input type="number" className="w-full px-3 py-2 border rounded-lg bg-gray-100" value={quoteForm.basePrice}
+                  disabled readOnly />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Promotion price</label>
+                <input type="number" className="w-full px-3 py-2 border rounded-lg bg-gray-100" value={quoteForm.promotionPrice}
+                  disabled readOnly />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Final price</label>
+                <input type="number" className="w-full px-3 py-2 border rounded-lg bg-gray-100" value={quoteForm.finalPrice}
+                  disabled readOnly />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Final price</label>
-              <input type="number" className="w-full px-3 py-2 border rounded-lg bg-gray-100" value={quoteForm.finalPrice}
-                disabled readOnly />
-            </div>
-          </div>
+          )}
+          {!hasStock && (
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Color <span className="text-red-500">*</span></label>
+                <select
+                  className="w-full px-3 py-2 border rounded-lg"
+                  value={quoteForm.colorId}
+                  onChange={(e) => setQuoteForm((p) => ({ ...p, colorId: e.target.value }))}
+                  required
+                >
+                  <option value="">-- Select Color --</option>
+                  {motorDetail?.colors?.map((c) => (
+                    <option key={c.color?.id} value={c.color?.id}>
+                      {c.color?.colorType || 'Unknown'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Price <span className="text-red-500">*</span></label>
+                <input type="number" className="w-full px-3 py-2 border rounded-lg" value={quoteForm.finalPrice}
+                  onChange={(e) => setQuoteForm((p) => ({ ...p, finalPrice: Number(e.target.value || 0), basePrice: Number(e.target.value || 0) }))}
+                  placeholder="Enter price for pre-order" 
+                  required
+                  min="0" />
+              </div>
+            </>
+          )}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Valid until</label>
             <input type="datetime-local" className="w-full px-3 py-2 border rounded-lg" value={quoteForm.validUntil}
