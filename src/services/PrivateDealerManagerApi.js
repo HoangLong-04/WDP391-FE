@@ -112,6 +112,14 @@ const PrivateDealerManagerApi = {
     apiConfig.privateApi.get(`dashboard/chart/customer-contract/${agencyId}`, { params }),
   getStaffRevenueList: (agencyId, params) =>
     apiConfig.privateApi.get(`dashboard/list/staff/revenue/${agencyId}`, { params }),
+
+  // AP Batch APIs
+  getApBatchList: (agencyId, params) =>
+    apiConfig.privateApi.get(`batches-management/list/agency/${agencyId}`, { params }),
+  getApBatchDetail: (batchId) =>
+    apiConfig.privateApi.get(`batches-management/detail/${batchId}`),
+  payApBatch: (platform, data) =>
+    apiConfig.privateApi.post(`vnpay/agency-bill?platform=${platform}`, data),
 };
 
 export default PrivateDealerManagerApi;

@@ -1,13 +1,41 @@
 import { CheckCircle, XCircle, Loader2, Home } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
+import { useAuth } from "../../hooks/useAuth";
+import { useEffect } from "react";
 
 function Payment() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const status = searchParams.get("status");
+  const returnUrl = searchParams.get("returnUrl"); // Get return URL from query params
+
+  // Auto redirect after successful payment
+  useEffect(() => {
+    if (status === "success") {
+      const timer = setTimeout(() => {
+        if (returnUrl) {
+          navigate(returnUrl);
+        } else if (user?.role?.[0] === "Dealer Manager") {
+          // Default redirect for Dealer Manager to AP batch management
+          navigate("/agency/ap-batch-management");
+        } else {
+          navigate("/");
+        }
+      }, 2000); // Redirect after 2 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [status, returnUrl, navigate, user]);
 
   const handleBackHome = () => {
-    navigate("/");
+    if (returnUrl) {
+      navigate(returnUrl);
+    } else if (user?.role?.[0] === "Dealer Manager") {
+      navigate("/agency/ap-batch-management");
+    } else {
+      navigate("/");
+    }
   };
 
   const renderContent = () => {
@@ -53,7 +81,7 @@ function Payment() {
           className="mt-8 flex items-center cursor-pointer justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
         >
           <Home size={20} />
-          Home
+          {user?.role?.[0] === "Dealer Manager" ? "Quay lại AP Batches" : "Home"}
         </button>
         </div>
         
