@@ -216,6 +216,11 @@ function SharedSidebar() {
           label: "Price policy",
           Icon: DollarSign,
         },
+        {
+          path: "/company/evm-staff/batches",
+          label: "AP Batches",
+          Icon: FileText,
+        },
       ];
     }
 

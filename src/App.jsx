@@ -47,6 +47,7 @@ import EvmStaffPromotionManagement from "./pages/company/evmStaff/promotionManag
 import EvmStaffInventoryManagement from "./pages/company/evmStaff/inventoryManagement/InventoryManagementEVMStaff";
 import EvmStaffOrderRestockManagement from "./pages/company/evmStaff/orderRestockManagement/OrderRestockManagementEVMStaff";
 import EvmStaffPricePolicyManagement from "./pages/company/evmStaff/pricePolicyManagement/PricePolicyManagementEVMStaff";
+import BatchesManagement from "./pages/company/evmStaff/batchesManagement/BatchesManagement";
 import ContractForCustomer from "./pages/customer/customerContract/ContractForCustomer";
 import CustomerQuotation from "./pages/customer/customerQuotation/CustomerQuotation";
 
@@ -176,6 +177,10 @@ function App() {
             <Route
               path="company/evm-staff/price-policy"
               element={<EvmStaffPricePolicyManagement />}
+            />
+            <Route
+              path="company/evm-staff/batches"
+              element={<BatchesManagement />}
             />
           </Route>
         </Routes>
