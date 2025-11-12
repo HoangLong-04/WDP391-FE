@@ -22,6 +22,8 @@ function Login() {
 
       if (role[0] === "Admin" || role[0] === "Evm Staff") {
         navigate("/company/dashboard");
+      } else if (role[0] === "Dealer Staff") {
+        navigate("/agency/catalogue");
       } else {
         navigate("/agency/dashboard");
       }
