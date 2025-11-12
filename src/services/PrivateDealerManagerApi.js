@@ -102,6 +102,16 @@ const PrivateDealerManagerApi = {
       `installment-contract/installment-payment/update/${installmentPaymentId}`,
       data
     ),
+
+  // Dashboard APIs
+  getTotalCustomer: (agencyId) =>
+    apiConfig.privateApi.get(`dashboard/total/customer/${agencyId}`),
+  getTotalRevenue: (agencyId) =>
+    apiConfig.privateApi.get(`dashboard/total/revenue/${agencyId}`),
+  getCustomerContractChart: (agencyId, params) =>
+    apiConfig.privateApi.get(`dashboard/chart/customer-contract/${agencyId}`, { params }),
+  getStaffRevenueList: (agencyId, params) =>
+    apiConfig.privateApi.get(`dashboard/list/staff/revenue/${agencyId}`, { params }),
 };
 
 export default PrivateDealerManagerApi;
