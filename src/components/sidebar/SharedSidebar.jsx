@@ -73,16 +73,6 @@ function SharedSidebar() {
     if (userRole === "Dealer Staff") {
       return [
         {
-          path: "/agency/customer-management",
-          label: "Customer management",
-          Icon: Users,
-        },
-        {
-          path: "/agency/booking-management",
-          label: "Booking management",
-          Icon: PenTool,
-        },
-        {
           path: "/agency/catalogue",
           label: "Catalogue",
           Icon: Package,
@@ -96,6 +86,16 @@ function SharedSidebar() {
           path: "/agency/customer-contract",
           label: "Customer contract",
           Icon: FileText,
+        },
+        {
+          path: "/agency/customer-management",
+          label: "Customer management",
+          Icon: Users,
+        },
+        {
+          path: "/agency/booking-management",
+          label: "Booking management",
+          Icon: PenTool,
         },
       ];
     }
