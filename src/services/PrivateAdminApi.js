@@ -73,7 +73,9 @@ const PrivateAdminApi = {
   getOrderRestockDetail: (id) =>
     apiConfig.privateApi.get(`order-restock-management/detail/${id}`),
   getOrderRestockOrderItemDetail: (orderItemId) =>
-    apiConfig.privateApi.get(`order-restock-management/detail/order-item/${orderItemId}`),
+    apiConfig.privateApi.get(
+      `order-restock-management/detail/order-item/${orderItemId}`
+    ),
   updateOrder: (id, data) =>
     apiConfig.privateApi.patch(`order-restock-management/status/${id}`, data),
   // Check credit for an order
@@ -126,18 +128,22 @@ const PrivateAdminApi = {
     }),
   addImageForMotor: (motorId, data) =>
     apiConfig.privateApi.post(`images/motorbike/${motorId}`, data),
+  addColorImage: (motorbikeId, colorId, data) =>
+    apiConfig.privateApi.post(
+      `images/motorbike-color/${motorbikeId}/${colorId}`,
+      data
+    ),
 
   // Report APIs
   getTotalContractRevenue: (params) =>
     apiConfig.privateApi.get("report/total-contract/revenue", { params }),
   getQuarterRevenue: (params) =>
-    apiConfig.privateApi.get("report/total-contract/revenue/quarter", { params }),
-  getTotalAgencies: () =>
-    apiConfig.privateApi.get("report/total/agencies"),
-  getTotalWarehouses: () =>
-    apiConfig.privateApi.get("report/total/warehouses"),
-  getTotalMotorbikes: () =>
-    apiConfig.privateApi.get("report/total/motorbikes"),
+    apiConfig.privateApi.get("report/total-contract/revenue/quarter", {
+      params,
+    }),
+  getTotalAgencies: () => apiConfig.privateApi.get("report/total/agencies"),
+  getTotalWarehouses: () => apiConfig.privateApi.get("report/total/warehouses"),
+  getTotalMotorbikes: () => apiConfig.privateApi.get("report/total/motorbikes"),
   getTotalApBatches: (params) =>
     apiConfig.privateApi.get("report/total/ap-batches", { params }),
   getTop10Motorbikes: () =>
@@ -148,8 +154,7 @@ const PrivateAdminApi = {
     apiConfig.privateApi.get("batches-management/list", { params }),
   getBatchDetail: (batchId) =>
     apiConfig.privateApi.get(`batches-management/detail/${batchId}`),
-  createBatch: (data) =>
-    apiConfig.privateApi.post("batches-management", data),
+  createBatch: (data) => apiConfig.privateApi.post("batches-management", data),
   updateBatch: (batchId, data) =>
     apiConfig.privateApi.patch(`batches-management/${batchId}`, data),
   deleteBatch: (batchId) =>

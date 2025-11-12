@@ -17,6 +17,7 @@ import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import MotorImageForm from "./motorImageForm/MotorImageForm";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
 import ActionMenu from "../../../components/popupAction/ActionMenu";
+import ColorImageForm from "./colorImageForm/ColorImageForm";
 
 function MotorbikeManagement() {
   const [motorList, setMotorList] = useState([]);
@@ -112,6 +113,10 @@ function MotorbikeManagement() {
     brake: "",
     lock: "",
   });
+  const [colorImage, setColorImage] = useState({
+    colorId: "",
+    color_image: null,
+  });
   const [motorImage, setMotorImage] = useState(null);
 
   const [isEdit, setIsEdit] = useState(false);
@@ -142,6 +147,36 @@ function MotorbikeManagement() {
     } catch (error) {
       setMotorImage(null);
       toast.error(error.message);
+    } finally {
+      setSubmit(false);
+    }
+  };
+
+  const handleAddColorImage = async (e) => {
+    e.preventDefault();
+    if (!colorImage.colorId || !colorImage.color_image) {
+      toast.error("Vui lòng chọn Màu sắc và File ảnh.");
+
+      setSubmit(false);
+      return;
+    }
+    console.log(colorImage);
+    setSubmit(true);
+    const formData = new FormData();
+    formData.append("color_image", colorImage.color_image);
+
+    try {
+      await PrivateAdminApi.addColorImage(
+        selectedId,
+        colorImage.colorId,
+        formData
+      );
+      setColorImageModal(false);
+      setColorImage({ colorId: "", color_image: null });
+      toast.success("Add success");
+    } catch (error) {
+      console.error("Upload error:", error);
+    toast.error(error?.response?.data?.message || "Add fail");
     } finally {
       setSubmit(false);
     }
@@ -754,6 +789,23 @@ function MotorbikeManagement() {
         </div>
       ),
     },
+    {
+      key: "action8",
+      title: <span className="block text-center">Color</span>,
+      render: (_, item) => (
+        <div className="flex justify-center">
+          <span
+            onClick={() => {
+              setColorImageModal(true);
+              setSelectedId(item.id);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
+          >
+            <Plus className="w-5 h-5 text-white" />
+          </span>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -962,6 +1014,17 @@ function MotorbikeManagement() {
         isSubmitting={submit}
       >
         <MotorImageForm motorImage={motorImage} setMotorImage={setMotorImage} />
+      </FormModal>
+
+      <FormModal
+        isOpen={colorImageModal}
+        onClose={() => setColorImageModal(false)}
+        title={"Add image"}
+        isDelete={false}
+        onSubmit={handleAddColorImage}
+        isSubmitting={submit}
+      >
+        <ColorImageForm form={colorImage} setForm={setColorImage} />
       </FormModal>
     </div>
   );
