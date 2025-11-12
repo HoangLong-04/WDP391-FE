@@ -50,6 +50,7 @@ import EvmStaffPricePolicyManagement from "./pages/company/evmStaff/pricePolicyM
 import BatchesManagement from "./pages/company/evmStaff/batchesManagement/BatchesManagement";
 import ContractForCustomer from "./pages/customer/customerContract/ContractForCustomer";
 import CustomerQuotation from "./pages/customer/customerQuotation/CustomerQuotation";
+import ApBatchManagement from "./pages/agency/dealerManager/apBatchManagement/ApBatchManagement";
 
 function App() {
   return (
@@ -116,6 +117,10 @@ function App() {
             <Route
               path="agency/quotation-management"
               element={<QuotationManagement />}
+            />
+            <Route
+              path="agency/ap-batch-management"
+              element={<ApBatchManagement />}
             />
           </Route>
 

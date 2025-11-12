@@ -29,6 +29,7 @@ import {
   Shield,
   DollarSign,
   Megaphone,
+  CreditCard,
 } from "lucide-react";
 
 function SharedSidebar() {
@@ -66,6 +67,11 @@ function SharedSidebar() {
           path: "/agency/customer-contract",
           label: "Customer contract",
           Icon: FileText,
+        },
+        {
+          path: "/agency/ap-batch-management",
+          label: "AP Batches",
+          Icon: CreditCard,
         },
       ];
     }

@@ -15,6 +15,7 @@ import WysiwygIcon from "@mui/icons-material/Wysiwyg";
 import PeopleIcon from "@mui/icons-material/People";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import BorderColorIcon from "@mui/icons-material/BorderColor";
+import PaymentIcon from "@mui/icons-material/Payment";
 
 function AgencySidebar() {
   const location = useLocation();
@@ -58,6 +59,15 @@ function AgencySidebar() {
             path: "/agency/booking-management",
             label: "Booking management",
             Icon: BorderColorIcon,
+          },
+        ]
+      : []),
+    ...(user.role && user.role[0] === "Dealer Manager"
+      ? [
+          {
+            path: "/agency/ap-batch-management",
+            label: "AP Batches",
+            Icon: PaymentIcon,
           },
         ]
       : []),
