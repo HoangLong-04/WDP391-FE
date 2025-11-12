@@ -44,6 +44,7 @@ function Catalogue() {
   const [stockPromotions, setStockPromotions] = useState([]);
   const [selectedPromotion, setSelectedPromotion] = useState(null);
   const [selectedPromotionId, setSelectedPromotionId] = useState("");
+  const [motorDetailsMap, setMotorDetailsMap] = useState(new Map()); // Cache motor details with full color info
 
   useEffect(() => {
     const fetchData = async () => {
@@ -54,8 +55,30 @@ function Catalogue() {
           PrivateDealerStaffApi.getStockList(user.agencyId, { page: 1, limit: 100 }),
           PublicApi.getMotorList({ page: 1, limit: 200 }),
         ]);
-        setStocks(stockRes.data?.data || []);
-        setMotorList(motorRes.data?.data || []);
+        const stocksData = stockRes.data?.data || [];
+        const motorsData = motorRes.data?.data || [];
+        setStocks(stocksData);
+        setMotorList(motorsData);
+        
+        // Fetch motor details for motors that have stock to get full color information
+        const motorIdsWithStock = new Set(stocksData.map(s => s.motorbikeId).filter(Boolean));
+        const detailsMap = new Map();
+        
+        // Fetch details for motors with stock (limit concurrent requests)
+        const fetchPromises = Array.from(motorIdsWithStock).slice(0, 20).map(async (motorId) => {
+          try {
+            const detailRes = await PublicApi.getMotorDetailForUser(motorId);
+            const detail = detailRes.data?.data || detailRes.data;
+            if (detail) {
+              detailsMap.set(motorId, detail);
+            }
+          } catch (error) {
+            console.error(`Error fetching motor detail for ${motorId}:`, error);
+          }
+        });
+        
+        await Promise.all(fetchPromises);
+        setMotorDetailsMap(detailsMap);
       } catch (error) {
         toast.error(error.message);
       } finally {
@@ -70,6 +93,75 @@ function Catalogue() {
     motorList.forEach((m) => map.set(m.id, m));
     return map;
   }, [motorList]);
+
+  // Create a map from motorbikeId to stock data (for quick lookup)
+  // If a motor has multiple stocks (different colors), we'll use the first one or aggregate
+  const motorbikeIdToStock = useMemo(() => {
+    const map = new Map();
+    stocks.forEach((stock) => {
+      const motorId = stock.motorbikeId;
+      if (motorId) {
+        // If motor already has a stock, aggregate quantity or keep the first one
+        const existing = map.get(motorId);
+        if (existing) {
+          // Aggregate quantity and use the first price
+          map.set(motorId, {
+            ...existing,
+            quantity: (existing.quantity || 0) + (stock.quantity || 0),
+            stockId: existing.stockId, // Keep first stockId for detail view
+          });
+        } else {
+          map.set(motorId, {
+            stockId: stock.id,
+            price: stock.price,
+            quantity: stock.quantity,
+            colorId: stock.colorId,
+            color: stock.color, // Store color object if available
+          });
+        }
+      }
+    });
+    return map;
+  }, [stocks]);
+
+  // Create a map from colorId to color object (from all stocks)
+  const colorIdToColor = useMemo(() => {
+    const map = new Map();
+    stocks.forEach((stock) => {
+      if (stock.colorId && stock.color) {
+        map.set(String(stock.colorId), stock.color);
+      }
+    });
+    return map;
+  }, [stocks]);
+
+  // Create a map from motorbikeId to all stock colors (for displaying available colors)
+  const motorbikeIdToStockColors = useMemo(() => {
+    const map = new Map();
+    stocks.forEach((stock) => {
+      const motorId = stock.motorbikeId;
+      if (motorId && stock.colorId) {
+        const existing = map.get(motorId);
+        if (existing) {
+          // Add color if not already in the list
+          if (!existing.some((c) => String(c.colorId) === String(stock.colorId))) {
+            existing.push({
+              colorId: stock.colorId,
+              stockId: stock.id,
+              color: stock.color, // Store color object if available
+            });
+          }
+        } else {
+          map.set(motorId, [{
+            colorId: stock.colorId,
+            stockId: stock.id,
+            color: stock.color, // Store color object if available
+          }]);
+        }
+      }
+    });
+    return map;
+  }, [stocks]);
 
   const openDetail = async (stockId) => {
     setSelectedId(stockId);
@@ -117,6 +209,9 @@ function Catalogue() {
     );
   };
 
+  // Check if current selection has stock
+  const hasStock = selectedDetail !== null;
+
   return (
     <div className="p-4">
       <TitleBreadcrumb />
@@ -126,13 +221,15 @@ function Catalogue() {
         <div className="bg-white/95 rounded-2xl shadow p-4 md:p-6 border border-gray-100">
           {detailLoading ? (
             <div className="text-gray-500">Loading detail...</div>
-          ) : selectedDetail ? (
+          ) : motorDetail ? (
             <>
               {(() => {
-                const motor = motorDetail || motorIdToMotor.get(selectedDetail.motorbikeId);
-                const name = motor?.name || `Motor #${selectedDetail.motorbikeId}`;
+                const motor = motorDetail;
+                const name = motor?.name || `Motor #${motor?.id}`;
                 const bannerImg = motor?.images?.[0]?.imageUrl || motor?.images?.[0] || "";
-                const colorType = motor?.colors?.find((c) => String(c.color?.id) === String(selectedDetail.colorId))?.color?.colorType;
+                const colorType = selectedDetail?.colorId
+                  ? motor?.colors?.find((c) => String(c.color?.id) === String(selectedDetail.colorId))?.color?.colorType
+                  : motor?.colors?.[0]?.color?.colorType;
                 return (
                   <div className="rounded-2xl border bg-gradient-to-br from-[#f8fbff] to-white p-4 md:p-6">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -141,8 +238,17 @@ function Catalogue() {
                         {motor?.name && (
                           <div className="text-base text-gray-700 font-semibold mb-1">{motor.name}</div>
                         )}
-                        <div className="text-sm text-gray-500">Listed price</div>
-                        <div className="text-2xl font-bold text-indigo-700">{formatCurrency(selectedDetail.price)}</div>
+                        {selectedDetail ? (
+                          <>
+                            <div className="text-sm text-gray-500">Listed price</div>
+                            <div className="text-2xl font-bold text-indigo-700">{formatCurrency(selectedDetail.price)}</div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-sm text-gray-500">Status</div>
+                            <div className="text-2xl font-bold text-gray-400">Not in stock</div>
+                          </>
+                        )}
                       </div>
                       <div className="mt-4 md:mt-0 h-48 md:h-56 bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-inner relative w-full md:w-1/2">
                         {bannerImg ? (
@@ -175,7 +281,7 @@ function Catalogue() {
                       </div>
                       <div>
                         <div className="text-sm text-gray-500">Quantity</div>
-                        <div className="text-lg font-semibold mt-1">{selectedDetail.quantity}</div>
+                        <div className="text-lg font-semibold mt-1">{selectedDetail?.quantity ?? 0}</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-500">Battery Capacity</div>
@@ -239,85 +345,164 @@ function Catalogue() {
                   </div>
                 )}
               </div>
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={async () => {
-                    setQuoteModal(true);
-                    // Load stock promotions when opening modal
-                    if (user?.agencyId) {
-                      try {
-                        const res = await PrivateDealerStaffApi.getStockPromotionListStaff(user.agencyId);
-                        // API returns { statusCode, message, data: [...] }
-                        const promotions = res.data?.data || [];
-                        setStockPromotions(promotions);
-                        // Reset to base price, no auto-selection
-                        setSelectedPromotion(null);
-                        setSelectedPromotionId("");
-                        setQuoteForm((prev) => ({
-                          ...prev,
-                          basePrice: Number(selectedDetail.price || 0),
-                          promotionPrice: 0,
-                          finalPrice: Number(selectedDetail.price || 0),
-                        }));
-                      } catch (error) {
-                        console.error("Error loading promotions:", error);
-                        // Fallback to base price
-                        setQuoteForm((prev) => ({
-                          ...prev,
-                          basePrice: Number(selectedDetail.price || 0),
-                          promotionPrice: 0,
-                          finalPrice: Number(selectedDetail.price || 0),
-                        }));
+              {hasStock && (
+                <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={async () => {
+                      setQuoteModal(true);
+                      // Load stock promotions when opening modal
+                      if (user?.agencyId) {
+                        try {
+                          const res = await PrivateDealerStaffApi.getStockPromotionListStaff(user.agencyId);
+                          // API returns { statusCode, message, data: [...] }
+                          const promotions = res.data?.data || [];
+                          setStockPromotions(promotions);
+                          // Reset to base price, no auto-selection
+                          setSelectedPromotion(null);
+                          setSelectedPromotionId("");
+                          setQuoteForm((prev) => ({
+                            ...prev,
+                            basePrice: Number(selectedDetail.price || 0),
+                            promotionPrice: 0,
+                            finalPrice: Number(selectedDetail.price || 0),
+                          }));
+                        } catch (error) {
+                          console.error("Error loading promotions:", error);
+                          // Fallback to base price
+                          setQuoteForm((prev) => ({
+                            ...prev,
+                            basePrice: Number(selectedDetail.price || 0),
+                            promotionPrice: 0,
+                            finalPrice: Number(selectedDetail.price || 0),
+                          }));
+                        }
                       }
-                    }
-                  }}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all font-medium inline-flex items-center gap-2"
-                >
-                  <FileText size={18} />
-                  Create Quotation
-                </button>
-              </div>
+                    }}
+                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all font-medium inline-flex items-center gap-2"
+                  >
+                    <FileText size={18} />
+                    Create Quotation
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <div className="text-gray-500">No data.</div>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {stocks.map((s) => {
-            const motor = motorIdToMotor.get(s.motorbikeId);
-            const name = motor?.name || `Motor #${s.motorbikeId}`;
-            const image = motor?.images?.[0]?.imageUrl || motor?.images?.[0] || "";
-            const colorType = motor?.colors?.find((c) => String(c.color?.id) === String(s.colorId))?.color?.colorType;
-            return (
-              <button key={s.id} onClick={() => openDetail(s.id)} className="text-left rounded-2xl bg-white/90 border border-gray-100 shadow-md p-4 flex flex-col hover:shadow-xl hover:-translate-y-0.5 transition-all">
-                <div className="h-48 bg-gradient-to-br from-gray-50 to-white rounded-xl mb-3 flex items-center justify-center overflow-hidden">
-                  {image ? (
-                    <img src={image} alt={name} className="object-contain w-full h-full" />
-                  ) : (
-                    <span className="text-gray-400">No image</span>
-                  )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          {motorList
+            .filter((motor) => !motor.isDeleted) // Filter out deleted motors
+            .map((motor) => {
+              const stockInfo = motorbikeIdToStock.get(motor.id);
+              return { motor, stockInfo };
+            })
+            .sort((a, b) => {
+              // Sort: items with stock (price and quantity > 0) come first
+              const aHasStock = a.stockInfo?.price != null && a.stockInfo?.price > 0 && (a.stockInfo?.quantity || 0) > 0;
+              const bHasStock = b.stockInfo?.price != null && b.stockInfo?.price > 0 && (b.stockInfo?.quantity || 0) > 0;
+              
+              if (aHasStock && !bHasStock) return -1;
+              if (!aHasStock && bHasStock) return 1;
+              return 0; // Keep original order for items in same category
+            })
+            .map(({ motor, stockInfo }) => {
+              const name = motor?.name || `Motor #${motor.id}`;
+              const image = motor?.images?.[0]?.imageUrl || motor?.images?.[0] || "";
+              
+              // Get motor detail with full color info (from cache or use motor from list)
+              const motorDetail = motorDetailsMap.get(motor.id) || motor;
+              
+              // Get color: priority: stock.color > colorIdToColor > motorDetail.colors.find > motorDetail.colors[0]
+              let colorType = null;
+              if (stockInfo?.color?.colorType) {
+                // Use color directly from stock if available
+                colorType = stockInfo.color.colorType;
+              } else if (stockInfo?.colorId) {
+                // Try to get color from colorIdToColor map (from stocks)
+                const colorFromMap = colorIdToColor.get(String(stockInfo.colorId));
+                if (colorFromMap?.colorType) {
+                  colorType = colorFromMap.colorType;
+                } else if (motorDetail?.colors) {
+                  // Try to find color in motorDetail.colors array
+                  const colorMatch = motorDetail.colors.find((c) => String(c.color?.id) === String(stockInfo.colorId));
+                  colorType = colorMatch?.color?.colorType;
+                }
+              }
+              // Fallback to first color from motor if still no color found
+              if (!colorType && motorDetail?.colors?.[0]?.color?.colorType) {
+                colorType = motorDetail.colors[0].color.colorType;
+              }
+              
+              const quantity = stockInfo?.quantity || 0;
+              const price = stockInfo?.price;
+              const stockId = stockInfo?.stockId;
+              const hasStock = price != null && price > 0 && quantity > 0;
+              
+              // Get all available colors in stock for this motor
+              const stockColors = motorbikeIdToStockColors.get(motor.id) || [];
+
+              return (
+                <div key={motor.id} className="relative">
+                  <button
+                    onClick={async () => {
+                      if (stockId) {
+                        openDetail(stockId);
+                      } else {
+                        // If no stock, still show motor detail but without stock info
+                        setSelectedId(`motor-${motor.id}`); // Use a unique identifier
+                        setSelectedDetail(null); // No stock detail
+                        setDetailLoading(true);
+                        try {
+                          const motorRes = await PublicApi.getMotorDetailForUser(motor.id);
+                          setMotorDetail(motorRes.data?.data || motor);
+                        } catch (error) {
+                          setMotorDetail(motor);
+                          console.error(error);
+                        } finally {
+                          setDetailLoading(false);
+                        }
+                      }
+                    }}
+                    className={`text-left rounded-2xl border shadow-md p-4 flex flex-col hover:shadow-xl hover:-translate-y-0.5 transition-all w-full ${
+                      hasStock 
+                        ? "bg-gradient-to-br from-indigo-100/90 to-indigo-50/60 border-indigo-300" 
+                        : "bg-white/90 border-gray-100"
+                    }`}
+                  >
+                    <div className="h-48 bg-gradient-to-br from-gray-50 to-white rounded-xl mb-3 flex items-center justify-center overflow-hidden">
+                      {image ? (
+                        <img src={image} alt={name} className="object-contain w-full h-full" />
+                      ) : (
+                        <span className="text-gray-400">No image</span>
+                      )}
+                    </div>
+                    <div className="font-semibold text-gray-900 text-lg mb-1 line-clamp-1">{name}</div>
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                      <span>Color:</span>
+                      {colorType ? (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full border" style={{ backgroundColor: colorType }} />
+                          <span className="capitalize text-gray-600">{colorType}</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full border bg-gray-300" />
+                          <span className="text-gray-600">Unknown</span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400">Qty: {quantity}</div>
+                    {price != null && price > 0 ? (
+                      <div className="mt-2 text-indigo-600 font-extrabold text-xl">{formatCurrency(price)}</div>
+                    ) : (
+                      <div className="mt-2 text-gray-400 text-sm">Price not available</div>
+                    )}
+                  </button>
                 </div>
-                <div className="font-semibold text-gray-900 text-lg mb-1 line-clamp-1">{name}</div>
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-                  <span>Color:</span>
-                  {colorType ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full border" style={{ backgroundColor: colorType }} />
-                      <span className="capitalize text-gray-600">{colorType}</span>
-                    </span>
-                   ) : (
-                     <span className="inline-flex items-center gap-2">
-                       <span className="w-3 h-3 rounded-full border bg-gray-300" />
-                       <span className="text-gray-600">Unknown</span>
-                     </span>
-                   )}
-                </div>
-                <div className="text-xs text-gray-400">Qty: {s.quantity}</div>
-                <div className="mt-2 text-indigo-600 font-extrabold text-xl">{formatCurrency(s.price)}</div>
-              </button>
-            );
-          })}
+              );
+            })}
         </div>
       )}
 
