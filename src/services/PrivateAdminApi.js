@@ -142,6 +142,18 @@ const PrivateAdminApi = {
     apiConfig.privateApi.get("report/total/ap-batches", { params }),
   getTop10Motorbikes: () =>
     apiConfig.privateApi.get("report/top-10/motorbikes"),
+
+  // Batches Management APIs
+  getBatchesList: (params) =>
+    apiConfig.privateApi.get("batches-management/list", { params }),
+  getBatchDetail: (batchId) =>
+    apiConfig.privateApi.get(`batches-management/detail/${batchId}`),
+  createBatch: (data) =>
+    apiConfig.privateApi.post("batches-management", data),
+  updateBatch: (batchId, data) =>
+    apiConfig.privateApi.patch(`batches-management/${batchId}`, data),
+  deleteBatch: (batchId) =>
+    apiConfig.privateApi.delete(`batches-management/${batchId}`),
 };
 
 export default PrivateAdminApi;
