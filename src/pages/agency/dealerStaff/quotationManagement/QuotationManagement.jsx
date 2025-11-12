@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerStaffApi from "../../../../services/PrivateDealerStaffApi";
 import { toast } from "react-toastify";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../../components/dataTable/DataTable";
 import { formatCurrency } from "../../../../utils/currency";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -61,15 +61,22 @@ function QuotationManagement() {
       fetchQuotations();
       fetchQuotationIdsWithContracts();
     }
-  }, [page, limit, type, status, quoteCode, user?.agencyId]);
+  }, [fetchQuotations, fetchQuotationIdsWithContracts, user?.agencyId]);
 
   useEffect(() => {
     if (quotations.length > 0) {
-      fetchDepositsForQuotations();
+      // Only fetch deposits for quotations that don't already have deposit info
+      const needsFetch = quotations.some(q => 
+        !quotationDepositMap.has(q.id) && (q.depositId || q.type !== "AT_STORE")
+      );
+      if (needsFetch) {
+        fetchDepositsForQuotations();
+      }
     }
-  }, [quotations]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotations.length]); // Only depend on length, not the full array
 
-  const fetchQuotations = async () => {
+  const fetchQuotations = useCallback(async () => {
     if (!user?.agencyId) return;
     setLoading(true);
     try {
@@ -90,11 +97,8 @@ function QuotationManagement() {
       // Check if quotation list includes depositId or deposit info
       const depositMap = new Map();
       list.forEach(quotation => {
-        // If quotation list response already has depositId, fetch deposit
-        if (quotation.depositId) {
-          // Will fetch deposit in fetchDepositsForQuotations
-        } else if (quotation.deposit) {
-          // If deposit info is directly in quotation list
+        // If deposit info is directly in quotation list, use it immediately
+        if (quotation.deposit) {
           depositMap.set(quotation.id, quotation.deposit);
         }
       });
@@ -110,9 +114,9 @@ function QuotationManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.agencyId, page, limit, type, status, quoteCode]);
 
-  const fetchQuotationIdsWithContracts = async () => {
+  const fetchQuotationIdsWithContracts = useCallback(async () => {
     if (!user?.agencyId) return;
     try {
       let allContracts = [];
@@ -145,7 +149,7 @@ function QuotationManagement() {
       // Silently fail - don't show error if contract list fetch fails
       console.error("Failed to fetch contracts:", error);
     }
-  };
+  }, [user?.agencyId]);
 
   const fetchDepositsForQuotations = async () => {
     if (quotations.length === 0) return;
@@ -945,15 +949,15 @@ function QuotationManagement() {
           />
         </div>
       </div>
-      <PaginationTable
+      <DataTable
+        title="Quotation Management"
         columns={columns}
         data={quotations}
         loading={loading || loadingDeposits}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title="Quotation Management"
         totalItem={totalItem}
+        limit={limit}
         onRowClick={handleRowClick}
       />
       <BaseModal

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
 import { toast } from "react-toastify";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../../components/dataTable/DataTable";
 import dayjs from "dayjs";
 import GroupModal from "../../../../components/modal/groupModal/GroupModal";
 import {
@@ -17,7 +17,7 @@ import useWarehouseAgency from "../../../../hooks/useWarehouseAgency";
 import usePromotionAgency from "../../../../hooks/usePromotionAgency";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import OrderRestockForm from "./orderRestockForm/OrderRestockForm";
-import { Eye, Send, Plus, Trash2 } from "lucide-react";
+import { Send, Plus, Trash2 } from "lucide-react";
 import { renderStatusTag } from "../../../../utils/statusTag";
 
 function OrderRestockAgency() {
@@ -109,35 +109,38 @@ function OrderRestockAgency() {
     e.preventDefault();
     setSubmit(true);
     try {
-      // Chuyển đổi form thành format API: loại bỏ null/0 và chỉ gửi giá trị hợp lệ
-      const payload = {
-        orderType: form.orderType,
-        orderItems: form.orderItems
-          .filter(
-            (item) =>
-              item.motorbikeId > 0 &&
-              item.colorId > 0 &&
-              item.warehouseId > 0 &&
-              item.quantity > 0
-          )
-          .map((item) => ({
-            quantity: item.quantity,
-            motorbikeId: item.motorbikeId,
-            colorId: item.colorId,
-            warehouseId: item.warehouseId,
-            ...(item.discountId && item.discountId > 0 && { discountId: item.discountId }),
-            ...(item.promotionId && item.promotionId > 0 && { promotionId: item.promotionId }),
-          })),
-        agencyId: user?.agencyId,
-      };
+      // Filter valid items (items that will be created)
+      const validItems = form.orderItems.filter(
+        (item) =>
+          item.motorbikeId > 0 &&
+          item.colorId > 0 &&
+          item.warehouseId > 0 &&
+          item.quantity > 0
+      );
 
-      if (payload.orderItems.length === 0) {
+      if (validItems.length === 0) {
         toast.error("Please fill in at least one valid order item");
         setSubmit(false);
         return;
       }
 
+      // Chuyển đổi form thành format API: loại bỏ null/0 và chỉ gửi giá trị hợp lệ
+      const payload = {
+        orderType: form.orderType,
+        orderItems: validItems.map((item) => ({
+          quantity: item.quantity,
+          motorbikeId: item.motorbikeId,
+          colorId: item.colorId,
+          warehouseId: item.warehouseId,
+          ...(item.discountId && item.discountId > 0 && { discountId: item.discountId }),
+          ...(item.promotionId && item.promotionId > 0 && { promotionId: item.promotionId }),
+        })),
+        agencyId: user?.agencyId,
+      };
+
       await PrivateDealerManagerApi.createRestock(payload);
+      
+      // Reset form to default after successful creation
       setForm({
         orderType: "FULL",
         orderItems: [
@@ -152,9 +155,10 @@ function OrderRestockAgency() {
         ],
         agencyId: user?.agencyId,
       });
+
       fetchRestockList();
       setFormModal(false);
-      toast.success("Create successfully");
+      toast.success(`Create successfully. ${validItems.length} item(s) created.`);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -204,7 +208,12 @@ function OrderRestockAgency() {
     fetchRestockList();
   }, [page, limit, status]);
 
-  const column = [
+  const handleViewDetail = async (item) => {
+    setViewModal(true);
+    fetchOrderRestockDetail(item);
+  };
+
+  const columns = [
     { key: "id", title: "Id" },
     { key: "orderType", title: "Order type" },
     { key: "itemQuantity", title: "Items" },
@@ -223,47 +232,32 @@ function OrderRestockAgency() {
       title: "Status",
       render: (status) => renderStatusTag(status),
     },
+  ];
+
+  const actions = [
     {
-      key: "action",
-      title: "Action",
-      render: (_, item) => (
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() => {
-              setViewModal(true);
-              fetchOrderRestockDetail(item);
-            }}
-            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-            title="View detail"
-          >
-            <Eye size={18} />
-          </button>
-          {item.status === 'DRAFT' && (
-            <>
-              <button
-                onClick={() => {
-                  setSendRequestModal(true);
-                  setSelectedId(item.id);
-                }}
-                className="cursor-pointer text-white bg-green-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
-                title="Send to pending"
-              >
-                <Send size={18} />
-              </button>
-              <button
-                onClick={() => {
-                  setDeleteModal(true);
-                  setSelectedDeleteId(item.id);
-                }}
-                className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
-                title="Delete order"
-              >
-                <Trash2 size={18} />
-              </button>
-            </>
-          )}
-        </div>
-      ),
+      type: "edit",
+      label: "Send to Pending",
+      icon: Send,
+      onClick: (item) => {
+        if (item.status === 'DRAFT') {
+          setSendRequestModal(true);
+          setSelectedId(item.id);
+        }
+      },
+      show: (item) => item.status === 'DRAFT',
+    },
+    {
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        if (item.status === 'DRAFT') {
+          setDeleteModal(true);
+          setSelectedDeleteId(item.id);
+        }
+      },
+      show: (item) => item.status === 'DRAFT',
     },
   ];
 
@@ -301,15 +295,17 @@ function OrderRestockAgency() {
           </button>
         </div>
       </div>
-      <PaginationTable
-        columns={column}
+      <DataTable
+        title="Order Restock"
+        columns={columns}
         data={restockList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Order restock"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
       <GroupModal
         data={restockDetail}

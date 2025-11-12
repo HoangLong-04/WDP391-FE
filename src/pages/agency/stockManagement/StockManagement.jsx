@@ -5,7 +5,7 @@ import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import PublicApi from "../../../services/PublicApi";
 import { toast } from "react-toastify";
-import PaginationTable from "../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../components/dataTable/DataTable";
 import dayjs from "dayjs";
 import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import {
@@ -14,7 +14,7 @@ import {
 } from "../../../components/viewModel/stockModel/StockModel";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import StockForm from "./stockForm/StockForm";
-import { Eye, Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 
 function StockManagement() {
   const { user } = useAuth();
@@ -24,7 +24,7 @@ function StockManagement() {
   const [stock, setStock] = useState({});
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(0);
   const [motorbikeId, setMotorbikeId] = useState("");
   const [colorId, setColorId] = useState("");
@@ -54,6 +54,10 @@ function StockManagement() {
   const [deliveredOrders, setDeliveredOrders] = useState([])
   const [loadingDelivered, setLoadingDelivered] = useState(false)
   const [selectedDeliveredOrderId, setSelectedDeliveredOrderId] = useState("")
+  const [selectedOrderItemId, setSelectedOrderItemId] = useState("") // Track selected order item
+  // For update form: available order items with same motorbike and color
+  const [availableOrderItemsForUpdate, setAvailableOrderItemsForUpdate] = useState([])
+  const [selectedOrderItemIdsForUpdate, setSelectedOrderItemIdsForUpdate] = useState([]) // Array of selected order item IDs
 
   const fetchDeliveredOrderItems = useCallback(async () => {
     if (!user?.agencyId) return
@@ -101,12 +105,98 @@ function StockManagement() {
           })
         }
       }
-      setDeliveredOrders(normalizedOrders)
+      
+      // Filter out items that already have stock created
+      // Check if stock exists for each item's motorbikeId and colorId
+      // Only show items that don't have stock yet (hide items that already have stock)
+      const filteredOrders = normalizedOrders.map(order => ({
+        ...order,
+        items: order.items.filter(item => {
+          // Check if stock already exists for this motorbike and color
+          const hasStock = stockList.some(
+            (s) => 
+              String(s.motorbikeId) === String(item.motorbikeId) && 
+              String(s.colorId) === String(item.colorId)
+          )
+          // Hide items that already have stock (user can still update stock quantity manually if needed)
+          return !hasStock
+        })
+      })).filter(order => order.items.length > 0) // Remove orders with no items
+      
+      setDeliveredOrders(filteredOrders)
     } catch (error) {
       toast.error(error.message)
       setDeliveredOrders([])
     } finally {
       setLoadingDelivered(false)
+    }
+  }, [user?.agencyId, stockList])
+
+  // Fetch available order items for update (same motorbike and color)
+  const fetchAvailableOrderItemsForUpdate = useCallback(async (motorbikeId, colorId) => {
+    if (!user?.agencyId || !motorbikeId || !colorId) {
+      setAvailableOrderItemsForUpdate([])
+      return
+    }
+    
+    try {
+      const res = await PrivateDealerManagerApi.getRestockList(user.agencyId, {
+        page: 1,
+        limit: 50,
+        status: 'DELIVERED',
+      })
+      const orders = res.data?.data || []
+      const allItems = []
+      
+      // Collect all items from all orders
+      for (const order of orders) {
+        const embeddedItems = order?.orderItems || order?.order_items || []
+        if (embeddedItems.length > 0) {
+          embeddedItems.forEach((it) => {
+            const itemMotorbikeId = it.motorbikeId || it.electricMotorbikeId
+            const itemColorId = it.colorId
+            // Only include items with same motorbike and color
+            if (String(itemMotorbikeId) === String(motorbikeId) && String(itemColorId) === String(colorId)) {
+              allItems.push({
+                orderItemId: it.id,
+                orderId: order.id,
+                orderAt: order.orderAt,
+                quantity: it.quantity,
+                motorbikeId: itemMotorbikeId,
+                colorId: itemColorId,
+                motorbikeName: it.electricMotorbike?.name,
+                colorName: it.color?.colorType,
+              })
+            }
+          })
+        } else {
+          // Fallback: fetch detail if list does not include items
+          const orderDetailRes = await PrivateDealerManagerApi.getRestockDetail(order.id)
+          const detail = orderDetailRes.data?.data
+          const orderItems = detail?.orderItems || []
+          orderItems.forEach((it) => {
+            const itemMotorbikeId = it.motorbikeId || it.electricMotorbikeId
+            const itemColorId = it.colorId
+            if (String(itemMotorbikeId) === String(motorbikeId) && String(itemColorId) === String(colorId)) {
+              allItems.push({
+                orderItemId: it.id,
+                orderId: order.id,
+                orderAt: detail?.orderAt || order.orderAt,
+                quantity: it.quantity,
+                motorbikeId: itemMotorbikeId,
+                colorId: itemColorId,
+                motorbikeName: it.electricMotorbike?.name,
+                colorName: it.color?.colorType,
+              })
+            }
+          })
+        }
+      }
+      
+      setAvailableOrderItemsForUpdate(allItems)
+    } catch (error) {
+      console.error("Error fetching available order items:", error)
+      setAvailableOrderItemsForUpdate([])
     }
   }, [user?.agencyId])
   const [isEdit, setIsEdit] = useState(false)
@@ -166,9 +256,20 @@ function StockManagement() {
   }, [fetchAllStock]);
 
   // Load delivered order items when opening create modal
-  const openCreateModal = () => {
+  const openCreateModal = async () => {
     setFormModal(true)
     setIsEdit(false)
+    setSelectedDeliveredOrderId("") // Reset selection
+    setSelectedOrderItemId("") // Reset order item selection
+    setForm({
+      quantity: 0,
+      price: 0,
+      agencyId: user?.agencyId,
+      motorbikeId: "",
+      colorId: "",
+    })
+    // Refetch stock list first to get latest stock data, then fetch delivered orders
+    await fetchAllStock()
     fetchDeliveredOrderItems()
   }
 
@@ -186,9 +287,42 @@ function StockManagement() {
 
   const handleCreateStock = async (e) => {
     e.preventDefault();
+    
+    // Validate: must select an order item from delivered orders
+    if (!selectedOrderItemId) {
+      toast.error("Please select an order item from delivered orders");
+      return;
+    }
+    
+    // Validate: must have motorbikeId and colorId (should be auto-filled from order item)
+    if (!form.motorbikeId || !form.colorId) {
+      toast.error("Please select an order item to get motorbike and color information");
+      return;
+    }
+    
     setSubmit(true);
     try {
-      await PrivateDealerManagerApi.createStock(form);
+      // Check if stock already exists for this motorbike and color
+      const existingStock = stockList.find(
+        (s) => 
+          String(s.motorbikeId) === String(form.motorbikeId) && 
+          String(s.colorId) === String(form.colorId)
+      );
+
+      if (existingStock) {
+        // Update existing stock: add new quantity to existing quantity
+        const newQuantity = Number(existingStock.quantity || 0) + Number(form.quantity || 0);
+        await PrivateDealerManagerApi.updateStock(existingStock.id, {
+          quantity: newQuantity,
+          price: form.price || existingStock.price, // Use new price if provided, otherwise keep existing
+        });
+        toast.success(`Stock updated successfully. Quantity: ${existingStock.quantity} + ${form.quantity} = ${newQuantity}`);
+      } else {
+        // Create new stock
+        await PrivateDealerManagerApi.createStock(form);
+        toast.success("Stock created successfully");
+      }
+
       setForm({
         quantity: 0,
         price: 0,
@@ -196,10 +330,15 @@ function StockManagement() {
         motorbikeId: "",
         colorId: "",
       });
-      toast.success("Create successfully");
+      setSelectedDeliveredOrderId(""); // Reset delivered order selection
+      setSelectedOrderItemId(""); // Reset order item selection
+      
+      // Refetch stock list after create/update
+      await fetchAllStock();
+      // Refetch delivered orders to update the list (hide items that now have stock)
+      fetchDeliveredOrderItems();
+      
       setFormModal(false);
-      // Refetch stock list after create
-      fetchAllStock();
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -211,11 +350,35 @@ function StockManagement() {
     setSubmit(true)
     e.preventDefault()
     try {
-      await PrivateDealerManagerApi.updateStock(selectedId, updateForm)
-      toast.success('Update successfully')
+      // Calculate additional quantity from selected order items
+      let additionalQuantity = 0
+      if (selectedOrderItemIdsForUpdate.length > 0) {
+        additionalQuantity = availableOrderItemsForUpdate
+          .filter(item => selectedOrderItemIdsForUpdate.includes(String(item.orderItemId)))
+          .reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+      }
+      
+      // Update stock with new quantity (existing + additional from order items)
+      const newQuantity = Number(updateForm.quantity || 0) + additionalQuantity
+      
+      await PrivateDealerManagerApi.updateStock(selectedId, {
+        ...updateForm,
+        quantity: newQuantity,
+      })
+      
+      if (additionalQuantity > 0) {
+        toast.success(`Stock updated successfully. Added ${additionalQuantity} from ${selectedOrderItemIdsForUpdate.length} order item(s). New quantity: ${newQuantity}`)
+      } else {
+        toast.success('Update successfully')
+      }
+      
       setFormModal(false)
+      setSelectedOrderItemIdsForUpdate([])
+      setAvailableOrderItemsForUpdate([])
       // Refetch stock list after update
-      fetchAllStock()
+      await fetchAllStock()
+      // Refetch delivered orders to update the list
+      fetchDeliveredOrderItems()
     } catch (error) {
       toast.error(error.message)
     } finally {
@@ -239,7 +402,12 @@ function StockManagement() {
     }
   }
 
-  const column = [
+  const handleViewDetail = async (item) => {
+    setViewModal(true);
+    fetchStockById(item.id);
+  };
+
+  const columns = [
     { key: "id", title: "Id" },
     { key: "quantity", title: "Quantity" },
     {
@@ -265,45 +433,30 @@ function StockManagement() {
         return color ? color.colorType : colorId || "-";
       },
     },
+  ];
+
+  const actions = [
     {
-      key: "action",
-      title: "Action",
-      render: (_, item) => (
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() => {
-              setViewModal(true);
-              fetchStockById(item.id);
-            }}
-            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-            title="View detail"
-          >
-            <Eye size={18} />
-          </button>
-          <button
-            onClick={() => {
-              setIsEdit(true)
-              setFormModal(true)
-              setSelectedId(item.id)
-              setUpdateForm(item)
-            }}
-            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-            title="Update"
-          >
-            <Pencil size={18} />
-          </button>
-          <button
-            onClick={() => {
-              setDeleteModal(true)
-              setSelectedId(item.id)
-            }}
-            className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
-            title="Delete"
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
-      ),
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: async (item) => {
+        setIsEdit(true);
+        setFormModal(true);
+        setSelectedId(item.id);
+        setUpdateForm(item);
+        setSelectedOrderItemIdsForUpdate([]);
+        await fetchAvailableOrderItemsForUpdate(item.motorbikeId, item.colorId);
+      },
+    },
+    {
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setDeleteModal(true);
+        setSelectedId(item.id);
+      },
     },
   ];
 
@@ -351,15 +504,17 @@ function StockManagement() {
           </button>
         </div>
       </div>
-      <PaginationTable
-        columns={column}
+      <DataTable
+        title="Stock Management"
+        columns={columns}
         data={stockList}
         loading={loading}
         page={page}
         setPage={setPage}
-        pageSize={limit}
-        title={"Stock management"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
 
       <FormModal
@@ -383,12 +538,24 @@ function StockManagement() {
           deliveredOrders={deliveredOrders}
           selectedDeliveredOrderId={selectedDeliveredOrderId}
           loadingDelivered={loadingDelivered}
-          onChangeDeliveredOrder={(orderId) => setSelectedDeliveredOrderId(orderId)}
+          onChangeDeliveredOrder={(orderId) => {
+            setSelectedDeliveredOrderId(orderId)
+            setSelectedOrderItemId("") // Reset order item when changing order
+            setForm((prev) => ({
+              ...prev,
+              quantity: 0,
+              motorbikeId: "",
+              colorId: "",
+            }))
+          }}
+          selectedOrderItemId={selectedOrderItemId}
+          onChangeOrderItem={(itemId) => setSelectedOrderItemId(itemId)}
           onPickDeliveredOrderItem={async (item) => {
             // Prefill fields from delivered order item
             const motorId = item.motorbikeId
             const colorId = item.colorId
-            const quantity = item.quantity
+            const quantity = Number(item.quantity || 0)
+            
             // Get wholesale price from cached motorbike list; fallback to fetching list
             let price = 0
             let motor = motorList.find((m) => String(m.id) === String(motorId))
@@ -404,15 +571,32 @@ function StockManagement() {
             if (motor) {
               price = motor?.wholeSalePrice ?? motor?.wholesalePrice ?? motor?.price ?? 0
             }
+            
+            // Check if stock already exists
+            const existingStock = stockList.find(
+              (s) => 
+                String(s.motorbikeId) === String(motorId) && 
+                String(s.colorId) === String(colorId)
+            );
+            
             setForm((prev) => ({
               ...prev,
-              quantity: quantity || 0,
+              quantity: quantity, // Set quantity from order item (readonly)
               price: price || 0,
               motorbikeId: motorId || "",
               colorId: colorId || "",
               agencyId: user?.agencyId,
             }))
+            
+            // Show info if stock already exists
+            if (existingStock) {
+              toast.info(`Stock already exists. Current quantity: ${existingStock.quantity}. Quantity from order (${quantity}) will be added.`);
+            }
           }}
+          // For update form
+          availableOrderItemsForUpdate={availableOrderItemsForUpdate}
+          selectedOrderItemIdsForUpdate={selectedOrderItemIdsForUpdate}
+          onChangeOrderItemsForUpdate={(itemIds) => setSelectedOrderItemIdsForUpdate(itemIds)}
         />
       </FormModal>
 

@@ -2,10 +2,10 @@ import React, { useEffect, useState } from "react";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
 import { useAuth } from "../../../../hooks/useAuth";
 import { toast } from "react-toastify";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../../components/dataTable/DataTable";
 import BaseModal from "../../../../components/modal/baseModal/BaseModal";
 import FormModal from "../../../../components/modal/formModal/FormModal";
-import { Eye, CreditCard } from "lucide-react";
+import { CreditCard } from "lucide-react";
 import { formatCurrency } from "../../../../utils/currency";
 import dayjs from "dayjs";
 
@@ -16,7 +16,7 @@ function ApBatchManagement() {
   const [loading, setLoading] = useState(false);
   const [viewModalLoading, setViewModalLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [status, setStatus] = useState("");
   const [totalItem, setTotalItem] = useState(0);
   const [viewModal, setViewModal] = useState(false);
@@ -162,6 +162,10 @@ function ApBatchManagement() {
     );
   };
 
+  const handleViewDetailFromRow = (item) => {
+    handleViewDetail(item.id);
+  };
+
   const columns = [
     { key: "invoiceNumber", title: "Invoice Number" },
     {
@@ -180,43 +184,25 @@ function ApBatchManagement() {
       title: "Status",
       render: (value) => getStatusBadge(value),
     },
+  ];
+
+  const actions = [
     {
-      key: "action",
-      title: "Action",
-      render: (_, item) => {
+      type: "edit",
+      label: "Pay",
+      icon: CreditCard,
+      onClick: (item) => handleOpenPaymentModal(item),
+      show: (item) => {
         const paidAmount = item.apPayment?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
         const batchAmount = Number(item.amount || 0);
         const remainingAmount = batchAmount - paidAmount;
-        const isFullyPaid = remainingAmount <= 0.01;
-
-        return (
-          <div className="flex gap-2 items-center">
-            <button
-              onClick={() => handleViewDetail(item.id)}
-              className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-              title="View Detail"
-            >
-              <Eye size={18} />
-            </button>
-            {!isFullyPaid && (
-              <button
-                onClick={() => handleOpenPaymentModal(item)}
-                className="cursor-pointer text-white bg-green-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
-                title="Pay"
-              >
-                <CreditCard size={18} />
-              </button>
-            )}
-          </div>
-        );
+        return remainingAmount > 0.01;
       },
     },
   ];
 
   return (
     <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">AP Batches Management</h2>
-
       <div className="mb-4 flex gap-4 items-center">
         <div>
           <label className="mr-2 font-medium text-gray-600">Status:</label>
@@ -236,14 +222,17 @@ function ApBatchManagement() {
         </div>
       </div>
 
-      <PaginationTable
+      <DataTable
+        title="AP Batches Management"
         columns={columns}
         data={batchList}
         loading={loading}
         page={page}
-        limit={limit}
+        setPage={setPage}
         totalItem={totalItem}
-        onPageChange={setPage}
+        limit={limit}
+        onRowClick={handleViewDetailFromRow}
+        actions={actions}
       />
 
       {/* View Detail Modal */}

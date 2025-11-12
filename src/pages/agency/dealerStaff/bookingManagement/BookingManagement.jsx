@@ -1,18 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerStaff from "../../../../services/PrivateDealerStaffApi";
 import { toast } from "react-toastify";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../../components/dataTable/DataTable";
 import dayjs from "dayjs";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import BookForm from "./bookForm/BookForm";
+import { Pencil, Plus } from "lucide-react";
 
 function BookingManagement() {
   const { user } = useAuth();
   const [bookList, setBookList] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(0);
   const [fullname, setFullname] = useState("");
   const [phone, setPhone] = useState("");
@@ -34,10 +35,11 @@ function BookingManagement() {
 
   const [selectedId, setSelectedId] = useState("");
 
-  const fetchBookList = async () => {
+  const fetchBookList = useCallback(async () => {
+    if (!user?.agencyId) return;
     setLoading(true);
     try {
-      const response = await PrivateDealerStaff.getBookingList(user?.agencyId, {
+      const response = await PrivateDealerStaff.getBookingList(user.agencyId, {
         page,
         limit,
         fullname,
@@ -51,11 +53,11 @@ function BookingManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.agencyId, page, limit, fullname, phone, email]);
 
   useEffect(() => {
     fetchBookList();
-  }, [page, limit, fullname, phone, email]);
+  }, [fetchBookList]);
 
   const handleUpdateBooking = async (e) => {
     e.preventDefault();
@@ -80,32 +82,37 @@ function BookingManagement() {
     }
   };
 
+  const handleViewDetail = (item) => {
+    // Can add view detail modal if needed
+  };
+
   const columns = [
     { key: "id", title: "Id" },
     { key: "fullname", title: "Fullname" },
     { key: "phone", title: "Phone" },
     { key: "email", title: "Email" },
-    { key: "driveDate", title: "Date" },
+    { 
+      key: "driveDate", 
+      title: "Date",
+      render: (date) => date ? dayjs(date).format("DD/MM/YYYY") : "-",
+    },
     { key: "driveTime", title: "Time" },
     { key: "status", title: "Status" },
+  ];
+
+  const actions = [
     {
-      key: "action1",
-      title: "Update",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setFormModal(true);
-            setSelectedId(item.id);
-            setForm({
-              ...item,
-              driveDate: dayjs(item.driveDate).format("YYYY-MM-DD"),
-            });
-          }}
-          className="bg-blue-500 cursor-pointer p-2 rounded-lg text-white"
-        >
-          Update
-        </span>
-      ),
+      type: "edit",
+      label: "Update",
+      icon: Pencil,
+      onClick: (item) => {
+        setFormModal(true);
+        setSelectedId(item.id);
+        setForm({
+          ...item,
+          driveDate: item.driveDate ? dayjs(item.driveDate).format("YYYY-MM-DD") : "",
+        });
+      },
     },
   ];
 
@@ -152,15 +159,17 @@ function BookingManagement() {
           />
         </div>
       </div>
-      <PaginationTable
+      <DataTable
+        title="Booking Management"
         columns={columns}
         data={bookList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Booking list"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
       <FormModal
         isOpen={formModal}

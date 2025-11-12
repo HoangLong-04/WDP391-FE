@@ -3,7 +3,7 @@ import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../../components/dataTable/DataTable";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import StockPromotionForm from "./stockPromotionForm/StockPromotionForm";
 import useStockListAgency from "../../../../hooks/useStockListAgency";
@@ -20,7 +20,7 @@ function StockPromotion() {
   const [listStockId, setListStockId] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [valueType, setValueType] = useState("");
   const [status, setStatus] = useState("");
   const [totalItem, setTotalItem] = useState(0);
@@ -150,6 +150,10 @@ function StockPromotion() {
     }
   };
 
+  const handleViewDetail = (item) => {
+    // Can add view detail modal if needed
+  };
+
   const columns = [
     { key: "id", title: "Id" },
     { key: "name", title: "Name" },
@@ -172,49 +176,41 @@ function StockPromotion() {
       render: (status) => renderStatusTag(status),
     },
     { key: "agencyId", title: "Agency" },
+  ];
+
+  const actions = [
     {
-      key: "action",
-      title: "Action",
-      render: (_, item) => (
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() => {
-              setIsEdit(true);
-              setFormModal(true);
-              setSelectedId(item.id);
-              setUpdateForm({
-                ...item,
-                endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
-                startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
-              });
-            }}
-            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-            title="Update"
-          >
-            <Pencil size={18} />
-          </button>
-          <button
-            onClick={() => {
-              setDeleteModal(true);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
-            title="Delete"
-          >
-            <Trash2 size={18} />
-          </button>
-          <button
-            onClick={() => {
-              setAssignModal(true);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer text-white bg-gray-500 p-2 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center"
-            title="Apply promotion for stock"
-          >
-            <Tag size={18} />
-          </button>
-        </div>
-      ),
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: (item) => {
+        setIsEdit(true);
+        setFormModal(true);
+        setSelectedId(item.id);
+        setUpdateForm({
+          ...item,
+          endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
+          startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
+        });
+      },
+    },
+    {
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setDeleteModal(true);
+        setSelectedId(item.id);
+      },
+    },
+    {
+      type: "edit",
+      label: "Assign to Stock",
+      icon: Tag,
+      onClick: (item) => {
+        setAssignModal(true);
+        setSelectedId(item.id);
+      },
     },
   ];
 
@@ -277,15 +273,17 @@ function StockPromotion() {
           </button>
         </div>
       </div>
-      <PaginationTable
+      <DataTable
+        title="Stock Promotion"
         columns={columns}
         data={stockPromoList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Stock promotion"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
 
       <FormModal

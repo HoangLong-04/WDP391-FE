@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import useDealerStaffList from "../../../hooks/useDealerStaffList";
 import useCustomerList from "../../../hooks/useCustomerList";
 import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
 import PrivateDealerStaffApi from "../../../services/PrivateDealerStaffApi";
 import { toast } from "react-toastify";
-import PaginationTable from "../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../components/dataTable/DataTable";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { formatCurrency } from "../../../utils/currency";
@@ -124,13 +124,14 @@ function CustomerContract() {
     }
   };
 
-  const fetchCustomerContractList = async () => {
+  const fetchCustomerContractList = useCallback(async () => {
+    if (!user?.agencyId) return;
     setLoading(true);
     try {
       const isDealerStaff = user?.roles?.includes("Dealer Staff");
       const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
       const response = await api.getCustomerContractList(
-        user?.agencyId,
+        user.agencyId,
         { page, limit, staffId, customerId, status, contractType }
       );
       const list = response.data.data || [];
@@ -143,40 +144,46 @@ function CustomerContract() {
       setCustomerContractList(list);
       setTotalItem(response.data.paginationInfo?.total || 0);
       
-      // Check for installment contracts for DEBT contracts
-      const newMap = {};
-      const checkPromises = list
-        .filter(contract => contract.contractPaidType === "DEBT" && contract.status === "PENDING")
-        .map(async (contract) => {
-          try {
-            const res = await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(contract.id);
-            const installmentContract = res.data?.data;
-            if (installmentContract?.id) {
-              newMap[contract.id] = installmentContract.id;
+      // Check for installment contracts for DEBT contracts (only check contracts not already in map)
+      setInstallmentContractMap(prev => {
+        const contractsToCheck = list.filter(
+          contract => 
+            contract.contractPaidType === "DEBT" && 
+            contract.status === "PENDING" &&
+            !prev[contract.id]
+        );
+        
+        if (contractsToCheck.length > 0) {
+          // Check contracts asynchronously but don't block
+          const checkPromises = contractsToCheck.map(async (contract) => {
+            try {
+              const res = await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(contract.id);
+              const installmentContract = res.data?.data;
+              if (installmentContract?.id) {
+                setInstallmentContractMap(current => ({ ...current, [contract.id]: installmentContract.id }));
+              }
+            } catch (error) {
+              // 404 means no installment contract exists - that's fine
+              if (error.response?.status !== 404) {
+                console.error(`Error checking installment contract for contract ${contract.id}:`, error);
+              }
             }
-          } catch (error) {
-            // 404 means no installment contract exists - that's fine
-            if (error.response?.status !== 404) {
-              console.error(`Error checking installment contract for contract ${contract.id}:`, error);
-            }
-          }
-        });
-      
-      // Wait for all checks to complete
-      await Promise.all(checkPromises);
-      
-      // Merge with existing map to preserve newly created contracts
-      setInstallmentContractMap(prev => ({ ...prev, ...newMap }));
+          });
+          Promise.all(checkPromises).catch(err => console.error("Error checking installment contracts:", err));
+        }
+        
+        return prev; // Return unchanged, updates will be done via setState in promises
+      });
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.agencyId, page, limit, staffId, customerId, status, contractType]);
 
   useEffect(() => {
     fetchCustomerContractList();
-  }, [page, limit, staffId, customerId, status, contractType]);
+  }, [fetchCustomerContractList]);
 
   const handleCreateCustomerContract = async (e) => {
     setSubmit(true);
@@ -567,6 +574,10 @@ function CustomerContract() {
       );
   };
 
+  const handleViewDetailFromRow = (item) => {
+    handleViewDetail(item.id);
+  };
+
   const columns = [
     { key: "id", title: "Id" },
     {
@@ -598,80 +609,52 @@ function CustomerContract() {
       title: "Status",
       render: (status) => renderStatusTag(status),
     },
+  ];
+
+  const actions = [
     {
-      key: "action",
-      title: "Action",
-      render: (_, item) => {
-        const isDealerStaff = user?.roles?.includes("Dealer Staff");
-        // Only show installment contract button for DEBT contracts with PENDING status
-        const canShowInstallmentButton = item.status === "PENDING" && item.contractPaidType === "DEBT";
-        // Check installment contract ID from map
+      type: "edit",
+      label: "Installment Contract",
+      icon: CreditCard,
+      onClick: (item) => {
         const installmentContractId = installmentContractMap[item.id];
         const hasInstallmentContract = !!installmentContractId;
-        
-        return (
-          <div className="flex gap-2 items-center">
-            {canShowInstallmentButton && !isDealerStaff && (
-              <>
-                {hasInstallmentContract ? (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleViewInstallmentContract(installmentContractId);
-                    }}
-                    className="cursor-pointer text-white bg-purple-500 p-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center"
-                    title="View Installment Contract"
-                  >
-                    <CreditCard size={18} />
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenInstallmentContractModal(item);
-                    }}
-                    className="cursor-pointer text-white bg-green-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
-                    title="Create Installment Contract"
-                  >
-                    <CreditCard size={18} />
-                  </button>
-                )}
-              </>
-            )}
-            {!isDealerStaff && (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsedit(true);
-                    setSelectedId(item.id);
-                    setFormModal(true);
-                    setUpdateForm({
-                      ...item,
-                      signDate: dayjs(item.signDate).format('YYYY-MM-DD')
-                    })
-                  }}
-                  className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-                  title="Update"
-                >
-                  <Pencil size={18} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedId(item.id);
-                    setDeleteModal(true);
-                  }}
-                  className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
-                  title="Delete"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </>
-            )}
-          </div>
-        );
+        if (hasInstallmentContract) {
+          handleViewInstallmentContract(installmentContractId);
+        } else {
+          handleOpenInstallmentContractModal(item);
+        }
       },
+      show: (item) => {
+        const isDealerStaff = user?.roles?.includes("Dealer Staff");
+        const canShowInstallmentButton = item.status === "PENDING" && item.contractPaidType === "DEBT";
+        return canShowInstallmentButton && !isDealerStaff;
+      },
+    },
+    {
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: (item) => {
+        setIsedit(true);
+        setSelectedId(item.id);
+        setFormModal(true);
+        setUpdateForm({
+          ...item,
+          signDate: dayjs(item.signDate).format('YYYY-MM-DD')
+        });
+      },
+      show: (item) => !user?.roles?.includes("Dealer Staff"),
+    },
+    {
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setSelectedId(item.id);
+        setDeleteModal(true);
+      },
+      show: (item) => !user?.roles?.includes("Dealer Staff"),
     },
   ];
 
@@ -763,16 +746,17 @@ function CustomerContract() {
           </button>
         </div>
       </div>
-      <PaginationTable
+      <DataTable
+        title="Customer Contract"
         columns={columns}
         data={customerContractList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
         totalItem={totalItem}
-        title={"Customer contract"}
-        onRowClick={handleRowClick}
+        limit={limit}
+        onRowClick={handleViewDetailFromRow}
+        actions={actions}
       />
       <GroupModal
         data={motorbike}

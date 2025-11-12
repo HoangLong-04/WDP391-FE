@@ -3,12 +3,13 @@ import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerAp
 import { toast } from "react-toastify";
 import { useAuth } from "../../../../hooks/useAuth";
 import dayjs from "dayjs";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../../components/dataTable/DataTable";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import ConfirmModal from "../../../../components/modal/confirmModal/ConfirmModal";
 import DealerStaffForm from "../dealerStaffForm/DealerStaffForm";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { renderStatusTag } from "../../../../utils/statusTag";
+import GroupModal from "../../../../components/modal/groupModal/GroupModal";
 
 function DealerStaffManagement() {
   const { user } = useAuth();
@@ -46,37 +47,21 @@ function DealerStaffManagement() {
 
   const [iseEdit, setIsEdit] = useState(false);
   const [selectedId, setSelectedId] = useState("");
+  const [viewModal, setViewModal] = useState(false);
+  const [viewModalLoading, setViewModalLoading] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
 
   const fetchAllStaff = async () => {
     if (!user?.agencyId) return;
     
     setLoading(true);
     try {
-      // Fetch trang đầu tiên để lấy tổng số items
-      const firstPageResponse = await PrivateDealerManagerApi.getStaffListByAgencyId(
+      const response = await PrivateDealerManagerApi.getStaffListByAgencyId(
         user.agencyId,
-        { page: 1, limit }
+        { page, limit }
       );
-      const total = firstPageResponse.data.paginationInfo.total;
-      setTotalItem(total);
-      
-      // Tính tổng số trang
-      const totalPages = Math.ceil(total / limit);
-      
-      // Fetch tất cả các trang (bỏ qua trang 1 vì đã fetch rồi)
-      const allPromises = [Promise.resolve(firstPageResponse)];
-      for (let i = 2; i <= totalPages; i++) {
-        allPromises.push(
-          PrivateDealerManagerApi.getStaffListByAgencyId(user.agencyId, {
-            page: i,
-            limit,
-          })
-        );
-      }
-      
-      const allResponses = await Promise.all(allPromises);
-      const allData = allResponses.flatMap((response) => response.data.data);
-      setStaffList(allData);
+      setStaffList(response.data.data);
+      setTotalItem(response.data.paginationInfo.total);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -87,7 +72,7 @@ function DealerStaffManagement() {
   useEffect(() => {
     fetchAllStaff();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.agencyId, limit]);
+  }, [user?.agencyId, page, limit]);
 
   const handleCreateDealerStaff = async (e) => {
     setSubmit(true);
@@ -135,9 +120,13 @@ function DealerStaffManagement() {
     }
   };
 
-  const column = [
+  const handleViewDetail = async (item) => {
+    setSelectedStaff(item);
+    setViewModal(true);
+  };
+
+  const columns = [
     { key: "id", title: "Id" },
-    // { key: "avatar", title: "User name" },
     { key: "username", title: "User name" },
     { key: "fullname", title: "Full name" },
     { key: "email", title: "Email" },
@@ -148,36 +137,28 @@ function DealerStaffManagement() {
       title: "Status",
       render: (isActive) => renderStatusTag(isActive ? "ACTIVE" : "INACTIVE"),
     },
+  ];
+
+  const actions = [
     {
-      key: "action",
-      title: "Action",
-      render: (_, item) => (
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() => {
-              setIsEdit(true);
-              setSelectedId(item.id);
-              setUpdateForm(item);
-              setFormModal(true);
-            }}
-            className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-            title="Update"
-          >
-            <Pencil size={18} />
-          </button>
-          <button
-            onClick={() => {
-              console.log(item.id);
-              setSelectedId(item.id);
-              setDeleteModal(true);
-            }}
-            className="cursor-pointer text-white bg-red-500 p-2 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
-            title="Delete"
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
-      ),
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: (item) => {
+        setIsEdit(true);
+        setSelectedId(item.id);
+        setUpdateForm(item);
+        setFormModal(true);
+      },
+    },
+    {
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setSelectedId(item.id);
+        setDeleteModal(true);
+      },
     },
   ];
   return (
@@ -195,15 +176,17 @@ function DealerStaffManagement() {
           </button>
         </div>
       </div>
-      <PaginationTable
-        columns={column}
-        data={staffList.slice((page - 1) * limit, page * limit)}
+      <DataTable
+        title="Dealer Staff Management"
+        columns={columns}
+        data={staffList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Dealer staff management"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
 
       <FormModal
@@ -234,6 +217,30 @@ function DealerStaffManagement() {
         confirmText="Delete"
         cancelText="Cancel"
         type="danger"
+      />
+
+      <GroupModal
+        data={selectedStaff}
+        isOpen={viewModal}
+        loading={viewModalLoading}
+        onClose={() => {
+          setViewModal(false);
+          setSelectedStaff(null);
+        }}
+        title="Staff Detail"
+        generalFields={[
+          { key: "id", label: "ID" },
+          { key: "username", label: "Username" },
+          { key: "fullname", label: "Full Name" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+          { key: "address", label: "Address" },
+          {
+            key: "isActive",
+            label: "Status",
+            render: (isActive) => renderStatusTag(isActive ? "ACTIVE" : "INACTIVE"),
+          },
+        ]}
       />
     </div>
   );
