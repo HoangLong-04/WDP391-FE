@@ -21,10 +21,6 @@ privateApi.interceptors.request.use(
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
-      // Ensure Content-Type is set for POST/PUT/PATCH requests with data
-      if (config.data && !config.headers['Content-Type']) {
-        config.headers['Content-Type'] = 'application/json';
-      }
     } catch (error) {
       console.error("Error retrieving accessToken from sessionStorage:", error);
     }
@@ -32,6 +28,25 @@ privateApi.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
+
+// privateApi.interceptors.request.use(
+//   (config) => {
+//     try {
+//       const accessToken = sessionStorage.getItem("accessToken");
+//       if (accessToken) {
+//         config.headers.Authorization = `Bearer ${accessToken}`;
+//       }
+//       // Ensure Content-Type is set for POST/PUT/PATCH requests with data
+//       if (config.data && !config.headers['Content-Type']) {
+//         config.headers['Content-Type'] = 'application/json';
+//       }
+//     } catch (error) {
+//       console.error("Error retrieving accessToken from sessionStorage:", error);
+//     }
+//     return config;
+//   },
+//   (error) => Promise.reject(error)
+// );
 
 privateApi.interceptors.response.use(
   (response) => response,

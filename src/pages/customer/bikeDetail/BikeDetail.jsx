@@ -41,7 +41,7 @@ function BikeDetail() {
     <div>
       <section className="mb-15">
         <BannerDetail
-          bikeBattery={battery.type}
+          bikeBattery={battery?.type}
           bikeName={generalInfo.name}
           bikePrice={generalInfo.price}
           bikeSpeed={configuration.speedLimit}
@@ -60,21 +60,21 @@ function BikeDetail() {
           Specification
         </h1>
         <Specification
-          batteryLimit={battery.limit}
-          batteryType={battery.type}
-          brake={safeFeature.brake}
-          chargeTime={battery.chargeTime}
-          chargeType={battery.chargeType}
+          batteryLimit={battery?.limit}
+          batteryType={battery?.type}
+          brake={safeFeature?.brake}
+          chargeTime={battery?.chargeTime}
+          chargeType={battery?.chargeType}
           colors={colors}
-          energyConsumption={battery.energyConsumption}
-          height={appearance.height}
-          length={appearance.length}
-          lock={safeFeature.lock}
-          maximumCapacity={configuration.maximumCapacity}
-          motorType={configuration.motorType}
-          speedLimit={configuration.speedLimit}
-          storageLimit={appearance.storageLimit}
-          width={appearance.width}
+          energyConsumption={battery?.energyConsumption}
+          height={appearance?.height}
+          length={appearance?.length}
+          lock={safeFeature?.lock}
+          maximumCapacity={configuration?.maximumCapacity}
+          motorType={configuration?.motorType}
+          speedLimit={configuration?.speedLimit}
+          storageLimit={appearance?.storageLimit}
+          width={appearance?.width}
         />
       </section>
     </div>
