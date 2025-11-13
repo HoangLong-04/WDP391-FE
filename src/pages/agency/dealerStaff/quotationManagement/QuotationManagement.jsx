@@ -56,26 +56,6 @@ function QuotationManagement() {
     holdDays: "",
   });
 
-  useEffect(() => {
-    if (user?.agencyId) {
-      fetchQuotations();
-      fetchQuotationIdsWithContracts();
-    }
-  }, [fetchQuotations, fetchQuotationIdsWithContracts, user?.agencyId]);
-
-  useEffect(() => {
-    if (quotations.length > 0) {
-      // Only fetch deposits for quotations that don't already have deposit info
-      const needsFetch = quotations.some(q => 
-        !quotationDepositMap.has(q.id) && (q.depositId || q.type !== "AT_STORE")
-      );
-      if (needsFetch) {
-        fetchDepositsForQuotations();
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quotations.length]); // Only depend on length, not the full array
-
   const fetchQuotations = useCallback(async () => {
     if (!user?.agencyId) return;
     setLoading(true);
@@ -150,6 +130,26 @@ function QuotationManagement() {
       console.error("Failed to fetch contracts:", error);
     }
   }, [user?.agencyId]);
+
+  useEffect(() => {
+    if (user?.agencyId) {
+      fetchQuotations();
+      fetchQuotationIdsWithContracts();
+    }
+  }, [fetchQuotations, fetchQuotationIdsWithContracts, user?.agencyId]);
+
+  useEffect(() => {
+    if (quotations.length > 0) {
+      // Only fetch deposits for quotations that don't already have deposit info
+      const needsFetch = quotations.some(q => 
+        !quotationDepositMap.has(q.id) && (q.depositId || q.type !== "AT_STORE")
+      );
+      if (needsFetch) {
+        fetchDepositsForQuotations();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotations.length]); // Only depend on length, not the full array
 
   const fetchDepositsForQuotations = async () => {
     if (quotations.length === 0) return;
