@@ -21,7 +21,7 @@ import useColorList from "../../../hooks/useColorList";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
-import { Pencil, Trash2, Plus, CreditCard, CheckCircle, Mail } from "lucide-react";
+import { Pencil, Trash2, Plus, CreditCard, CheckCircle, Mail, Edit } from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
 import BaseModal from "../../../components/modal/baseModal/BaseModal";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -94,6 +94,7 @@ function CustomerContract() {
   const [isMarkingPaymentAsPaid, setIsMarkingPaymentAsPaid] = useState(false);
   const [sendingContractEmail, setSendingContractEmail] = useState(false);
   const [sendingInstallmentEmail, setSendingInstallmentEmail] = useState(false);
+  const [generatingInterestPayments, setGeneratingInterestPayments] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -660,6 +661,25 @@ function CustomerContract() {
       setIsInstallmentDetailModalOpen(false);
     } finally {
       setLoadingInstallmentDetail(false);
+    }
+  };
+
+  const handleGenerateInterestPayments = async (installmentContractId) => {
+    setGeneratingInterestPayments(true);
+    try {
+      await PrivateDealerManagerApi.generateInterestPayments(installmentContractId);
+      toast.success("Interest payments generated successfully");
+      // Refresh the detail to show the generated interest payments
+      const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
+        installmentContractId
+      );
+      setInstallmentContractDetail(res.data?.data || null);
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || error.message || "Failed to generate interest payments"
+      );
+    } finally {
+      setGeneratingInterestPayments(false);
     }
   };
 
@@ -1383,6 +1403,14 @@ function CustomerContract() {
                 <div className="flex items-center gap-3">
                   {renderStatusTag(installmentContractDetail.status)}
                   <button
+                    onClick={() => handleGenerateInterestPayments(installmentContractDetail.id)}
+                    disabled={generatingInterestPayments}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generate interest payments"
+                  >
+                    {generatingInterestPayments ? "Generating..." : "Generate Interest Payments"}
+                  </button>
+                  <button
                     onClick={() => handleSendInstallmentScheduleEmail(installmentContractDetail.id)}
                     disabled={sendingInstallmentEmail}
                     className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1663,6 +1691,81 @@ function CustomerContract() {
                                     </button>
                                   </div>
                                 )}
+                              </td>
+                            </tr>
+                          )
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+            {/* Interest Payments */}
+            {installmentContractDetail.interestPayments &&
+              installmentContractDetail.interestPayments.length > 0 && (
+                <div className="bg-white rounded-lg p-5 border border-gray-200">
+                  <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                    Interest Payments (
+                    {installmentContractDetail.interestPayments.length})
+                  </h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Period
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Due Date
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Paid Date
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Interest Amount
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Amount Paid
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {installmentContractDetail.interestPayments.map(
+                          (payment) => (
+                            <tr key={payment.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-gray-800">
+                                {payment.period
+                                  ? dayjs
+                                      .utc(payment.period)
+                                      .format("DD/MM/YYYY")
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {payment.dueDate
+                                  ? dayjs
+                                      .utc(payment.dueDate)
+                                      .format("DD/MM/YYYY")
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {payment.paidDate
+                                  ? dayjs
+                                      .utc(payment.paidDate)
+                                      .format("DD/MM/YYYY")
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {formatCurrency(payment.interestAmount || payment.amount || 0)}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {formatCurrency(payment.amountPaid || 0)}
+                              </td>
+                              <td className="px-4 py-2">
+                                {renderStatusTag(payment.status)}
                               </td>
                             </tr>
                           )

@@ -249,8 +249,18 @@ function Catalogue() {
                           </>
                         ) : (
                           <>
-                            <div className="text-sm text-gray-500">Status</div>
-                            <div className="text-2xl font-bold text-gray-400">Not in stock</div>
+                            {motorDetail?.price ? (
+                              <>
+                                <div className="text-sm text-gray-500">Base price</div>
+                                <div className="text-2xl font-bold text-indigo-700">{formatCurrency(motorDetail.price)}</div>
+                                <div className="text-xs text-gray-400 mt-1">Not in stock - Pre-order available</div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-sm text-gray-500">Status</div>
+                                <div className="text-2xl font-bold text-gray-400">Not in stock</div>
+                              </>
+                            )}
                           </>
                         )}
                       </div>
@@ -352,6 +362,88 @@ function Catalogue() {
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={async () => {
+                    // If no stock, get colors from motorList (already fetched)
+                    let currentMotorDetail = motorDetail;
+                    
+                    if (!hasStock) {
+                      // Get motor from motorList (which already has colors from getMotorList API)
+                      const motorId = motorDetail?.id || selectedId?.replace('motor-', '');
+                      const motorFromList = motorList.find(m => String(m.id) === String(motorId));
+                      
+                      if (motorFromList) {
+                        // Use colors from motorList
+                        const colors = motorFromList.colors || [];
+                        
+                        console.log("[Catalogue] Using colors from motorList:", {
+                          motorId,
+                          hasColors: !!motorFromList.colors,
+                          colorsLength: colors.length,
+                          colors: colors
+                        });
+                        
+                        if (colors && colors.length > 0) {
+                          // Update motorDetail with colors from motorList
+                          currentMotorDetail = { ...motorDetail, colors };
+                          setMotorDetail(currentMotorDetail);
+                          // Update cache
+                          setMotorDetailsMap((prev) => {
+                            const newMap = new Map(prev);
+                            newMap.set(motorId, currentMotorDetail);
+                            return newMap;
+                          });
+                        } else {
+                          // If no colors in motorList, try to fetch from detail API as fallback
+                          try {
+                            const motorRes = await PublicApi.getMotorDetailForUser(motorId);
+                            const fullDetail = motorRes.data?.data || motorRes.data || motorDetail;
+                            const detailColors = fullDetail?.colors || [];
+                            
+                            if (detailColors && detailColors.length > 0) {
+                              currentMotorDetail = { ...fullDetail, colors: detailColors };
+                              setMotorDetail(currentMotorDetail);
+                              setMotorDetailsMap((prev) => {
+                                const newMap = new Map(prev);
+                                newMap.set(motorId, currentMotorDetail);
+                                return newMap;
+                              });
+                            } else {
+                              toast.error("Cannot create pre-order: Motor color information is not available.");
+                              return;
+                            }
+                          } catch (error) {
+                            console.error("Error fetching motor detail:", error);
+                            toast.error("Cannot create pre-order: Motor color information is not available.");
+                            return;
+                          }
+                        }
+                      } else {
+                        // Motor not found in list, try to fetch detail
+                        try {
+                          const motorRes = await PublicApi.getMotorDetailForUser(motorId);
+                          const fullDetail = motorRes.data?.data || motorRes.data || motorDetail;
+                          const colors = fullDetail?.colors || [];
+                          
+                          if (colors && colors.length > 0) {
+                            currentMotorDetail = { ...fullDetail, colors };
+                            setMotorDetail(currentMotorDetail);
+                          } else {
+                            toast.error("Cannot create pre-order: Motor color information is not available.");
+                            return;
+                          }
+                        } catch (error) {
+                          console.error("Error fetching motor detail:", error);
+                          toast.error("Cannot create pre-order: Motor color information is not available.");
+                          return;
+                        }
+                      }
+                    }
+                    
+                    // Final validation that we have colors
+                    if (!hasStock && (!currentMotorDetail?.colors || currentMotorDetail.colors.length === 0)) {
+                      toast.error("Cannot create pre-order: Motor color information is not available");
+                      return;
+                    }
+
                     setQuoteModal(true);
                     // Reset customer form and mode when opening modal
                     setCustomerMode("new");
@@ -415,16 +507,16 @@ function Catalogue() {
                       setStockPromotions([]);
                       setSelectedPromotion(null);
                       setSelectedPromotionId("");
-                      // Get first color from motor if available
-                      const firstColor = motorDetail?.colors?.[0];
+                      // Get base price from motorDetail if available
+                      const basePrice = currentMotorDetail?.price || motorDetail?.price || 0;
                       setQuoteForm((prev) => ({
                         ...prev,
                         type: "PRE_ORDER", // Only PRE_ORDER for out-of-stock items
-                        basePrice: 0,
+                        basePrice: Number(basePrice),
                         promotionPrice: 0,
-                        finalPrice: 0,
-                        motorbikeId: motorDetail?.id || "",
-                        colorId: firstColor?.color?.id || "",
+                        finalPrice: Number(basePrice),
+                        motorbikeId: currentMotorDetail?.id || motorDetail?.id || "",
+                        colorId: "", // Don't auto-select, require user to choose
                       }));
                     }
                   }}
@@ -485,9 +577,12 @@ function Catalogue() {
               }
               
               const quantity = stockInfo?.quantity || 0;
-              const price = stockInfo?.price;
+              const stockPrice = stockInfo?.price;
               const stockId = stockInfo?.stockId;
-              const hasStock = price != null && price > 0 && quantity > 0;
+              const hasStock = stockPrice != null && stockPrice > 0 && quantity > 0;
+              
+              // Get price: from stock if available, otherwise from motor (base price)
+              const displayPrice = hasStock ? stockPrice : (motor?.price || motorDetail?.price);
               
               // Get all available colors in stock for this motor
               const stockColors = motorbikeIdToStockColors.get(motor.id) || [];
@@ -500,15 +595,51 @@ function Catalogue() {
                         openDetail(stockId);
                       } else {
                         // If no stock, still show motor detail but without stock info
+                        // Fetch full motor detail to get all color information
                         setSelectedId(`motor-${motor.id}`); // Use a unique identifier
                         setSelectedDetail(null); // No stock detail
                         setDetailLoading(true);
                         try {
-                          const motorRes = await PublicApi.getMotorDetailForUser(motor.id);
-                          setMotorDetail(motorRes.data?.data || motor);
+                          // First try to get colors from motorList (already fetched)
+                          const motorFromList = motorList.find(m => String(m.id) === String(motor.id));
+                          let colors = motorFromList?.colors || [];
+                          
+                          // If no colors in motorList, fetch from detail API
+                          if (!colors || colors.length === 0) {
+                            const motorRes = await PublicApi.getMotorDetailForUser(motor.id);
+                            const fullDetail = motorRes.data?.data || motorRes.data || motor;
+                            colors = fullDetail?.colors || [];
+                            
+                            if (colors && colors.length > 0) {
+                              const detailWithColors = { ...fullDetail, colors };
+                              setMotorDetail(detailWithColors);
+                              // Update cache
+                              setMotorDetailsMap((prev) => {
+                                const newMap = new Map(prev);
+                                newMap.set(motor.id, detailWithColors);
+                                return newMap;
+                              });
+                            } else {
+                              // Use motor from list even without colors
+                              setMotorDetail(motorFromList || motor);
+                            }
+                          } else {
+                            // Use motor from list with colors
+                            const motorWithColors = { ...motor, colors };
+                            setMotorDetail(motorWithColors);
+                            // Update cache
+                            setMotorDetailsMap((prev) => {
+                              const newMap = new Map(prev);
+                              newMap.set(motor.id, motorWithColors);
+                              return newMap;
+                            });
+                          }
                         } catch (error) {
-                          setMotorDetail(motor);
-                          console.error(error);
+                          console.error("Error loading motor detail:", error);
+                          // Fallback to motor from list or cache
+                          const motorFromList = motorList.find(m => String(m.id) === String(motor.id));
+                          const cachedDetail = motorDetailsMap.get(motor.id);
+                          setMotorDetail(motorFromList || cachedDetail || motor);
                         } finally {
                           setDetailLoading(false);
                         }
@@ -542,9 +673,18 @@ function Catalogue() {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-400">Qty: {quantity}</div>
-                    {price != null && price > 0 ? (
-                      <div className="mt-2 text-indigo-600 font-extrabold text-xl">{formatCurrency(price)}</div>
+                    {hasStock && <div className="text-xs text-gray-400">Qty: {quantity}</div>}
+                    {displayPrice != null && displayPrice > 0 ? (
+                      <div className="mt-2">
+                        {hasStock ? (
+                          <div className="text-indigo-600 font-extrabold text-xl">{formatCurrency(displayPrice)}</div>
+                        ) : (
+                          <>
+                            <div className="text-indigo-600 font-extrabold text-xl">{formatCurrency(displayPrice)}</div>
+                            <div className="text-xs text-gray-400 mt-1">Base price - Pre-order</div>
+                          </>
+                        )}
+                      </div>
                     ) : (
                       <div className="mt-2 text-gray-400 text-sm">Price not available</div>
                     )}
@@ -622,13 +762,23 @@ function Catalogue() {
               : Number(quoteForm.motorbikeId || motorDetail?.id);
             const colorId = hasStock
               ? Number(selectedDetail.colorId)
-              : Number(quoteForm.colorId || motorDetail?.colors?.[0]?.color?.id);
+              : Number(quoteForm.colorId);
             
             if (!motorbikeId) {
               throw new Error("Cannot get motorbike ID. Please try again.");
             }
             if (!colorId) {
-              throw new Error("Cannot get color ID. Please select a color.");
+              throw new Error("Please select a color for the motorbike. Color is required for pre-order.");
+            }
+            
+            // Validate that selected color exists in motor's color list for pre-order
+            if (!hasStock) {
+              const colorExists = motorDetail?.colors?.some(
+                (c) => String(c.color?.id) === String(colorId)
+              );
+              if (!colorExists) {
+                throw new Error("Selected color is not available for this motorbike. Please select a valid color.");
+              }
             }
 
             const payload = {
@@ -960,20 +1110,36 @@ function Catalogue() {
           {!hasStock && (
             <>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Color <span className="text-red-500">*</span></label>
-                <select
-                  className="w-full px-3 py-2 border rounded-lg"
-                  value={quoteForm.colorId}
-                  onChange={(e) => setQuoteForm((p) => ({ ...p, colorId: e.target.value }))}
-                  required
-                >
-                  <option value="">-- Select Color --</option>
-                  {motorDetail?.colors?.map((c) => (
-                    <option key={c.color?.id} value={c.color?.id}>
-                      {c.color?.colorType || 'Unknown'}
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Color <span className="text-red-500">*</span>
+                  <span className="text-xs text-gray-500 font-normal ml-2">(Required for pre-order)</span>
+                </label>
+                {motorDetail?.colors && motorDetail.colors.length > 0 ? (
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={quoteForm.colorId}
+                    onChange={(e) => setQuoteForm((p) => ({ ...p, colorId: e.target.value }))}
+                    required
+                  >
+                    <option value="">-- Select Color --</option>
+                    {motorDetail.colors.map((c) => {
+                      const colorId = c.color?.id;
+                      const colorType = c.color?.colorType || 'Unknown';
+                      return (
+                        <option key={colorId} value={colorId}>
+                          {colorType}
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <div className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-500">
+                    Loading color options...
+                  </div>
+                )}
+                {motorDetail?.colors && motorDetail.colors.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">No colors available for this motorbike</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Price <span className="text-red-500">*</span></label>

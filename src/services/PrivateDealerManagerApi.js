@@ -93,6 +93,10 @@ const PrivateDealerManagerApi = {
     apiConfig.privateApi.post(
       `installment-contract/generate-payment/${installmentContractId}`
     ),
+  generateInterestPayments: (installmentContractId) =>
+    apiConfig.privateApi.post(
+      `installment-contract/generate/interest-payments/${installmentContractId}`
+    ),
   getInstallmentPaymentDetail: (installmentPaymentId) =>
     apiConfig.privateApi.get(
       `installment-contract/installlment-payment/detail/${installmentPaymentId}`

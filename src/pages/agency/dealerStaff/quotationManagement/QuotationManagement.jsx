@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerStaffApi from "../../../../services/PrivateDealerStaffApi";
+import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
 import { toast } from "react-toastify";
 import DataTable from "../../../../components/dataTable/DataTable";
 import { formatCurrency } from "../../../../utils/currency";
@@ -17,7 +18,7 @@ dayjs.extend(utc);
 function QuotationManagement() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [quotations, setQuotations] = useState([]);
+  const [allQuotations, setAllQuotations] = useState([]); // Store all quotations
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [limit] = useState(5);
@@ -55,28 +56,80 @@ function QuotationManagement() {
     depositAmount: 0,
     holdDays: "",
   });
+  const [installmentPlanModal, setInstallmentPlanModal] = useState(false);
+  const [selectedQuotationForInstallment, setSelectedQuotationForInstallment] = useState(null);
+  const [installmentPlans, setInstallmentPlans] = useState([]);
+  const [loadingInstallmentPlans, setLoadingInstallmentPlans] = useState(false);
+  const [installmentContractForm, setInstallmentContractForm] = useState({
+    startDate: "",
+    penaltyValue: 0,
+    penaltyType: "FIXED",
+    status: "ACTIVE",
+    customerContractId: "",
+    installmentPlanId: "",
+  });
+  const [creatingInstallmentContract, setCreatingInstallmentContract] = useState(false);
 
   const fetchQuotations = useCallback(async () => {
     if (!user?.agencyId) return;
     setLoading(true);
     try {
+      // Fetch all quotations with pagination
+      let allQuotationsData = [];
+      let currentPage = 1;
+      const pageSize = 100;
+      let hasMore = true;
+
+      // Fetch all pages
+      while (hasMore) {
       const params = {
-        page,
-        limit,
+          page: currentPage,
+          limit: pageSize,
         ...(type && { type }),
         ...(status && { status }),
         ...(quoteCode && { quoteCode }),
       };
       const res = await PrivateDealerStaffApi.getQuotationList(user.agencyId, params);
       const list = res.data?.data || [];
+        allQuotationsData = [...allQuotationsData, ...list];
+        
+        const totalItems = res.data?.paginationInfo?.total || 0;
+        hasMore = allQuotationsData.length < totalItems;
+        currentPage++;
+      }
+
+      // Apply filters in frontend if needed (for consistency)
+      let filteredQuotations = allQuotationsData;
+      if (type) {
+        filteredQuotations = filteredQuotations.filter(q => q.type === type);
+      }
+      if (status) {
+        filteredQuotations = filteredQuotations.filter(q => q.status === status);
+      }
+      if (quoteCode) {
+        filteredQuotations = filteredQuotations.filter(q => 
+          q.quoteCode?.toLowerCase().includes(quoteCode.toLowerCase())
+        );
+      }
+
       // Sort newest first by createDate (using raw data time -> UTC instant order)
-      list.sort((a, b) => new Date(b.createDate) - new Date(a.createDate));
-      setQuotations(list);
-      setTotalItem(res.data?.paginationInfo?.total || 0);
+      filteredQuotations.sort((a, b) => {
+        // Try createDate first, then id (higher id = newer)
+        if (a.createDate && b.createDate) {
+          return new Date(b.createDate) - new Date(a.createDate);
+        }
+        if (a.id && b.id) {
+          return b.id - a.id; // Higher id = newer
+        }
+        return 0;
+      });
+
+      setAllQuotations(filteredQuotations);
+      setTotalItem(filteredQuotations.length);
       
       // Check if quotation list includes depositId or deposit info
       const depositMap = new Map();
-      list.forEach(quotation => {
+      filteredQuotations.forEach(quotation => {
         // If deposit info is directly in quotation list, use it immediately
         if (quotation.deposit) {
           depositMap.set(quotation.id, quotation.deposit);
@@ -94,7 +147,14 @@ function QuotationManagement() {
     } finally {
       setLoading(false);
     }
-  }, [user?.agencyId, page, limit, type, status, quoteCode]);
+  }, [user?.agencyId, type, status, quoteCode]);
+
+  // Paginate the sorted list in frontend
+  const quotations = useMemo(() => {
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    return allQuotations.slice(startIndex, endIndex);
+  }, [allQuotations, page, limit]);
 
   const fetchQuotationIdsWithContracts = useCallback(async () => {
     if (!user?.agencyId) return;
@@ -130,6 +190,11 @@ function QuotationManagement() {
       console.error("Failed to fetch contracts:", error);
     }
   }, [user?.agencyId]);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [type, status, quoteCode]);
 
   useEffect(() => {
     if (user?.agencyId) {
@@ -516,6 +581,187 @@ function QuotationManagement() {
     }
   };
 
+  const fetchInstallmentPlans = async () => {
+    if (!user?.agencyId) return;
+    setLoadingInstallmentPlans(true);
+    try {
+      const response = await PrivateDealerManagerApi.getInstallmentPlan(user.agencyId, {
+        page: 1,
+        limit: 100,
+        status: "ACTIVE",
+      });
+      setInstallmentPlans(response.data?.data || []);
+    } catch (error) {
+      console.error("Error fetching installment plans:", error);
+      toast.error("Failed to load installment plans");
+    } finally {
+      setLoadingInstallmentPlans(false);
+    }
+  };
+
+  const handleOpenInstallmentPlanModal = async (quotation) => {
+    try {
+      // Fetch full quotation detail
+      const res = await PrivateDealerStaffApi.getQuotationDetail(quotation.id);
+      const detail = res.data?.data || quotation;
+      setSelectedQuotationForInstallment(detail);
+
+      // Check if customer contract already exists for this quotation
+      let customerContractId = null;
+      if (quotationIdsWithContracts.has(quotation.id)) {
+        // Contract exists, find it
+        try {
+          const contractsRes = await PrivateDealerStaffApi.getCustomerContractList(
+            user.agencyId,
+            { page: 1, limit: 100, quotationId: quotation.id }
+          );
+          const contracts = contractsRes.data?.data || [];
+          const contract = contracts.find(c => c.quotationId === quotation.id && c.contractPaidType === "DEBT");
+          if (contract) {
+            customerContractId = contract.id;
+          }
+        } catch (err) {
+          console.error("Error finding contract:", err);
+        }
+      }
+
+      // If no contract exists, create one first
+      if (!customerContractId) {
+        try {
+          const contractPayload = {
+            title: `Contract for ${detail.customer?.name || "customer"}`,
+            content: `Contract created from quotation #${detail.id} for installment plan`,
+            finalPrice: detail.finalPrice || 0,
+            signDate: new Date().toISOString(),
+            contractPaidType: "DEBT",
+            customerId: detail.customerId,
+            staffId: user?.id || user?.userId,
+            agencyId: user?.agencyId,
+            electricMotorbikeId: detail.motorbikeId,
+            colorId: detail.colorId,
+            quotationId: detail.id,
+          };
+          const contractRes = await PrivateDealerStaffApi.createCustomerContract(contractPayload);
+          customerContractId = contractRes.data?.data?.id || contractRes.data?.id;
+          
+          if (customerContractId) {
+            // Update the set of quotationIds with contracts
+            setQuotationIdsWithContracts((prev) => new Set([...prev, quotation.id]));
+            toast.success("Customer contract created successfully");
+          } else {
+            throw new Error("Failed to get customer contract ID");
+          }
+        } catch (error) {
+          toast.error(error.message || "Failed to create customer contract");
+          return;
+        }
+      }
+
+      // Check if installment contract already exists
+      try {
+        const existingRes = await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(customerContractId);
+        const existingInstallment = existingRes.data?.data;
+        if (existingInstallment?.id) {
+          toast.info("Installment contract already exists for this quotation");
+          navigate("/agency/customer-contract");
+          return;
+        }
+      } catch (err) {
+        // 404 is expected if no contract exists
+        if (err.response?.status !== 404) {
+          console.error("Error checking existing installment contract:", err);
+        }
+      }
+
+      // Set form and open modal
+      setInstallmentContractForm({
+        startDate: dayjs().format("YYYY-MM-DD"),
+        penaltyValue: 0,
+        penaltyType: "FIXED",
+        status: "ACTIVE",
+        customerContractId: customerContractId,
+        installmentPlanId: "",
+      });
+      setInstallmentPlanModal(true);
+      await fetchInstallmentPlans();
+    } catch (error) {
+      toast.error(error.message || "Failed to prepare installment plan creation");
+    }
+  };
+
+  const handleCreateInstallmentContract = async (e) => {
+    e.preventDefault();
+    if (!selectedQuotationForInstallment) return;
+
+    // Validate
+    if (!installmentContractForm.startDate) {
+      toast.error("Please select a start date");
+      return;
+    }
+    if (!installmentContractForm.installmentPlanId) {
+      toast.error("Please select an installment plan");
+      return;
+    }
+    if (installmentContractForm.penaltyValue < 0) {
+      toast.error("Penalty value must be >= 0");
+      return;
+    }
+
+    setCreatingInstallmentContract(true);
+    try {
+      const payload = {
+        startDate: new Date(installmentContractForm.startDate).toISOString(),
+        penaltyValue: Number(installmentContractForm.penaltyValue),
+        penaltyType: installmentContractForm.penaltyType,
+        status: installmentContractForm.status,
+        customerContractId: Number(installmentContractForm.customerContractId),
+        installmentPlanId: Number(installmentContractForm.installmentPlanId),
+      };
+
+      const response = await PrivateDealerManagerApi.createInstallmentContract(payload);
+      const installmentContractId = response.data?.data?.id;
+
+      if (installmentContractId) {
+        // Generate payment schedules
+        let paymentSchedulesGenerated = false;
+        try {
+          await PrivateDealerManagerApi.generateInstallmentPayments(installmentContractId);
+          paymentSchedulesGenerated = true;
+        } catch (generateError) {
+          console.error("Error generating payment schedules:", generateError);
+          toast.warning("Contract created but failed to generate payment schedules. Please try again later.");
+        }
+        
+        // Generate interest payments
+        try {
+          await PrivateDealerManagerApi.generateInterestPayments(installmentContractId);
+          if (paymentSchedulesGenerated) {
+            toast.success("Installment contract created, payment schedules and interest payments generated successfully");
+          } else {
+            toast.success("Interest payments generated successfully");
+          }
+        } catch (interestError) {
+          console.error("Error generating interest payments:", interestError);
+          if (paymentSchedulesGenerated) {
+            toast.warning("Payment schedules generated but failed to generate interest payments. Please try again later.");
+          } else {
+            toast.warning("Failed to generate interest payments. Please try again later.");
+          }
+        }
+      } else {
+        toast.success("Installment contract created successfully");
+      }
+
+      setInstallmentPlanModal(false);
+      setSelectedQuotationForInstallment(null);
+      navigate("/agency/customer-contract");
+    } catch (error) {
+      toast.error(error.message || "Failed to create installment contract");
+    } finally {
+      setCreatingInstallmentContract(false);
+    }
+  };
+
   const getNestedValue = (obj, path) => {
     if (!obj || !path) return null;
     return path
@@ -769,7 +1015,7 @@ function QuotationManagement() {
                 {isATStore && depositInfo && depositInfo.status === "APPLIED" && (
                   <>
                     <button
-                      onClick={() => {}}
+                      onClick={() => handleOpenInstallmentPlanModal(row)}
                       className="p-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors"
                       title="Tạo installment plan"
                     >
@@ -1236,6 +1482,115 @@ function QuotationManagement() {
               value={depositForm.holdDays}
               onChange={(e) => setDepositForm((prev) => ({ ...prev, holdDays: e.target.value }))}
               required
+            />
+          </div>
+        </div>
+      </FormModal>
+      <FormModal
+        isOpen={installmentPlanModal}
+        onClose={() => {
+          setInstallmentPlanModal(false);
+          setSelectedQuotationForInstallment(null);
+          setInstallmentContractForm({
+            startDate: "",
+            penaltyValue: 0,
+            penaltyType: "FIXED",
+            status: "ACTIVE",
+            customerContractId: "",
+            installmentPlanId: "",
+          });
+        }}
+        title="Create Installment Contract"
+        isDelete={false}
+        isCreate={true}
+        onSubmit={handleCreateInstallmentContract}
+        isSubmitting={creatingInstallmentContract}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Installment Plan <span className="text-red-500">*</span>
+            </label>
+            {loadingInstallmentPlans ? (
+              <div className="text-sm text-gray-500 py-2">Loading installment plans...</div>
+            ) : (
+              <select
+                className="w-full px-3 py-2 border rounded-lg"
+                value={installmentContractForm.installmentPlanId}
+                onChange={(e) =>
+                  setInstallmentContractForm((prev) => ({
+                    ...prev,
+                    installmentPlanId: e.target.value,
+                  }))
+                }
+                required
+              >
+                <option value="">-- Select Installment Plan --</option>
+                {installmentPlans.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name} - {plan.totalPaidMonth} months, {plan.interestRate}% interest
+                  </option>
+                ))}
+              </select>
+            )}
+            {installmentPlans.length === 0 && !loadingInstallmentPlans && (
+              <p className="text-xs text-gray-500 mt-1">
+                No active installment plans available. Please create one first.
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Start Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              className="w-full px-3 py-2 border rounded-lg"
+              value={installmentContractForm.startDate}
+              onChange={(e) =>
+                setInstallmentContractForm((prev) => ({
+                  ...prev,
+                  startDate: e.target.value,
+                }))
+              }
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Penalty Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              className="w-full px-3 py-2 border rounded-lg"
+              value={installmentContractForm.penaltyType}
+              onChange={(e) =>
+                setInstallmentContractForm((prev) => ({
+                  ...prev,
+                  penaltyType: e.target.value,
+                }))
+              }
+              required
+            >
+              <option value="FIXED">FIXED</option>
+              <option value="PERCENT">PERCENT</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Penalty Value
+            </label>
+            <input
+              type="number"
+              className="w-full px-3 py-2 border rounded-lg"
+              value={installmentContractForm.penaltyValue}
+              onChange={(e) =>
+                setInstallmentContractForm((prev) => ({
+                  ...prev,
+                  penaltyValue: Number(e.target.value || 0),
+                }))
+              }
+              min="0"
+              step="0.01"
             />
           </div>
         </div>
