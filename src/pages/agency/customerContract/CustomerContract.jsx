@@ -21,14 +21,7 @@ import useColorList from "../../../hooks/useColorList";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
-import {
-  Pencil,
-  Trash2,
-  Plus,
-  CreditCard,
-  CheckCircle,
-  Edit,
-} from "lucide-react";
+import { Pencil, Trash2, Plus, CreditCard, CheckCircle, Mail } from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
 import BaseModal from "../../../components/modal/baseModal/BaseModal";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -99,6 +92,8 @@ function CustomerContract() {
   const [selectedPaymentForConfirm, setSelectedPaymentForConfirm] =
     useState(null);
   const [isMarkingPaymentAsPaid, setIsMarkingPaymentAsPaid] = useState(false);
+  const [sendingContractEmail, setSendingContractEmail] = useState(false);
+  const [sendingInstallmentEmail, setSendingInstallmentEmail] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -354,6 +349,7 @@ function CustomerContract() {
   };
 
   const handleOpenInstallmentContractModal = async (contract) => {
+    console.log("handleOpenInstallmentContractModal called with:", contract);
     // Only allow for DEBT contracts
     if (contract.contractPaidType !== "DEBT") {
       toast.error("Only DEBT contracts can have installment contracts");
@@ -682,6 +678,44 @@ function CustomerContract() {
     }
   };
 
+  const handleSendContractEmail = async (customerContractId) => {
+    if (!customerContractId) {
+      toast.error("Customer contract ID is missing");
+      return;
+    }
+
+    setSendingContractEmail(true);
+    try {
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      await api.sendCustomerContractEmail(customerContractId);
+      toast.success("Email sent successfully to customer");
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to send email");
+    } finally {
+      setSendingContractEmail(false);
+    }
+  };
+
+  const handleSendInstallmentScheduleEmail = async (installmentContractId) => {
+    if (!installmentContractId) {
+      toast.error("Installment contract ID is missing");
+      return;
+    }
+
+    setSendingInstallmentEmail(true);
+    try {
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      await api.sendInstallmentScheduleEmail(installmentContractId);
+      toast.success("Installment schedule email sent successfully to customer");
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to send email");
+    } finally {
+      setSendingInstallmentEmail(false);
+    }
+  };
+
   const getNestedValue = (obj, path) => {
     if (!obj || !path) return null;
     return path
@@ -734,19 +768,33 @@ function CustomerContract() {
       label: "Installment Contract",
       icon: CreditCard,
       onClick: (item) => {
+        console.log("Installment Contract button clicked for item:", item);
         const installmentContractId = installmentContractMap[item.id];
         const hasInstallmentContract = !!installmentContractId;
         if (hasInstallmentContract) {
+          console.log("Has existing installment contract, viewing:", installmentContractId);
           handleViewInstallmentContract(installmentContractId);
         } else {
+          console.log("No existing installment contract, opening modal");
           handleOpenInstallmentContractModal(item);
         }
       },
       show: (item) => {
         const isDealerStaff = user?.roles?.includes("Dealer Staff");
-        const canShowInstallmentButton =
-          item.status === "PENDING" && item.contractPaidType === "DEBT";
-        return canShowInstallmentButton && !isDealerStaff;
+        // Allow creating installment contract for DEBT contracts with status PENDING, CONFIRMED, or PROCESSING
+        const allowedStatuses = ["PENDING", "CONFIRMED", "PROCESSING"];
+        const canShowInstallmentButton = allowedStatuses.includes(item.status) && item.contractPaidType === "DEBT";
+        const shouldShow = canShowInstallmentButton && !isDealerStaff;
+        console.log("Installment button show check:", {
+          itemId: item.id,
+          status: item.status,
+          contractPaidType: item.contractPaidType,
+          isDealerStaff,
+          allowedStatuses,
+          canShowInstallmentButton,
+          shouldShow
+        });
+        return shouldShow;
       },
     },
     {
@@ -1063,7 +1111,18 @@ function CustomerContract() {
                     {contractDetail.contractCode}
                   </p>
                 </div>
-                <div>{renderStatusTag(contractDetail.status)}</div>
+                <div className="flex items-center gap-3">
+                  {renderStatusTag(contractDetail.status)}
+                  <button
+                    onClick={() => handleSendContractEmail(contractDetail.id)}
+                    disabled={sendingContractEmail}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Send contract to customer email"
+                  >
+                    <Mail size={18} />
+                    {sendingContractEmail ? "Sending..." : "Send Email"}
+                  </button>
+                </div>
               </div>
               <p className="text-sm text-gray-700">{contractDetail.content}</p>
             </div>
@@ -1271,7 +1330,18 @@ function CustomerContract() {
                     Installment Contract #{installmentContractDetail.id}
                   </h3>
                 </div>
-                <div>{renderStatusTag(installmentContractDetail.status)}</div>
+                <div className="flex items-center gap-3">
+                  {renderStatusTag(installmentContractDetail.status)}
+                  <button
+                    onClick={() => handleSendInstallmentScheduleEmail(installmentContractDetail.id)}
+                    disabled={sendingInstallmentEmail}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Send installment schedule to customer email"
+                  >
+                    <Mail size={18} />
+                    {sendingInstallmentEmail ? "Sending..." : "Send Email"}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1561,13 +1631,13 @@ function CustomerContract() {
       </BaseModal>
 
       <ConfirmModal
-        isOpen={isPaymentConfirmModalOpen}
+        isOpen={isPaymentConfirmModalOpen} 
         onClose={() => {
           setIsPaymentConfirmModalOpen(false);
           setSelectedPaymentForConfirm(null);
         }}
         onConfirm={handleConfirmMarkPaymentAsPaid}
-        isSubmitting={isMarkingPaymentAsPaid}
+        isSubm itting={isMarkingPaymentAsPaid}
         title="Mark Payment as PAID"
         message={
           selectedPaymentForConfirm

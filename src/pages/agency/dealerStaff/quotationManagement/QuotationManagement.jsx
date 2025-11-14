@@ -424,9 +424,9 @@ function QuotationManagement() {
       }
       
       if (depositInfo && depositInfo.id) {
-        // Update deposit status to HOLDING
+        // Update deposit status to APPLIED
         await PrivateDealerStaffApi.updateDepositStatus(depositInfo.id, { 
-          status: "HOLDING",
+          status: "APPLIED",
           depositPercent: depositInfo.depositPercent,
           depositAmount: depositInfo.depositAmount,
           holdDays: depositInfo.holdDays || depositInfo.holdDay,
@@ -435,11 +435,11 @@ function QuotationManagement() {
         // Update deposit status in map
         setQuotationDepositMap((prev) => {
           const newMap = new Map(prev);
-          newMap.set(quotationId, { ...depositInfo, status: "HOLDING" });
+          newMap.set(quotationId, { ...depositInfo, status: "APPLIED" });
           return newMap;
         });
         
-        toast.success("Deposit received, status updated to HOLDING");
+        toast.success("Deposit received, status updated to APPLIED");
         fetchQuotations();
       } else {
         toast.error("Deposit not found for this quotation");
@@ -623,7 +623,6 @@ function QuotationManagement() {
         if (!depositInfo) return <span className="text-gray-400">-</span>;
         const statusColors = {
           PENDING: "bg-yellow-100 text-yellow-700",
-          HOLDING: "bg-blue-100 text-blue-700",
           APPLIED: "bg-green-100 text-green-700",
           EXPIRED: "bg-red-100 text-red-700",
         };
@@ -766,8 +765,8 @@ function QuotationManagement() {
                   </>
                 )}
                 
-                {/* AT_STORE with deposit HOLDING: Show "Tạo installment plan" button */}
-                {isATStore && depositInfo && depositInfo.status === "HOLDING" && (
+                {/* AT_STORE with deposit APPLIED: Show "Tạo installment plan" button */}
+                {isATStore && depositInfo && depositInfo.status === "APPLIED" && (
                   <>
                     <button
                       onClick={() => {}}
@@ -856,8 +855,8 @@ function QuotationManagement() {
                   </>
                 )}
                 
-                {/* ORDER or PRE_ORDER with deposit HOLDING: Show "Tạo hợp đồng" button */}
-                {isOrderOrPreOrder && depositInfo && depositInfo.status === "HOLDING" && (
+                {/* ORDER or PRE_ORDER with deposit APPLIED: Show "Tạo hợp đồng" button */}
+                {isOrderOrPreOrder && depositInfo && depositInfo.status === "APPLIED" && (
                   <>
                     <button
                       onClick={() => handleOpenContractModal(row, "DEBT")}

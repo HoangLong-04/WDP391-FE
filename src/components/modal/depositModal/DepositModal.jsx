@@ -30,10 +30,12 @@ function DepositModal({ isOpen, onClose, data, loading }) {
     value?.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
 
   const statusColor =
-    status === "HOLDING"
+    status === "PENDING"
       ? "bg-yellow-100 text-yellow-800"
-      : status === "COMPLETED"
+      : status === "APPLIED"
       ? "bg-green-100 text-green-800"
+      : status === "EXPIRED"
+      ? "bg-red-100 text-red-800"
       : "bg-gray-100 text-gray-800";
 
   return (
@@ -94,7 +96,7 @@ function DepositModal({ isOpen, onClose, data, loading }) {
           </div>
 
           {/* Footer */}
-          {status === "HOLDING" && (
+          {status === "PENDING" && (
             <div className="pt-4 flex justify-end">
               <button
                 onClick={() => handlePayDeposit(id)}

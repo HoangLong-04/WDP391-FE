@@ -120,6 +120,12 @@ const PrivateDealerManagerApi = {
     apiConfig.privateApi.get(`batches-management/detail/${batchId}`),
   payApBatch: (platform, data) =>
     apiConfig.privateApi.post(`vnpay/agency-bill?platform=${platform}`, data),
+
+  // Email APIs
+  sendCustomerContractEmail: (customerContractId) =>
+    apiConfig.privateApi.post(`email/customer-contract/${customerContractId}`),
+  sendInstallmentScheduleEmail: (installmentContractId) =>
+    apiConfig.privateApi.post(`email/customer/installment-schedule/${installmentContractId}`),
 };
 
 export default PrivateDealerManagerApi;
