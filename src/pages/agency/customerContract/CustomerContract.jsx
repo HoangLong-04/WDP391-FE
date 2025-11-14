@@ -661,7 +661,7 @@ function CustomerContract() {
   return (
     <div>
       <div className="my-3 flex justify-end items-center gap-5">
-        {!user?.roles?.includes("Dealer Staff") && (
+        {!user?.role?.includes("Dealer Staff") && (
           <div>
             <label className="mr-2 font-medium text-gray-600">Staff:</label>
             <select
@@ -730,8 +730,8 @@ function CustomerContract() {
             }}
           >
             <option value="">All</option>
-            <option value="AT_STORE">AT_STORE</option>
-            <option value="ORDER">ORDER</option>
+            <option value="FULL">FULL</option>
+            <option value="DEBT">DEBT</option>
           </select>
         </div>
         <div>
