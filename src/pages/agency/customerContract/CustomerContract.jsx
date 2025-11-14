@@ -783,17 +783,28 @@ function CustomerContract() {
         const isDealerStaff = user?.roles?.includes("Dealer Staff");
         // Allow creating installment contract for DEBT contracts with status PENDING, CONFIRMED, or PROCESSING
         const allowedStatuses = ["PENDING", "CONFIRMED", "PROCESSING"];
-        const canShowInstallmentButton = allowedStatuses.includes(item.status) && item.contractPaidType === "DEBT";
+        const hasAllowedStatus = allowedStatuses.includes(item.status);
+        const isDebtType = item.contractPaidType === "DEBT";
+        const canShowInstallmentButton = hasAllowedStatus && isDebtType;
         const shouldShow = canShowInstallmentButton && !isDealerStaff;
-        console.log("Installment button show check:", {
-          itemId: item.id,
-          status: item.status,
-          contractPaidType: item.contractPaidType,
-          isDealerStaff,
-          allowedStatuses,
-          canShowInstallmentButton,
-          shouldShow
-        });
+        
+        // More detailed logging
+        if (!shouldShow) {
+          console.log(`[Installment Button] NOT SHOWING for Contract #${item.id}:`, {
+            status: item.status,
+            hasAllowedStatus,
+            contractPaidType: item.contractPaidType,
+            isDebtType,
+            isDealerStaff,
+            reason: !hasAllowedStatus ? `Status "${item.status}" not in allowed list` 
+                   : !isDebtType ? `Contract type is "${item.contractPaidType}", not DEBT`
+                   : isDealerStaff ? "User is Dealer Staff"
+                   : "Unknown reason"
+          });
+        } else {
+          console.log(`[Installment Button] SHOWING for Contract #${item.id}`);
+        }
+        
         return shouldShow;
       },
     },
