@@ -29,7 +29,7 @@ import DealerStaffManagement from "./pages/agency/dealerManager/dealerStaffManag
 import StockManagement from "./pages/agency/stockManagement/StockManagement";
 import InstallmentPlan from "./pages/agency/installmentPlan/InstallmentPlan";
 import StockPromotion from "./pages/agency/dealerManager/stockPromotion/StockPromotion";
-import CustomerContract from "./pages/agency/customerContract/CustomerContract";
+import CustomerContractWrapper from "./pages/agency/customerContract/CustomerContractWrapper";
 import CustomerManagement from "./pages/agency/customerManagement/CustomerManagement";
 import MotorbikeManagement from "./pages/company/motorbikeManagement/MotorbikeManagement";
 import ColorManagement from "./pages/company/colorManagement/ColorManagement";
@@ -103,7 +103,7 @@ function App() {
             />
             <Route
               path="agency/customer-contract"
-              element={<CustomerContract />}
+              element={<CustomerContractWrapper />}
             />
             <Route
               path="agency/customer-management"
