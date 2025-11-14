@@ -34,8 +34,8 @@ function CustomerContract() {
   const { customerList } = useCustomerList();
   const { colorList } = useColorList();
   const { motorList } = useMotorList();
-  const [customerContractList, setCustomerContractList] = useState([]);
   const [motorbike, setMotorbike] = useState({});
+  const [allContracts, setAllContracts] = useState([]); // Store all contracts
 
   const [page, setPage] = useState(1);
   const [limit] = useState(5); // Default to 5 for Dealer Staff, can be changed if needed
@@ -146,27 +146,54 @@ function CustomerContract() {
       const api = isDealerStaff
         ? PrivateDealerStaffApi
         : PrivateDealerManagerApi;
-      const response = await api.getCustomerContractList(user.agencyId, {
-        page,
-        limit,
-        staffId,
-        customerId,
-        status,
-        contractType,
-      });
-      const list = response.data.data || [];
-      // Sort by newest first (signDate)
-      list.sort((a, b) => {
+      
+      // Fetch all contracts with pagination
+      let allContractsData = [];
+      let currentPage = 1;
+      const pageSize = 100;
+      let hasMore = true;
+
+      // Fetch all pages
+      while (hasMore) {
+        const response = await api.getCustomerContractList(user.agencyId, {
+          page: currentPage,
+          limit: pageSize,
+          staffId,
+          customerId,
+          status,
+          contractType,
+        });
+        const contracts = response.data.data || [];
+        allContractsData = [...allContractsData, ...contracts];
+        
+        const totalItems = response.data.paginationInfo?.total || 0;
+        hasMore = allContractsData.length < totalItems;
+        currentPage++;
+      }
+
+      // Sort by newest first (by id - higher id = newer, or by createdAt if available)
+      allContractsData.sort((a, b) => {
+        // Try createdAt first, then id (higher id = newer), then signDate
+        if (a.createdAt && b.createdAt) {
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        }
+        if (a.createAt && b.createAt) {
+          return new Date(b.createAt) - new Date(a.createAt);
+        }
+        if (a.id && b.id) {
+          return b.id - a.id; // Higher id = newer
+        }
         const dateA = new Date(a.signDate || 0);
         const dateB = new Date(b.signDate || 0);
         return dateB - dateA;
       });
-      setCustomerContractList(list);
-      setTotalItem(response.data.paginationInfo?.total || 0);
+
+      setAllContracts(allContractsData);
+      setTotalItem(allContractsData.length);
 
       // Check for installment contracts for DEBT contracts (only check contracts not already in map)
       setInstallmentContractMap((prev) => {
-        const contractsToCheck = list.filter(
+        const contractsToCheck = allContractsData.filter(
           (contract) =>
             contract.contractPaidType === "DEBT" &&
             contract.status === "PENDING" &&
@@ -210,7 +237,19 @@ function CustomerContract() {
     } finally {
       setLoading(false);
     }
-  }, [user?.agencyId, page, limit, staffId, customerId, status, contractType]);
+  }, [user?.agencyId, staffId, customerId, status, contractType]);
+
+  // Paginate the sorted list in frontend
+  const customerContractList = useMemo(() => {
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    return allContracts.slice(startIndex, endIndex);
+  }, [allContracts, page, limit]);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [staffId, customerId, status, contractType]);
 
   useEffect(() => {
     fetchCustomerContractList();
