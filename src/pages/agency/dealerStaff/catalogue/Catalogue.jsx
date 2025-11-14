@@ -45,6 +45,10 @@ function Catalogue() {
   const [selectedPromotion, setSelectedPromotion] = useState(null);
   const [selectedPromotionId, setSelectedPromotionId] = useState("");
   const [motorDetailsMap, setMotorDetailsMap] = useState(new Map()); // Cache motor details with full color info
+  const [customerMode, setCustomerMode] = useState("new"); // "new" or "existing"
+  const [customerList, setCustomerList] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -349,6 +353,31 @@ function Catalogue() {
                 <button
                   onClick={async () => {
                     setQuoteModal(true);
+                    // Reset customer form and mode when opening modal
+                    setCustomerMode("new");
+                    setSelectedCustomerId("");
+                    setQuoteForm((prev) => ({ ...prev, customerId: "" }));
+                    setCustomerForm({
+                      name: "",
+                      email: "",
+                      phone: "",
+                      address: "",
+                      credentialId: "",
+                      dob: "",
+                    });
+                    // Load customer list
+                    if (user?.agencyId) {
+                      setLoadingCustomers(true);
+                      try {
+                        const res = await PrivateDealerStaffApi.getCustomerList(user.agencyId, { page: 1, limit: 100 });
+                        setCustomerList(res.data?.data || []);
+                      } catch (error) {
+                        console.error("Error loading customers:", error);
+                        toast.error("Failed to load customer list");
+                      } finally {
+                        setLoadingCustomers(false);
+                      }
+                    }
                     if (hasStock && user?.agencyId) {
                       // Load stock promotions only if has stock
                       try {
@@ -532,6 +561,17 @@ function Catalogue() {
           setQuoteModal(false);
           setSelectedPromotionId("");
           setSelectedPromotion(null);
+          setCustomerMode("new");
+          setSelectedCustomerId("");
+          setQuoteForm((prev) => ({ ...prev, customerId: "" }));
+          setCustomerForm({
+            name: "",
+            email: "",
+            phone: "",
+            address: "",
+            credentialId: "",
+            dob: "",
+          });
         }}
         title={"Tạo báo giá"}
         isDelete={false}
@@ -552,9 +592,19 @@ function Catalogue() {
               throw new Error("Cannot get agency ID from user. Please login again.");
             }
 
-            // Create customer first if not provided
-            let customerId = quoteForm.customerId;
-            if (!customerId) {
+            // Handle customer: use existing or create new
+            let customerId = null;
+            if (customerMode === "existing" && selectedCustomerId) {
+              // Use existing customer
+              customerId = Number(selectedCustomerId);
+              if (!customerId || isNaN(customerId)) {
+                throw new Error("Invalid customer selected. Please select a customer.");
+              }
+            } else if (customerMode === "new") {
+              // Create new customer
+              if (!customerForm.name || !customerForm.phone || !customerForm.email) {
+                throw new Error("Please fill in all required customer fields (Name, Phone, Email).");
+              }
               const customerPayload = {
                 ...customerForm,
                 agencyId,
@@ -563,6 +613,8 @@ function Catalogue() {
               const res = await PrivateDealerManagerApi.createCustomer(customerPayload);
               customerId = res.data?.data?.id || res.data?.id;
               if (!customerId) throw new Error("Cannot get created customer id");
+            } else {
+              throw new Error("Please select an existing customer or create a new one.");
             }
             // Get motorbikeId and colorId - from selectedDetail if has stock, otherwise from motorDetail and form
             const motorbikeId = hasStock 
@@ -605,37 +657,162 @@ function Catalogue() {
       >
          <div className="space-y-4">
           <div className="rounded-xl border p-3">
-            <p className="font-semibold mb-2">Customer info</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <p className="font-semibold mb-3">Customer info</p>
+            
+            {/* Customer Mode Selection */}
+            <div className="mb-4 flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="customerMode"
+                  value="existing"
+                  checked={customerMode === "existing"}
+                  onChange={(e) => {
+                    setCustomerMode(e.target.value);
+                    setSelectedCustomerId("");
+                    setQuoteForm((prev) => ({ ...prev, customerId: "" }));
+                    setCustomerForm({
+                      name: "",
+                      email: "",
+                      phone: "",
+                      address: "",
+                      credentialId: "",
+                      dob: "",
+                    });
+                  }}
+                  className="w-4 h-4 text-indigo-600"
+                />
+                <span className="text-sm font-medium text-gray-700">Chọn khách hàng cũ</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="customerMode"
+                  value="new"
+                  checked={customerMode === "new"}
+                  onChange={(e) => {
+                    setCustomerMode(e.target.value);
+                    setSelectedCustomerId("");
+                    setQuoteForm((prev) => ({ ...prev, customerId: "" }));
+                    setCustomerForm({
+                      name: "",
+                      email: "",
+                      phone: "",
+                      address: "",
+                      credentialId: "",
+                      dob: "",
+                    });
+                  }}
+                  className="w-4 h-4 text-indigo-600"
+                />
+                <span className="text-sm font-medium text-gray-700">Tạo mới khách hàng</span>
+              </label>
+            </div>
+
+            {/* Existing Customer Selection */}
+            {customerMode === "existing" && (
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Chọn khách hàng <span className="text-red-500">*</span>
+                </label>
+                {loadingCustomers ? (
+                  <div className="text-sm text-gray-500 py-2">Đang tải danh sách khách hàng...</div>
+                ) : (
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={selectedCustomerId}
+                    onChange={(e) => {
+                      const customerId = e.target.value;
+                      setSelectedCustomerId(customerId);
+                      const selectedCustomer = customerList.find((c) => String(c.id) === String(customerId));
+                      if (selectedCustomer) {
+                        setQuoteForm((prev) => ({ ...prev, customerId: String(selectedCustomer.id) }));
+                        setCustomerForm({
+                          name: selectedCustomer.name || "",
+                          email: selectedCustomer.email || "",
+                          phone: selectedCustomer.phone || "",
+                          address: selectedCustomer.address || "",
+                          credentialId: selectedCustomer.credentialId || "",
+                          dob: selectedCustomer.dob ? new Date(selectedCustomer.dob).toISOString().split('T')[0] : "",
+                        });
+                      }
+                    }}
+                    required
+                  >
+                    <option value="">-- Chọn khách hàng --</option>
+                    {customerList.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name} - {customer.phone} {customer.email ? `(${customer.email})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {customerList.length === 0 && !loadingCustomers && (
+                  <p className="text-xs text-gray-500 mt-1">Không có khách hàng nào. Vui lòng chọn "Tạo mới khách hàng".</p>
+                )}
+              </div>
+            )}
+
+            {/* Customer Form Fields */}
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${customerMode === "existing" && selectedCustomerId ? "opacity-60" : ""}`}>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Name</label>
-                <input className="w-full px-3 py-2 border rounded-lg" value={customerForm.name}
-                  onChange={(e) => setCustomerForm((p) => ({ ...p, name: e.target.value }))} />
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Name {customerMode === "new" && <span className="text-red-500">*</span>}</label>
+                <input 
+                  className="w-full px-3 py-2 border rounded-lg" 
+                  value={customerForm.name}
+                  onChange={(e) => setCustomerForm((p) => ({ ...p, name: e.target.value }))}
+                  disabled={customerMode === "existing" && selectedCustomerId}
+                  required={customerMode === "new"}
+                />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
-                <input className="w-full px-3 py-2 border rounded-lg" value={customerForm.phone}
-                  onChange={(e) => setCustomerForm((p) => ({ ...p, phone: e.target.value }))} />
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Phone {customerMode === "new" && <span className="text-red-500">*</span>}</label>
+                <input 
+                  className="w-full px-3 py-2 border rounded-lg" 
+                  value={customerForm.phone}
+                  onChange={(e) => setCustomerForm((p) => ({ ...p, phone: e.target.value }))}
+                  disabled={customerMode === "existing" && selectedCustomerId}
+                  required={customerMode === "new"}
+                />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-                <input type="email" className="w-full px-3 py-2 border rounded-lg" value={customerForm.email}
-                  onChange={(e) => setCustomerForm((p) => ({ ...p, email: e.target.value }))} />
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Email {customerMode === "new" && <span className="text-red-500">*</span>}</label>
+                <input 
+                  type="email" 
+                  className="w-full px-3 py-2 border rounded-lg" 
+                  value={customerForm.email}
+                  onChange={(e) => setCustomerForm((p) => ({ ...p, email: e.target.value }))}
+                  disabled={customerMode === "existing" && selectedCustomerId}
+                  required={customerMode === "new"}
+                />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Address</label>
-                <input className="w-full px-3 py-2 border rounded-lg" value={customerForm.address}
-                  onChange={(e) => setCustomerForm((p) => ({ ...p, address: e.target.value }))} />
+                <input 
+                  className="w-full px-3 py-2 border rounded-lg" 
+                  value={customerForm.address}
+                  onChange={(e) => setCustomerForm((p) => ({ ...p, address: e.target.value }))}
+                  disabled={customerMode === "existing" && selectedCustomerId}
+                />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Credential ID</label>
-                <input className="w-full px-3 py-2 border rounded-lg" value={customerForm.credentialId}
-                  onChange={(e) => setCustomerForm((p) => ({ ...p, credentialId: e.target.value }))} />
+                <input 
+                  className="w-full px-3 py-2 border rounded-lg" 
+                  value={customerForm.credentialId}
+                  onChange={(e) => setCustomerForm((p) => ({ ...p, credentialId: e.target.value }))}
+                  disabled={customerMode === "existing" && selectedCustomerId}
+                />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Date of birth</label>
-                <input type="date" className="w-full px-3 py-2 border rounded-lg" value={customerForm.dob}
-                  onChange={(e) => setCustomerForm((p) => ({ ...p, dob: e.target.value }))} />
+                <input 
+                  type="date" 
+                  className="w-full px-3 py-2 border rounded-lg" 
+                  value={customerForm.dob}
+                  onChange={(e) => setCustomerForm((p) => ({ ...p, dob: e.target.value }))}
+                  disabled={customerMode === "existing" && selectedCustomerId}
+                />
               </div>
             </div>
           </div>
@@ -812,11 +989,6 @@ function Catalogue() {
             <label className="block text-sm font-semibold text-gray-700 mb-1">Valid until</label>
             <input type="datetime-local" className="w-full px-3 py-2 border rounded-lg" value={quoteForm.validUntil}
               onChange={(e) => setQuoteForm((p) => ({ ...p, validUntil: e.target.value }))} />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Customer ID (optional - leave empty to create new customer)</label>
-            <input type="number" className="w-full px-3 py-2 border rounded-lg" value={quoteForm.customerId}
-              onChange={(e) => setQuoteForm((p) => ({ ...p, customerId: e.target.value }))} placeholder="Leave empty to create new customer" />
           </div>
         </div>
       </FormModal>

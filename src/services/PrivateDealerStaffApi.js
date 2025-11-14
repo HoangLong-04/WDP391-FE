@@ -31,5 +31,12 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.patch(`deposit/${depositId}`, data),
   getDepositById: (depositId) =>
     apiConfig.privateApi.get(`deposit/${depositId}`),
+  getCustomerList: (agencyId, params) =>
+    apiConfig.privateApi.get(`customer/list/${agencyId}`, { params }),
+  // Email APIs
+  sendCustomerContractEmail: (customerContractId) =>
+    apiConfig.privateApi.post(`email/customer-contract/${customerContractId}`),
+  sendInstallmentScheduleEmail: (installmentContractId) =>
+    apiConfig.privateApi.post(`email/customer/installment-schedule/${installmentContractId}`),
 };
 export default PrivateDealerStaff;
