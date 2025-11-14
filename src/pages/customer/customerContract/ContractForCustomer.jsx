@@ -144,7 +144,7 @@ function ContractForCustomer() {
               </label>
               <input
                 type="text"
-                value={credentialId}
+                value={credentialId || initialCredentialId}
                 onChange={(e) => setCredentialId(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:ring-2 focus:ring-blue-400 focus:outline-none"
                 placeholder="Enter customer credential ID..."

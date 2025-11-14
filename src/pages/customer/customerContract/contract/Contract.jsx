@@ -63,12 +63,16 @@ function Contract({
           value={`${totalAmount?.toLocaleString()} VND`}
         />
         <div />
-        {status !== 'COMPLETED' || installmentContract && <div>
-          <button onClick={onPay} className="bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg text-white cursor-pointer">
-            Pay
-          </button>
-        </div>}
-        
+        {status === "PENDING" && contractType === "FULL" && (
+          <div>
+            <button
+              onClick={onPay}
+              className="bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg text-white cursor-pointer"
+            >
+              Pay
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Nội dung mô tả */}
