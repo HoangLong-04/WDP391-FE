@@ -361,6 +361,34 @@ function StockManagement() {
       // Update stock with new quantity (existing + additional from order items)
       const newQuantity = Number(updateForm.quantity || 0) + additionalQuantity
       
+      // If quantity becomes 0, delete the stock instead of updating
+      if (newQuantity <= 0) {
+        await PrivateDealerManagerApi.deleteStock(selectedId)
+        toast.success('Stock deleted successfully (quantity = 0). You can create a new stock now.')
+        
+        setFormModal(false)
+        setSelectedOrderItemIdsForUpdate([])
+        setAvailableOrderItemsForUpdate([])
+        setIsEdit(false)
+        setSelectedId("")
+        
+        // Reset form to allow creating new stock
+        setForm({
+          quantity: 0,
+          price: 0,
+          agencyId: user?.agencyId,
+          motorbikeId: "",
+          colorId: "",
+        })
+        
+        // Refetch stock list after delete
+        await fetchAllStock()
+        // Refetch delivered orders to update the list
+        fetchDeliveredOrderItems()
+        return
+      }
+      
+      // Normal update if quantity > 0
       await PrivateDealerManagerApi.updateStock(selectedId, {
         ...updateForm,
         quantity: newQuantity,
