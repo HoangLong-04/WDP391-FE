@@ -5,11 +5,8 @@ import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerAp
 import { toast } from "react-toastify";
 import DataTable from "../../../../components/dataTable/DataTable";
 import dayjs from "dayjs";
-import GroupModal from "../../../../components/modal/groupModal/GroupModal";
-import {
-  generalFields,
-  groupedFields,
-} from "../../../../components/viewModel/restockModel/RestockModel";
+import BaseModal from "../../../../components/modal/baseModal/BaseModal";
+import { CircularProgress } from "@mui/material";
 import useColorList from "../../../../hooks/useColorList";
 import useMotorList from "../../../../hooks/useMotorList";
 import useDiscountAgency from "../../../../hooks/useDiscountAgency";
@@ -29,6 +26,8 @@ function OrderRestockAgency() {
   const { promoList } = usePromotionAgency();
   const [restockList, setRestockList] = useState([]);
   const [restockDetail, setRestockDetail] = useState({});
+  const [restockOrderItems, setRestockOrderItems] = useState([]); // All order items detail
+  const [orderGeneralInfo, setOrderGeneralInfo] = useState({}); // Order general info
 
   const [page, setPage] = useState(1);
   const [totalItem, setTotalItem] = useState(0);
@@ -82,22 +81,55 @@ function OrderRestockAgency() {
   const fetchOrderRestockDetail = async (item) => {
     setViewModalLoading(true);
     try {
-      // Kiểm tra nếu order có orderItems và lấy orderItemId đầu tiên
+      // Lấy orderItems từ item (đã có từ API list)
       const orderItems = item?.orderItems || [];
       if (orderItems.length === 0) {
         toast.error("This order has no items to display");
         setViewModalLoading(false);
         return;
       }
-      // Lấy orderItemId đầu tiên từ orderItems
-      const orderItemId = orderItems[0]?.id;
-      if (!orderItemId) {
-        toast.error("Cannot find order item ID");
+
+      // Lưu thông tin order chung
+      setOrderGeneralInfo({
+        orderId: item.id,
+        orderType: item.orderType,
+        orderAt: item.orderAt,
+        orderStatus: item.status,
+        orderSubtotal: item.subtotal,
+        itemQuantity: item.itemQuantity,
+        creditChecked: item.creditChecked,
+        agencyId: item.agencyId,
+      });
+
+      // Fetch detail cho tất cả orderItems
+      const itemDetailPromises = orderItems.map(async (orderItem) => {
+        try {
+          const orderItemId = orderItem.id;
+          if (!orderItemId) {
+            return null;
+          }
+          const response = await PrivateDealerManagerApi.getRestockOrderItemDetail(orderItemId);
+          return response.data?.data;
+        } catch (err) {
+          console.error(`Error fetching detail for item ${orderItem.id}:`, err);
+          return null;
+        }
+      });
+
+      const allItemDetails = await Promise.all(itemDetailPromises);
+      const validItemDetails = allItemDetails.filter(item => item !== null);
+
+      if (validItemDetails.length === 0) {
+        toast.error("Failed to load order items detail");
         setViewModalLoading(false);
         return;
       }
-      const response = await PrivateDealerManagerApi.getRestockOrderItemDetail(orderItemId);
-      setRestockDetail(response.data.data);
+
+      // Set first item as main detail (for backward compatibility)
+      setRestockDetail(validItemDetails[0]);
+      
+      // Set all items for display
+      setRestockOrderItems(validItemDetails);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -307,15 +339,151 @@ function OrderRestockAgency() {
         onRowClick={handleViewDetail}
         actions={actions}
       />
-      <GroupModal
-        data={restockDetail}
-        groupedFields={groupedFields}
+      <BaseModal
         isOpen={viewModal}
-        loading={viewLoading}
-        onClose={() => setViewModal(false)}
-        title={"Order info"}
-        generalFields={generalFields}
-      />
+        onClose={() => {
+          setViewModal(false);
+          setRestockOrderItems([]);
+          setOrderGeneralInfo({});
+        }}
+        title="Order Restock Detail"
+        size="lg"
+      >
+        {viewLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : (
+          <div className="space-y-6 max-h-[80vh] overflow-y-auto">
+            {/* Order General Info */}
+            {orderGeneralInfo.orderId && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Information</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Order ID:</span>
+                    <span className="ml-2 font-medium text-gray-800">{orderGeneralInfo.orderId || "-"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Order Date:</span>
+                    <span className="ml-2 font-medium text-gray-800">
+                      {orderGeneralInfo.orderAt ? dayjs(orderGeneralInfo.orderAt).format("DD/MM/YYYY") : "-"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Order Type:</span>
+                    <span className="ml-2 font-medium text-gray-800">{orderGeneralInfo.orderType || "-"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Status:</span>
+                    <span className="ml-2 font-medium text-gray-800">
+                      {renderStatusTag(orderGeneralInfo.orderStatus)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Subtotal:</span>
+                    <span className="ml-2 font-medium text-gray-800">
+                      {orderGeneralInfo.orderSubtotal ? formatCurrency(orderGeneralInfo.orderSubtotal) : "-"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Total Items:</span>
+                    <span className="ml-2 font-medium text-gray-800">{restockOrderItems.length}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* All Order Items */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                Order Items ({restockOrderItems.length})
+              </h3>
+              <div className="space-y-4">
+                {restockOrderItems.map((item, index) => (
+                  <div key={index} className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-md font-semibold text-gray-800">Item #{index + 1}</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Motorbike</p>
+                        <p className="font-medium text-gray-800">
+                          {item.electricMotorbike?.name || item.motorbike?.name || "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Color</p>
+                        <p className="font-medium text-gray-800">
+                          {item.color?.colorType || "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Quantity</p>
+                        <p className="font-medium text-gray-800">{item.quantity || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Warehouse</p>
+                        <p className="font-medium text-gray-800">
+                          {item.warehouse?.name || item.warehouse?.location || "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Base Price</p>
+                        <p className="font-medium text-gray-800">
+                          {item.basePrice ? formatCurrency(item.basePrice) : "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Wholesale Price</p>
+                        <p className="font-medium text-gray-800">
+                          {item.wholeSalePrice ? formatCurrency(item.wholeSalePrice) : "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Final Price</p>
+                        <p className="font-medium text-indigo-600">
+                          {item.finalPrice ? formatCurrency(item.finalPrice) : "-"}
+                        </p>
+                      </div>
+                      {item.discountPolicy && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Discount</p>
+                          <p className="font-medium text-gray-800">
+                            {item.discountPolicy.name || "-"}
+                            {item.discountPolicy.value && (
+                              <span className="ml-2 text-green-600">
+                                ({item.discountPolicy.valueType === "PERCENT" 
+                                  ? `${item.discountPolicy.value}%` 
+                                  : formatCurrency(item.discountPolicy.value)})
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                      {item.promotion && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Promotion</p>
+                          <p className="font-medium text-gray-800">
+                            {item.promotion.name || "-"}
+                            {item.promotion.value && (
+                              <span className="ml-2 text-green-600">
+                                ({item.promotion.valueType === "PERCENT" 
+                                  ? `${item.promotion.value}%` 
+                                  : formatCurrency(item.promotion.value)})
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </BaseModal>
       <FormModal
         isOpen={formModal}
         onClose={() => setFormModal(false)}
