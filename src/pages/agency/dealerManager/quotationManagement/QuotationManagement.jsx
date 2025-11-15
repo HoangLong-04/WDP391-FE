@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerStaffApi from "../../../../services/PrivateDealerStaffApi";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
@@ -17,6 +18,7 @@ dayjs.extend(utc);
 
 function QuotationManagement() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [allQuotations, setAllQuotations] = useState([]); // Store all quotations
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -32,6 +34,7 @@ function QuotationManagement() {
   const [loadingDeposits, setLoadingDeposits] = useState(false);
   const [quotationDetailCache, setQuotationDetailCache] = useState(new Map()); // Cache quotation details
   const [quotationIdsWithContracts, setQuotationIdsWithContracts] = useState(new Set());
+  const [quotationIdsWithOrderRestock, setQuotationIdsWithOrderRestock] = useState(new Set()); // Track quotations that have order restock
   const { warehouse } = useWarehouseAgency();
   const [orderRestockModal, setOrderRestockModal] = useState(false);
   const [selectedQuotationForRestock, setSelectedQuotationForRestock] = useState(null);
@@ -409,10 +412,19 @@ function QuotationManagement() {
       };
 
       await PrivateDealerManagerApi.createRestock(payload);
+      
+      // Mark quotation as having order restock
+      if (selectedQuotationForRestock?.id) {
+        setQuotationIdsWithOrderRestock(prev => new Set([...prev, selectedQuotationForRestock.id]));
+      }
+      
       toast.success("Order restock created successfully");
       setOrderRestockModal(false);
       setSelectedQuotationForRestock(null);
       setRestockForm({ warehouseId: 0 });
+      
+      // Navigate to order restock page
+      navigate("/agency/order-restock");
     } catch (error) {
       // Improve error message for inventory not found
       const errorMessage = error.response?.data?.message || error.message || "Failed to create order restock";
@@ -514,9 +526,10 @@ function QuotationManagement() {
         const depositInfo = quotationDepositMap.get(row.id);
         const isPreOrder = row.type === "PRE_ORDER";
         const isDepositApplied = depositInfo && depositInfo.status === "APPLIED";
+        const hasOrderRestock = quotationIdsWithOrderRestock.has(row.id);
         
-        // Show action button only for PRE_ORDER with deposit APPLIED
-        if (isPreOrder && isDepositApplied) {
+        // Show action button only for PRE_ORDER with deposit APPLIED and no order restock yet
+        if (isPreOrder && isDepositApplied && !hasOrderRestock) {
           return (
             <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
               <button
