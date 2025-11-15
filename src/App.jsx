@@ -39,7 +39,7 @@ import OrderRestockAgency from "./pages/agency/dealerManager/orderRestock/OrderR
 import OrderRestockManagement from "./pages/company/orderRestockManagement/OrderRestockManagement";
 import BookingManagement from "./pages/agency/dealerStaff/bookingManagement/BookingManagement";
 import Catalogue from "./pages/agency/dealerStaff/catalogue/Catalogue";
-import QuotationManagement from "./pages/agency/dealerStaff/quotationManagement/QuotationManagement";
+import QuotationManagement from "./pages/agency/quotationManagement/QuotationManagementWrapper";
 import Payment from "./pages/payment/Payment";
 import EvmStaffWarehouseManagement from "./pages/company/evmStaff/warehouseManagement/WarehouseManagementEVMStaff";
 import EvmStaffDiscountManagement from "./pages/company/evmStaff/discountManagement/DiscountManagementEVMStaff";

@@ -64,6 +64,11 @@ function SharedSidebar() {
           Icon: List,
         },
         {
+          path: "/agency/quotation-management",
+          label: "Quotation management",
+          Icon: FileText,
+        },
+        {
           path: "/agency/customer-contract",
           label: "Customer contract",
           Icon: FileText,
