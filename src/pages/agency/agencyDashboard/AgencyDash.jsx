@@ -438,7 +438,7 @@ function AgencyDash() {
                       </td>
                       <td className="py-4 px-4 sm:px-6 text-right">
                         <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 font-bold rounded-lg border border-emerald-200 group-hover:shadow-md transition-all duration-200">
-                          <DollarSign className="w-4 h-4" />
+                          {/* <DollarSign className="w-4 h-4" /> */}
                           {formatCurrency(staff.total_contract_revenue)}
                         </span>
                       </td>
