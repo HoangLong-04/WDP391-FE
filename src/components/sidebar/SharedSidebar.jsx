@@ -30,6 +30,7 @@ import {
   DollarSign,
   Megaphone,
   CreditCard,
+  Box,
 } from "lucide-react";
 
 function SharedSidebar() {
@@ -46,6 +47,7 @@ function SharedSidebar() {
   const getNavItems = () => {
     if (userRole === "Dealer Manager") {
       return [
+        { path: "/agency/dashboard", label: "Dashboard", Icon: Box },
         { path: "/agency/all-staff", label: "Dealer staff", Icon: Users },
         { path: "/agency/stock-management", label: "Stock", Icon: Package },
         {
