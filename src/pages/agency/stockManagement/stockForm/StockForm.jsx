@@ -31,7 +31,13 @@ function StockForm({
       name === "quantity" ||
       name === "price"
     ) {
-      processedValue = value ? Number(value) : null;
+      // Allow 0 as valid value, only convert empty string to null
+      if (value === "" || value === null || value === undefined) {
+        processedValue = null;
+      } else {
+        const numValue = Number(value);
+        processedValue = isNaN(numValue) ? null : numValue;
+      }
     }
 
     {
@@ -126,11 +132,12 @@ function StockForm({
         <input
           type="number"
           name="quantity"
-          value={currentForm.quantity || ""}
+          value={currentForm.quantity !== null && currentForm.quantity !== undefined ? currentForm.quantity : ""}
           onChange={handleChange}
           className={`${inputClasses} ${!isEdit && !selectedOrderItemId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
           placeholder={!isEdit && !selectedOrderItemId ? "Select order item first" : "Enter stock quantity"}
           min="0"
+          step="1"
           required
           disabled={!isEdit && !selectedOrderItemId}
           readOnly={!isEdit && selectedOrderItemId ? true : false}
