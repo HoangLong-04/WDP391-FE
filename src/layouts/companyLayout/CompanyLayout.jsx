@@ -1,5 +1,5 @@
 import React from "react";
-import CompanySidebar from "./CompanySidebar";
+import SharedSidebar from "../../components/sidebar/SharedSidebar";
 import { Outlet } from "react-router";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -8,7 +8,7 @@ function CompanyLayout() {
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 left-0 h-screen">
-        <CompanySidebar />
+        <SharedSidebar />
       </aside>
 
       <main className="flex-1 bg-gray-50 p-6 overflow-y-auto">

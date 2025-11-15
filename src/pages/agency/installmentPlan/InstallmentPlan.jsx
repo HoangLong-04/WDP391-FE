@@ -3,16 +3,18 @@ import { useAuth } from "../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
-import PaginationTable from "../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../components/dataTable/DataTable";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import InstallmentForm from "./installmentForm/InstallmentForm";
+import { Pencil, Trash2, Plus } from "lucide-react";
+import { renderStatusTag } from "../../../utils/statusTag";
 
 function InstallmentPlan() {
   const { user } = useAuth();
   const [installmentLít, setInstallmentList] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [status, setStatus] = useState('');
   const [interestPaidType, setInterestPaidType] = useState('');
   const [totalItem, setTotalItem] = useState(0);
@@ -117,6 +119,10 @@ function InstallmentPlan() {
     }
   }
 
+  const handleViewDetail = (item) => {
+    // Can add view detail modal if needed
+  };
+
   const columns = [
     { key: "id", title: "Id" },
     { key: "name", title: "Name" },
@@ -128,7 +134,7 @@ function InstallmentPlan() {
     {
       key: "processFee",
       title: "Fee",
-      render: (fee) => (fee ? fee.toLocaleString("en-US") + " $" : "0"),
+      render: (fee) => (fee ? `${Number(fee).toLocaleString('vi-VN')} đ` : "0 đ"),
     },
     {
       key: "startAt",
@@ -140,43 +146,38 @@ function InstallmentPlan() {
       title: "Ngày Kết Thúc",
       render: (date) => (date ? dayjs(date).format("DD/MM/YYYY") : "-"),
     },
-    { key: "status", title: "Trạng Thái" },
-    { key: "agencyId", title: "Agency ID" },
     {
-      key: "action1",
-      title: "Update",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setIsEdit(true);
-            setFormModal(true);
-            setSelectedId(item.id);
-            setUpdateForm({
-              ...item,
-              endAt: dayjs(item.endAt).format('YYYY-MM-DD'),
-              startAt: dayjs(item.startAt).format('YYYY-MM-DD')
-            });
-          }}
-          className="bg-blue-500 cursor-pointer p-2 rounded-lg text-white"
-        >
-          Update
-        </span>
-      ),
+      key: "status",
+      title: "Trạng Thái",
+      render: (status) => renderStatusTag(status),
+    },
+    { key: "agencyId", title: "Agency ID" },
+  ];
+
+  const actions = [
+    {
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: (item) => {
+        setIsEdit(true);
+        setFormModal(true);
+        setSelectedId(item.id);
+        setUpdateForm({
+          ...item,
+          endAt: dayjs(item.endAt).format('YYYY-MM-DD'),
+          startAt: dayjs(item.startAt).format('YYYY-MM-DD')
+        });
+      },
     },
     {
-      key: "action2",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setDeleteModal(true)
-            setSelectedId(item.id)
-          }}
-          className="bg-red-500 cursor-pointer p-2 rounded-lg text-white"
-        >
-          Delete
-        </span>
-      ),
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setDeleteModal(true);
+        setSelectedId(item.id);
+      },
     },
   ];
   return (
@@ -220,21 +221,23 @@ function InstallmentPlan() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="text-white bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg cursor-pointer"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create installment plan
+            <Plus size={20} />
           </button>
         </div>
       </div>
-      <PaginationTable
+      <DataTable
+        title="Installment Plan"
         columns={columns}
         data={installmentLít}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Installment plan"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
 
       <FormModal
@@ -244,6 +247,8 @@ function InstallmentPlan() {
         isDelete={false}
         onSubmit={isEdit ? handleUpdateInstallment : handleCreateInstallment}
         isSubmitting={submit}
+        isCreate={!isEdit}
+        isUpdate={isEdit}
       >
         <InstallmentForm
           form={form}

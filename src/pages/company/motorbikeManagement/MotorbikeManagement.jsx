@@ -15,16 +15,22 @@ import {
 } from "../../../components/viewModel/motorbikeModel/MotorbikeModel";
 import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import MotorImageForm from "./motorImageForm/MotorImageForm";
+import { Eye, Pencil, Trash2, Plus } from "lucide-react";
+import ActionMenu from "../../../components/popupAction/ActionMenu";
+import ColorImageForm from "./colorImageForm/ColorImageForm";
 
 function MotorbikeManagement() {
   const [motorList, setMotorList] = useState([]);
   const [motor, setMotor] = useState({});
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [model, setModel] = useState("");
   const [makeFrom, setMakeFrom] = useState("");
   const [totalItem, setTotalItem] = useState(0);
+  const [allMotorList, setAllMotorList] = useState([]);
+  const [modelOptions, setModelOptions] = useState([]);
+  const [makeFromOptions, setMakeFromOptions] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [viewModalLoading, setViewModalLoading] = useState(false);
@@ -107,6 +113,10 @@ function MotorbikeManagement() {
     brake: "",
     lock: "",
   });
+  const [colorImage, setColorImage] = useState({
+    colorId: "",
+    color_image: null,
+  });
   const [motorImage, setMotorImage] = useState(null);
 
   const [isEdit, setIsEdit] = useState(false);
@@ -137,6 +147,36 @@ function MotorbikeManagement() {
     } catch (error) {
       setMotorImage(null);
       toast.error(error.message);
+    } finally {
+      setSubmit(false);
+    }
+  };
+
+  const handleAddColorImage = async (e) => {
+    e.preventDefault();
+    if (!colorImage.colorId || !colorImage.color_image) {
+      toast.error("Vui lòng chọn Màu sắc và File ảnh.");
+
+      setSubmit(false);
+      return;
+    }
+    console.log(colorImage);
+    setSubmit(true);
+    const formData = new FormData();
+    formData.append("color_image", colorImage.color_image);
+
+    try {
+      await PrivateAdminApi.addColorImage(
+        selectedId,
+        colorImage.colorId,
+        formData
+      );
+      setColorImageModal(false);
+      setColorImage({ colorId: "", color_image: null });
+      toast.success("Add success");
+    } catch (error) {
+      console.error("Upload error:", error);
+    toast.error(error?.response?.data?.message || "Add fail");
     } finally {
       setSubmit(false);
     }
@@ -183,19 +223,38 @@ function MotorbikeManagement() {
     setLoading(true);
     try {
       const response = await PrivateAdminApi.getMotorList({
-        page,
-        limit,
+        page: 1,
+        limit: 1000,
         makeFrom,
         model,
       });
-      setMotorList(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      // Filter các item đã bị xóa (isDeleted = true) để đảm bảo không hiển thị
+      const filteredData =
+        response.data.data?.filter((motor) => !motor.isDeleted) || [];
+
+      setAllMotorList(filteredData);
+      const startIdx = (page - 1) * limit;
+      const endIdx = startIdx + limit;
+      setMotorList(filteredData.slice(startIdx, endIdx));
+      setTotalItem(filteredData.length);
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // Cập nhật tùy chọn filter dựa trên danh sách hiện có trong bộ nhớ
+  useEffect(() => {
+    const uniqueModels = Array.from(
+      new Set(allMotorList.map((it) => it.model).filter(Boolean))
+    );
+    const uniqueMakeFroms = Array.from(
+      new Set(allMotorList.map((it) => it.makeFrom).filter(Boolean))
+    );
+    setModelOptions(uniqueModels);
+    setMakeFromOptions(uniqueMakeFroms);
+  }, [allMotorList]);
 
   const fetchConfigByMotorId = async (id) => {
     setDialogLoading(true);
@@ -489,7 +548,13 @@ function MotorbikeManagement() {
 
   useEffect(() => {
     fetchMotorbikeList();
-  }, [page, limit, makeFrom, model]);
+  }, [makeFrom, model]);
+
+  useEffect(() => {
+    const startIdx = (page - 1) * limit;
+    const endIdx = startIdx + limit;
+    setMotorList(allMotorList.slice(startIdx, endIdx));
+  }, [page, limit, allMotorList]);
 
   const handleCreateMotorbike = async (e) => {
     e.preventDefault();
@@ -535,8 +600,16 @@ function MotorbikeManagement() {
     try {
       await PrivateAdminApi.deleteMotorbike(selectedId);
       toast.success("Delete successfully");
-      fetchMotorbikeList();
       setDeleteModal(false);
+
+      // Cập nhật danh sách toàn bộ và phân trang client-side
+      const newAll = allMotorList.filter((motor) => motor.id !== selectedId);
+      setAllMotorList(newAll);
+      const newTotal = Math.max(0, newAll.length);
+      setTotalItem(newTotal);
+      const maxPageAfterDelete = Math.ceil(newTotal / limit) || 1;
+      const nextPage = Math.min(page, maxPageAfterDelete);
+      setPage(nextPage);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -547,257 +620,253 @@ function MotorbikeManagement() {
   const columns = [
     {
       key: "id",
-      title: "Motorbike",
+      title: <span className="block text-center">ID</span>,
       render: (id) => (
         <span
           onClick={() => {
             setMotorModal(true);
             fetchMotorById(id);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
+          className="cursor-pointer block text-center"
         >
           {id}
         </span>
       ),
     },
-    { key: "name", title: "Name" },
+    {
+      key: "name",
+      title: <span className="block text-center">Name</span>,
+      render: (name) => <span className="block text-center">{name}</span>,
+    },
     // { key: "price", title: "Price", render: (price) => price.toLocaleString() },
     // { key: "description", title: "Description" },
-    { key: "model", title: "Model" },
-    { key: "makeFrom", title: "Made in" },
-    // { key: "version", title: "Version" },
     {
-      key: "isDeleted",
-      title: "Available",
-      render: (isDeleted) => (
-        <span
-          className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
-            isDeleted ? "bg-red-500" : "bg-green-500"
-          }`}
-        >
-          {isDeleted ? "Unavailable" : "Available"}
-        </span>
-      ),
+      key: "model",
+      title: <span className="block text-center">Model</span>,
+      render: (model) => <span className="block text-center">{model}</span>,
     },
     {
-      key: "action1",
-      title: "Update",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setUpdateForm(item);
-            setIsEdit(true);
-            setFormModal(true);
-            setSelectedId(item.id);
-          }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
-        >
-          Update
-        </span>
-      ),
+      key: "makeFrom",
+      title: <span className="block text-center">Made in</span>,
+      render: (madeIn) => <span className="block text-center">{madeIn}</span>,
     },
     {
-      key: "action2",
-      title: "Delete",
+      key: "version",
+      title: <span className="block text-center">Version</span>,
+      render: (version) => <span className="block text-center">{version}</span>,
+    },
+    {
+      key: "action",
+      title: <span className="block text-center">Action</span>,
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setDeleteModal(true);
-            setSelectedId(item.id);
-          }}
-          className="cursor-pointer bg-red-500 rounded-lg flex justify-center items-center text-white p-2"
-        >
-          Delete
-        </span>
+        <div className="flex gap-2 justify-center">
+          <span
+            onClick={() => {
+              setMotorModal(true);
+              fetchMotorById(item.id);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
+          >
+            <Eye className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={() => {
+              setUpdateForm(item);
+              setIsEdit(true);
+              setFormModal(true);
+              setSelectedId(item.id);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
+          >
+            <Pencil className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={() => {
+              setDeleteModal(true);
+              setSelectedId(item.id);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition"
+          >
+            <Trash2 className="w-5 h-5 text-white" />
+          </span>
+        </div>
       ),
     },
     {
       key: "action3",
-      title: "Configuration",
+      title: <span className="block text-center">Configuration</span>,
       render: (_, item) => (
-        <div className="flex gap-2">
-          <span
-            onClick={() => {
-              setConfigModal(true);
-              setIsEdit(true);
-              fetchConfigByMotorId(item.id);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer bg-gray-500 rounded-lg flex justify-center items-center text-white p-2"
-          >
-            View
-          </span>
-          <span
-            onClick={() => {
-              setConfigModal(true);
-              setIsEdit(false);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer bg-blue-300 rounded-lg flex justify-center items-center text-white p-2"
-          >
-            Add
-          </span>
-        </div>
+        <ActionMenu
+          title={"config"}
+          onView={() => {
+            setConfigModal(true);
+            setIsEdit(true);
+            fetchConfigByMotorId(item.id);
+            setSelectedId(item.id);
+          }}
+          onAdd={() => {
+            setConfigModal(true);
+            setIsEdit(false);
+            setSelectedId(item.id);
+          }}
+        />
       ),
     },
     {
       key: "action4",
-      title: "Appearance",
+      title: <span className="block text-center">Appearance</span>,
       render: (_, item) => (
-        <div className="flex gap-2">
-          <span
-            onClick={() => {
-              setAppearanceModal(true);
-              setIsEdit(true);
-              fetchAppearanceDetail(item.id);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer bg-gray-500 rounded-lg flex justify-center items-center text-white p-2"
-          >
-            View
-          </span>
-          <span
-            onClick={() => {
-              setAppearanceModal(true);
-              setIsEdit(false);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer bg-blue-300 rounded-lg flex justify-center items-center text-white p-2"
-          >
-            Add
-          </span>
-        </div>
+        <ActionMenu
+          title="appearance"
+          onView={() => {
+            setAppearanceModal(true);
+            setIsEdit(true);
+            fetchAppearanceDetail(item.id);
+            setSelectedId(item.id);
+          }}
+          onAdd={() => {
+            setAppearanceModal(true);
+            setIsEdit(false);
+            setSelectedId(item.id);
+          }}
+        />
       ),
     },
     {
       key: "action5",
-      title: "Battery",
+      title: <span className="block text-center">Battery</span>,
       render: (_, item) => (
-        <div className="flex gap-2">
-          <span
-            onClick={() => {
-              setBatteryModal(true);
-              setIsEdit(true);
-              fetchBatteryDetail(item.id);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer bg-gray-500 rounded-lg flex justify-center items-center text-white p-2"
-          >
-            View
-          </span>
-          <span
-            onClick={() => {
-              setBatteryModal(true);
-              setIsEdit(false);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer bg-blue-300 rounded-lg flex justify-center items-center text-white p-2"
-          >
-            Add
-          </span>
-        </div>
+        <ActionMenu
+          title="battery"
+          onView={() => {
+            setBatteryModal(true);
+            setIsEdit(true);
+            fetchBatteryDetail(item.id);
+            setSelectedId(item.id);
+          }}
+          onAdd={() => {
+            setBatteryModal(true);
+            setIsEdit(false);
+            setSelectedId(item.id);
+          }}
+        />
       ),
     },
     {
       key: "action6",
-      title: "Safe feature",
+      title: <span className="block text-center">Safe feature</span>,
       render: (_, item) => (
-        <div className="flex gap-2">
+        <ActionMenu
+          title="safe"
+          onView={() => {
+            setSafeFeatureModal(true);
+            setIsEdit(true);
+            fetchSafeFeatureDetail(item.id);
+            setSelectedId(item.id);
+          }}
+          onAdd={() => {
+            setSafeFeatureModal(true);
+            setIsEdit(false);
+            setSelectedId(item.id);
+          }}
+        />
+      ),
+    },
+    {
+      key: "action7",
+      title: <span className="block text-center">Motorbike image</span>,
+      render: (_, item) => (
+        <div className="flex justify-center">
           <span
             onClick={() => {
-              setSafeFeatureModal(true);
-              setIsEdit(true);
-              fetchSafeFeatureDetail(item.id);
+              setMotorImageModal(true);
               setSelectedId(item.id);
             }}
-            className="cursor-pointer bg-gray-500 rounded-lg flex justify-center items-center text-white p-2"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
           >
-            View
-          </span>
-          <span
-            onClick={() => {
-              setSafeFeatureModal(true);
-              setIsEdit(false);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer bg-blue-300 rounded-lg flex justify-center items-center text-white p-2"
-          >
-            Add
+            <Plus className="w-5 h-5 text-white" />
           </span>
         </div>
       ),
     },
     {
-      key: "action7",
-      title: "Image for motorbike",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setMotorImageModal(true);
-            setSelectedId(item.id);
-          }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
-        >
-          Add
-        </span>
-      ),
-    },
-    {
       key: "action8",
-      title: "Color for motorbike",
+      title: <span className="block text-center">Color</span>,
       render: (_, item) => (
-        <span
-          // onClick={() => {
-          //   setSafeFeatureModal(true);
-          //   setIsEdit(false);
-          //   setSelectedId(item.id);
-          // }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
-        >
-          Add
-        </span>
+        <div className="flex justify-center">
+          <span
+            onClick={() => {
+              setColorImageModal(true);
+              setSelectedId(item.id);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
+          >
+            <Plus className="w-5 h-5 text-white" />
+          </span>
+        </div>
       ),
     },
   ];
 
   return (
     <div>
-      <div className="my-3 flex justify-end items-center gap-5">
-        <div>
-          <label className="mr-2 font-medium text-gray-600">Made in:</label>
-          <input
-            placeholder="Made in"
+      <div className="my-3 flex flex-wrap justify-end items-center gap-4">
+        <div className="flex items-center gap-2">
+          <label className="font-medium text-gray-600">Made in:</label>
+          <select
             value={makeFrom}
             onChange={(e) => {
               setMakeFrom(e.target.value);
               setPage(1);
             }}
-            className="border border-gray-300 rounded-md px-2 py-1"
-            type="text"
-          />
+            className="border border-gray-300 rounded-md px-2 py-2 min-w-[160px] bg-white"
+          >
+            <option value="">All</option>
+            {makeFromOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
         </div>
-        <div>
-          <label className="mr-2 font-medium text-gray-600">Model:</label>
-          <input
-            placeholder="Model"
+        <div className="flex items-center gap-2">
+          <label className="font-medium text-gray-600">Model:</label>
+          <select
             value={model}
             onChange={(e) => {
               setModel(e.target.value);
               setPage(1);
             }}
-            className="border border-gray-300 rounded-md px-2 py-1"
-            type="text"
-          />
+            className="border border-gray-300 rounded-md px-2 py-2 min-w-[160px] bg-white"
+          >
+            <option value="">All</option>
+            {modelOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setModel("");
+              setMakeFrom("");
+              setPage(1);
+            }}
+            className="px-3 py-2 rounded-md border border-gray-300 hover:bg-gray-100 transition text-gray-700"
+          >
+            Reset
+          </button>
           <button
             onClick={() => {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="p-2 rounded-lg cursor-pointer bg-blue-500 hover:bg-blue-600 transition text-white"
+            className="cursor-pointer flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 rounded-lg hover:bg-blue-600 transition text-white"
           >
-            Create motorbike
+            <Plus className="w-5 h-5" />
+            <span>Create</span>
           </button>
         </div>
       </div>
@@ -945,6 +1014,17 @@ function MotorbikeManagement() {
         isSubmitting={submit}
       >
         <MotorImageForm motorImage={motorImage} setMotorImage={setMotorImage} />
+      </FormModal>
+
+      <FormModal
+        isOpen={colorImageModal}
+        onClose={() => setColorImageModal(false)}
+        title={"Add image"}
+        isDelete={false}
+        onSubmit={handleAddColorImage}
+        isSubmitting={submit}
+      >
+        <ColorImageForm form={colorImage} setForm={setColorImage} />
       </FormModal>
     </div>
   );

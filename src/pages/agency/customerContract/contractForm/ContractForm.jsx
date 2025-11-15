@@ -78,8 +78,8 @@ function ContractForm({
         </label>
         <input
           type="date"
-          name="createDate"
-          value={currentForm.createDate}
+          name="signDate"
+          value={currentForm.signDate}
           onChange={handleChange}
           className={inputClasses}
           required
@@ -92,8 +92,8 @@ function ContractForm({
         </label>
         <input
           type="number"
-          name="totalAmount"
-          value={currentForm.totalAmount || 0}
+          name="finalPrice"
+          value={currentForm.finalPrice || 0}
           onChange={handleChange}
           className={inputClasses}
           placeholder="Total value of the contract"

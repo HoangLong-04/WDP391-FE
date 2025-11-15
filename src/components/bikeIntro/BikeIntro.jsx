@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from "react";
-import EmojiObjectsOutlinedIcon from "@mui/icons-material/EmojiObjectsOutlined";
-import EnergySavingsLeafOutlinedIcon from "@mui/icons-material/EnergySavingsLeafOutlined";
-import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
-import ElectricBoltOutlinedIcon from "@mui/icons-material/ElectricBoltOutlined";
+import { Lightbulb, Leaf, ShieldCheck, Zap } from "lucide-react";
 
 function BikeIntro({ colors }) {
   const [selectedImage, setSelectedImage] = useState("");
@@ -43,7 +40,7 @@ function BikeIntro({ colors }) {
       <div className="flex flex-col gap-10 justify-center">
         <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 hover:shadow-md transition-shadow duration-300">
           <span className="text-blue-600 flex-shrink-0">
-            <EmojiObjectsOutlinedIcon sx={{ fontSize: "70px" }} />
+            <Lightbulb className="w-[70px] h-[70px]" />
           </span>
           <div>
             <span className="text-xl md:text-2xl font-bold text-gray-800">
@@ -57,7 +54,7 @@ function BikeIntro({ colors }) {
         </div>
         <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 hover:shadow-md transition-shadow duration-300">
           <span className="text-green-600 flex-shrink-0">
-            <VerifiedUserOutlinedIcon sx={{ fontSize: "70px" }} />
+            <ShieldCheck className="w-[70px] h-[70px]" />
           </span>
           <div>
             <span className="text-xl md:text-2xl font-bold text-gray-800">
@@ -111,7 +108,7 @@ function BikeIntro({ colors }) {
       <div className="flex flex-col gap-10 justify-center">
         <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 hover:shadow-md transition-shadow duration-300">
           <span className="text-yellow-600 flex-shrink-0">
-            <EnergySavingsLeafOutlinedIcon sx={{ fontSize: "70px" }} />
+            <Leaf className="w-[70px] h-[70px]" />
           </span>
           <div>
             <span className="text-xl md:text-2xl font-bold text-gray-800">
@@ -125,7 +122,7 @@ function BikeIntro({ colors }) {
         </div>
         <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 hover:shadow-md transition-shadow duration-300">
           <span className="text-purple-600 flex-shrink-0">
-            <ElectricBoltOutlinedIcon sx={{ fontSize: "70px" }} />
+            <Zap className="w-[70px] h-[70px]" />
           </span>
           <div>
             <span className="text-xl md:text-2xl font-bold text-gray-800">

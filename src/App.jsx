@@ -29,7 +29,7 @@ import DealerStaffManagement from "./pages/agency/dealerManager/dealerStaffManag
 import StockManagement from "./pages/agency/stockManagement/StockManagement";
 import InstallmentPlan from "./pages/agency/installmentPlan/InstallmentPlan";
 import StockPromotion from "./pages/agency/dealerManager/stockPromotion/StockPromotion";
-import CustomerContract from "./pages/agency/customerContract/CustomerContract";
+import CustomerContractWrapper from "./pages/agency/customerContract/CustomerContractWrapper";
 import CustomerManagement from "./pages/agency/customerManagement/CustomerManagement";
 import MotorbikeManagement from "./pages/company/motorbikeManagement/MotorbikeManagement";
 import ColorManagement from "./pages/company/colorManagement/ColorManagement";
@@ -38,7 +38,19 @@ import ConfigurationManagement from "./pages/company/configuration/Configuration
 import OrderRestockAgency from "./pages/agency/dealerManager/orderRestock/OrderRestockAgency";
 import OrderRestockManagement from "./pages/company/orderRestockManagement/OrderRestockManagement";
 import BookingManagement from "./pages/agency/dealerStaff/bookingManagement/BookingManagement";
+import Catalogue from "./pages/agency/dealerStaff/catalogue/Catalogue";
+import QuotationManagement from "./pages/agency/quotationManagement/QuotationManagementWrapper";
 import Payment from "./pages/payment/Payment";
+import EvmStaffWarehouseManagement from "./pages/company/evmStaff/warehouseManagement/WarehouseManagementEVMStaff";
+import EvmStaffDiscountManagement from "./pages/company/evmStaff/discountManagement/DiscountManagementEVMStaff";
+import EvmStaffPromotionManagement from "./pages/company/evmStaff/promotionManagement/PromotionManagementEVMStaff";
+import EvmStaffInventoryManagement from "./pages/company/evmStaff/inventoryManagement/InventoryManagementEVMStaff";
+import EvmStaffOrderRestockManagement from "./pages/company/evmStaff/orderRestockManagement/OrderRestockManagementEVMStaff";
+import EvmStaffPricePolicyManagement from "./pages/company/evmStaff/pricePolicyManagement/PricePolicyManagementEVMStaff";
+import BatchesManagement from "./pages/company/evmStaff/batchesManagement/BatchesManagement";
+import ContractForCustomer from "./pages/customer/customerContract/ContractForCustomer";
+import CustomerQuotation from "./pages/customer/customerQuotation/CustomerQuotation";
+import ApBatchManagement from "./pages/agency/dealerManager/apBatchManagement/ApBatchManagement";
 
 function App() {
   return (
@@ -50,10 +62,19 @@ function App() {
 
           {/* Public */}
           <Route path="/payment" element={<Payment />} />
+
           <Route path="/" element={<AuthenLayout />}>
             <Route path="login" element={<Login />} />
           </Route>
           <Route path="/" element={<UserLayout />}>
+            <Route
+              path="user/customer-contract"
+              element={<ContractForCustomer />}
+            />
+            <Route
+              path="user/customer-quotation"
+              element={<CustomerQuotation />}
+            />
             <Route path="user/home" element={<HomePage />} />
             <Route path="user/driving-test" element={<DrivingTest />} />
             <Route path="user/bike/:id" element={<BikeDetail />} />
@@ -76,10 +97,31 @@ function App() {
               element={<InstallmentPlan />}
             />
             <Route path="agency/stock-promotion" element={<StockPromotion />} />
-            <Route path="agency/order-restock" element={<OrderRestockAgency />} />
-            <Route path="agency/customer-contract" element={<CustomerContract />} />
-            <Route path="agency/customer-management" element={<CustomerManagement />} />
-            <Route path="agency/booking-management" element={<BookingManagement />} />
+            <Route
+              path="agency/order-restock"
+              element={<OrderRestockAgency />}
+            />
+            <Route
+              path="agency/customer-contract"
+              element={<CustomerContractWrapper />}
+            />
+            <Route
+              path="agency/customer-management"
+              element={<CustomerManagement />}
+            />
+            <Route
+              path="agency/booking-management"
+              element={<BookingManagement />}
+            />
+            <Route path="agency/catalogue" element={<Catalogue />} />
+            <Route
+              path="agency/quotation-management"
+              element={<QuotationManagement />}
+            />
+            <Route
+              path="agency/ap-batch-management"
+              element={<ApBatchManagement />}
+            />
           </Route>
 
           {/* Private company */}
@@ -108,8 +150,43 @@ function App() {
             <Route path="company/dealerManager" element={<DealerManager />} />
             <Route path="company/motorbike" element={<MotorbikeManagement />} />
             <Route path="company/color" element={<ColorManagement />} />
-            <Route path="company/appearance" element={<AppearanceManagement />} />
-            <Route path="company/configuration" element={<ConfigurationManagement />} />
+            <Route
+              path="company/appearance"
+              element={<AppearanceManagement />}
+            />
+            <Route
+              path="company/configuration"
+              element={<ConfigurationManagement />}
+            />
+            {/* EVM Staff Routes */}
+            <Route
+              path="company/evm-staff/warehouse"
+              element={<EvmStaffWarehouseManagement />}
+            />
+            <Route
+              path="company/evm-staff/discount"
+              element={<EvmStaffDiscountManagement />}
+            />
+            <Route
+              path="company/evm-staff/promotion"
+              element={<EvmStaffPromotionManagement />}
+            />
+            <Route
+              path="company/evm-staff/inventory"
+              element={<EvmStaffInventoryManagement />}
+            />
+            <Route
+              path="company/evm-staff/order-restock"
+              element={<EvmStaffOrderRestockManagement />}
+            />
+            <Route
+              path="company/evm-staff/price-policy"
+              element={<EvmStaffPricePolicyManagement />}
+            />
+            <Route
+              path="company/evm-staff/batches"
+              element={<BatchesManagement />}
+            />
           </Route>
         </Routes>
       </BrowserRouter>

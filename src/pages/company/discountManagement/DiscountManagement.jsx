@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
-import EditIcon from "@mui/icons-material/Edit";
+import { Eye, Pencil, Trash2, Plus } from "lucide-react";
 import dayjs from "dayjs";
 import useMotorList from "../../../hooks/useMotorList";
 import {
@@ -76,7 +76,9 @@ function DiscountManagement() {
         agencyId,
         motorbikeId,
       });
-      setDiscount(response.data.data);
+      // Sort by ID descending to show newest first
+      const sortedData = [...response.data.data].sort((a, b) => b.id - a.id);
+      setDiscount(sortedData);
       setTotalItem(response.data.paginationInfo.total);
     } catch (error) {
       console.log(error);
@@ -201,7 +203,14 @@ function DiscountManagement() {
         </span>
       ),
     },
-    { key: "agencyId", title: "Agency" },
+    {
+      key: "agencyId",
+      title: "Agency",
+      render: (agencyId) => {
+        const agency = agencyList.find((a) => a.id === agencyId);
+        return agency ? agency.name : agencyId || "N/A";
+      },
+    },
     {
       key: "action1",
       title: "Motor",
@@ -211,9 +220,9 @@ function DiscountManagement() {
             fetchMotorById(item.motorbikeId);
             setMotorModal(true);
           }}
-          className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          View
+          <Eye className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -240,9 +249,9 @@ function DiscountManagement() {
             });
             console.log(item);
           }}
-          className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          Update
+          <Pencil className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -255,9 +264,9 @@ function DiscountManagement() {
             setSelectedId(item.id);
             setDeleteModal(true);
           }}
-          className="cursor-pointer text-white bg-red-500 p-2 rounded-lg"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
         >
-          Delete
+          <Trash2 className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -333,9 +342,10 @@ function DiscountManagement() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="p-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition cursor-pointer"
+            className="cursor-pointer flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 rounded-lg hover:bg-blue-600 transition text-white"
           >
-            Create discount
+            <Plus className="w-5 h-5" />
+            <span>Create</span>
           </button>
         </div>
       </div>

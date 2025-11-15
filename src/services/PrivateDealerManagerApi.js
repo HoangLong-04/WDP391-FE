@@ -9,8 +9,8 @@ const PrivateDealerManagerApi = {
     apiConfig.privateApi.patch(`manager/staff/${id}`, data),
   deleteStaff: (id) => apiConfig.privateApi.delete(`manager/staff/${id}`),
 
-  getCustomerList: (agencyId) =>
-    apiConfig.privateApi.get(`customer/list/${agencyId}`),
+  getCustomerList: (agencyId, params) =>
+    apiConfig.privateApi.get(`customer/list/${agencyId}`, { params }),
   createCustomer: (data) => apiConfig.privateApi.post(`customer`, data),
   updateCustomer: (id, data) =>
     apiConfig.privateApi.patch(`customer/${id}`, data),
@@ -46,6 +46,8 @@ const PrivateDealerManagerApi = {
 
   getCustomerContractList: (agencyId, params) =>
     apiConfig.privateApi.get(`customer-contract/list/${agencyId}`, { params }),
+  getCustomerContractDetail: (contractId) =>
+    apiConfig.privateApi.get(`customer-contract/detail/${contractId}`),
   createCustomerContract: (data) =>
     apiConfig.privateApi.post("customer-contract", data),
   updateCustomerContract: (id, data) =>
@@ -57,15 +59,77 @@ const PrivateDealerManagerApi = {
     apiConfig.privateApi.get(`order-restock/list/${agencyId}`, { params }),
   getRestockDetail: (id) =>
     apiConfig.privateApi.get(`order-restock/detail/${id}`),
+  getRestockOrderItemDetail: (orderItemId) =>
+    apiConfig.privateApi.get(`order-restock/detail/order-item/${orderItemId}`),
   createRestock: (data) => apiConfig.privateApi.post("order-restock", data),
-  sendApproveToAdmin: (id) => apiConfig.privateApi.patch(`order-restock/accept/${id}`),
+  deleteRestock: (orderId) =>
+    apiConfig.privateApi.delete(`order-restock/${orderId}`),
+  sendApproveToAdmin: (id) =>
+    apiConfig.privateApi.patch(`order-restock/accept/${id}`),
 
-  getDiscountList: (agencyId) =>
-    apiConfig.privateApi.get(`discount/agency/list/${agencyId}`),
+  getDiscountList: (agencyId, params) =>
+    apiConfig.privateApi.get(`discount/agency/list/${agencyId}`, { params }),
 
   getWarehouseList: () => apiConfig.privateApi.get("warehouses/list"),
 
   getPromotionList: () => apiConfig.privateApi.get("promotion/agency/list"),
+
+  createInstallmentContract: (data) =>
+    apiConfig.privateApi.post("installment-contract", data),
+  getInstallmentContractDetail: (installmentContractId) =>
+    apiConfig.privateApi.get(
+      `installment-contract/installment-contract/detail/${installmentContractId}`
+    ),
+  getInstallmentContractByCustomerContractId: (customerContractId) =>
+    apiConfig.privateApi.get(
+      `installment-contract/installment-contract/customer-contract/${customerContractId}`
+    ),
+  updateInstallmentContract: (installmentContractId, data) =>
+    apiConfig.privateApi.patch(
+      `installment-contract/installment-contract/update/${installmentContractId}`,
+      data
+    ),
+  generateInstallmentPayments: (installmentContractId) =>
+    apiConfig.privateApi.post(
+      `installment-contract/generate-payment/${installmentContractId}`
+    ),
+  generateInterestPayments: (installmentContractId) =>
+    apiConfig.privateApi.post(
+      `installment-contract/generate/interest-payments/${installmentContractId}`
+    ),
+  getInstallmentPaymentDetail: (installmentPaymentId) =>
+    apiConfig.privateApi.get(
+      `installment-contract/installlment-payment/detail/${installmentPaymentId}`
+    ),
+  updateInstallmentPayment: (installmentPaymentId, data) =>
+    apiConfig.privateApi.patch(
+      `installment-contract/installment-payment/update/${installmentPaymentId}`,
+      data
+    ),
+
+  // Dashboard APIs
+  getTotalCustomer: (agencyId) =>
+    apiConfig.privateApi.get(`dashboard/total/customer/${agencyId}`),
+  getTotalRevenue: (agencyId) =>
+    apiConfig.privateApi.get(`dashboard/total/revenue/${agencyId}`),
+  getCustomerContractChart: (agencyId, params) =>
+    apiConfig.privateApi.get(`dashboard/chart/customer-contract/${agencyId}`, { params }),
+  getStaffRevenueList: (agencyId, params) =>
+    apiConfig.privateApi.get(`dashboard/list/staff/revenue/${agencyId}`, { params }),
+
+  // AP Batch APIs
+  getApBatchList: (agencyId, params) =>
+    apiConfig.privateApi.get(`batches-management/list/agency/${agencyId}`, { params }),
+  getApBatchDetail: (batchId) =>
+    apiConfig.privateApi.get(`batches-management/detail/${batchId}`),
+  payApBatch: (platform, data) =>
+    apiConfig.privateApi.post(`vnpay/agency-bill?platform=${platform}`, data),
+
+  // Email APIs
+  sendCustomerContractEmail: (customerContractId) =>
+    apiConfig.privateApi.post(`email/customer-contract/${customerContractId}`),
+  sendInstallmentScheduleEmail: (installmentContractId) =>
+    apiConfig.privateApi.post(`email/customer/installment-schedule/${installmentContractId}`),
 };
 
 export default PrivateDealerManagerApi;

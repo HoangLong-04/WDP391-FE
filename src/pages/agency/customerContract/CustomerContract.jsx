@@ -1,12 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import useDealerStaffList from "../../../hooks/useDealerStaffList";
 import useCustomerList from "../../../hooks/useCustomerList";
 import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
+import PrivateDealerStaffApi from "../../../services/PrivateDealerStaffApi";
 import { toast } from "react-toastify";
-import PaginationTable from "../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../components/dataTable/DataTable";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import { formatCurrency } from "../../../utils/currency";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
+
+dayjs.extend(utc);
 import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import {
   motorGeneralFields,
@@ -16,6 +21,12 @@ import useColorList from "../../../hooks/useColorList";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
+import { Pencil, Trash2, Plus, CreditCard, CheckCircle, Mail, Edit } from "lucide-react";
+import { renderStatusTag } from "../../../utils/statusTag";
+import BaseModal from "../../../components/modal/baseModal/BaseModal";
+import CircularProgress from "@mui/material/CircularProgress";
+import ConfirmModal from "../../../components/modal/confirmModal/ConfirmModal";
+import InstallmentPaymentForm from "./installmentPaymentForm/InstallmentPaymentForm";
 
 function CustomerContract() {
   const { user } = useAuth();
@@ -23,31 +34,74 @@ function CustomerContract() {
   const { customerList } = useCustomerList();
   const { colorList } = useColorList();
   const { motorList } = useMotorList();
-  const [customerContractList, setCustomerContractList] = useState([]);
   const [motorbike, setMotorbike] = useState({});
+  const [allContracts, setAllContracts] = useState([]); // Store all contracts
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5); // Default to 5 for Dealer Staff, can be changed if needed
   const [staffId, setStaffId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [status, setStatus] = useState("");
   const [contractType, setContractType] = useState("");
   const [totalItem, setTotalItem] = useState(0);
 
+  // Auto-set staffId for Dealer Staff
+  useEffect(() => {
+    const isDealerStaff = user?.roles?.includes("Dealer Staff");
+    if (isDealerStaff && user?.id) {
+      setStaffId(String(user.id));
+    }
+  }, [user]);
+
   const [loading, setLoading] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [submit, setSubmit] = useState(false);
 
   const [motorModal, setMotorModal] = useState(false);
+  const [updateInstallmentModal, setUpdateInstallmentModal] = useState(false);
+  const [installmentPaymentForm, setInstallmentPaymentForm] = useState({
+    dueDate: "",
+    penaltyAmount: 0,
+  });
   const [formModal, setFormModal] = useState(false);
-  const [deleteModal, setDeleteModal] = useState(false)
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [contractDetail, setContractDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [installmentContractModal, setInstallmentContractModal] =
+    useState(false);
+  const [installmentPlanList, setInstallmentPlanList] = useState([]);
+  const [loadingInstallmentPlans, setLoadingInstallmentPlans] = useState(false);
+  const [installmentContractForm, setInstallmentContractForm] = useState({
+    startDate: "",
+    penaltyValue: 0,
+    penaltyType: "FIXED",
+    status: "ACTIVE",
+    customerContractId: "",
+    installmentPlanId: "",
+  });
+  const [installmentContractDetail, setInstallmentContractDetail] =
+    useState(null);
+  const [isInstallmentDetailModalOpen, setIsInstallmentDetailModalOpen] =
+    useState(false);
+  const [loadingInstallmentDetail, setLoadingInstallmentDetail] =
+    useState(false);
+  const [installmentContractMap, setInstallmentContractMap] = useState({}); // Map customerContractId -> installmentContractId
+  const [isPaymentConfirmModalOpen, setIsPaymentConfirmModalOpen] =
+    useState(false);
+  const [selectedPaymentForConfirm, setSelectedPaymentForConfirm] =
+    useState(null);
+  const [isMarkingPaymentAsPaid, setIsMarkingPaymentAsPaid] = useState(false);
+  const [sendingContractEmail, setSendingContractEmail] = useState(false);
+  const [sendingInstallmentEmail, setSendingInstallmentEmail] = useState(false);
+  const [generatingInterestPayments, setGeneratingInterestPayments] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
     content: "",
-    totalAmount: 0,
+    finalPrice: 0,
     depositAmount: 0,
-    createDate: "",
+    signDate: "",
     contractPaidType: "",
     contractType: "",
     status: "",
@@ -60,9 +114,9 @@ function CustomerContract() {
   const [updateForm, setUpdateForm] = useState({
     title: "",
     content: "",
-    totalAmount: 0,
+    finalPrice: 0,
     depositAmount: 0,
-    createDate: "",
+    signDate: "",
     contractPaidType: "",
     contractType: "",
     status: "",
@@ -85,25 +139,122 @@ function CustomerContract() {
     }
   };
 
-  const fetchCustomerContractList = async () => {
+  const fetchCustomerContractList = useCallback(async () => {
+    if (!user?.agencyId) return;
     setLoading(true);
     try {
-      const response = await PrivateDealerManagerApi.getCustomerContractList(
-        user?.agencyId,
-        { page, limit, staffId, customerId, status, contractType }
-      );
-      setCustomerContractList(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff
+        ? PrivateDealerStaffApi
+        : PrivateDealerManagerApi;
+      
+      // Fetch all contracts with pagination
+      let allContractsData = [];
+      let currentPage = 1;
+      const pageSize = 100;
+      let hasMore = true;
+
+      // Fetch all pages
+      while (hasMore) {
+        const response = await api.getCustomerContractList(user.agencyId, {
+          page: currentPage,
+          limit: pageSize,
+          staffId,
+          customerId,
+          status,
+          contractType,
+        });
+        const contracts = response.data.data || [];
+        allContractsData = [...allContractsData, ...contracts];
+        
+        const totalItems = response.data.paginationInfo?.total || 0;
+        hasMore = allContractsData.length < totalItems;
+        currentPage++;
+      }
+
+      // Sort by newest first (by id - higher id = newer, or by createdAt if available)
+      allContractsData.sort((a, b) => {
+        // Try createdAt first, then id (higher id = newer), then signDate
+        if (a.createdAt && b.createdAt) {
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        }
+        if (a.createAt && b.createAt) {
+          return new Date(b.createAt) - new Date(a.createAt);
+        }
+        if (a.id && b.id) {
+          return b.id - a.id; // Higher id = newer
+        }
+        const dateA = new Date(a.signDate || 0);
+        const dateB = new Date(b.signDate || 0);
+        return dateB - dateA;
+      });
+
+      setAllContracts(allContractsData);
+      setTotalItem(allContractsData.length);
+
+      // Check for installment contracts for DEBT contracts (only check contracts not already in map)
+      setInstallmentContractMap((prev) => {
+        const contractsToCheck = allContractsData.filter(
+          (contract) =>
+            contract.contractPaidType === "DEBT" &&
+            contract.status === "PENDING" &&
+            !prev[contract.id]
+        );
+
+        if (contractsToCheck.length > 0) {
+          // Check contracts asynchronously but don't block
+          const checkPromises = contractsToCheck.map(async (contract) => {
+            try {
+              const res =
+                await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(
+                  contract.id
+                );
+              const installmentContract = res.data?.data;
+              if (installmentContract?.id) {
+                setInstallmentContractMap((current) => ({
+                  ...current,
+                  [contract.id]: installmentContract.id,
+                }));
+              }
+            } catch (error) {
+              // 404 means no installment contract exists - that's fine
+              if (error.response?.status !== 404) {
+                console.error(
+                  `Error checking installment contract for contract ${contract.id}:`,
+                  error
+                );
+              }
+            }
+          });
+          Promise.all(checkPromises).catch((err) =>
+            console.error("Error checking installment contracts:", err)
+          );
+        }
+
+        return prev; // Return unchanged, updates will be done via setState in promises
+      });
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.agencyId, staffId, customerId, status, contractType]);
+
+  // Paginate the sorted list in frontend
+  const customerContractList = useMemo(() => {
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    return allContracts.slice(startIndex, endIndex);
+  }, [allContracts, page, limit]);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [staffId, customerId, status, contractType]);
 
   useEffect(() => {
     fetchCustomerContractList();
-  }, [page, limit, staffId, customerId, status, contractType]);
+  }, [fetchCustomerContractList]);
 
   const handleCreateCustomerContract = async (e) => {
     setSubmit(true);
@@ -123,9 +274,9 @@ function CustomerContract() {
       setForm({
         title: "",
         content: "",
-        totalAmount: 0,
+        finalPrice: 0,
         depositAmount: 0,
-        createDate: "",
+        signDate: "",
         contractPaidType: "",
         contractType: "",
         status: "",
@@ -143,135 +294,629 @@ function CustomerContract() {
   };
 
   const handleUpdateCustomerContract = async (e) => {
-    setSubmit(true)
-    e.preventDefault()
+    setSubmit(true);
+    e.preventDefault();
     try {
-      await PrivateDealerManagerApi.updateCustomerContract(selectedId, updateForm)
-      toast.success('Update successfully')
-      setFormModal(false)
-      fetchCustomerContractList()
+      await PrivateDealerManagerApi.updateCustomerContract(
+        selectedId,
+        updateForm
+      );
+      toast.success("Update successfully");
+      setFormModal(false);
+      fetchCustomerContractList();
     } catch (error) {
-      toast.error(error.message)
+      toast.error(error.message);
     } finally {
-      setSubmit(false)
+      setSubmit(false);
     }
-  }
+  };
 
   const handleDeleteContract = async (e) => {
-    e.preventDefault()
-    setSubmit(true)
+    e.preventDefault();
+    setSubmit(true);
     try {
-      await PrivateDealerManagerApi.deleteCustomerContract(selectedId)
-      toast.success('Delete successfully')
-      setDeleteModal(false)
-      fetchCustomerContractList()
+      await PrivateDealerManagerApi.deleteCustomerContract(selectedId);
+      toast.success("Delete successfully");
+      setDeleteModal(false);
+      fetchCustomerContractList();
     } catch (error) {
-      toast.error(error.message)
+      toast.error(error.message);
     } finally {
-      setSubmit(false)
+      setSubmit(false);
     }
-  }
+  };
+
+  const handleViewDetail = async (contractId) => {
+    setLoadingDetail(true);
+    setIsDetailModalOpen(true);
+    try {
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff
+        ? PrivateDealerStaffApi
+        : PrivateDealerManagerApi;
+      const res = await api.getCustomerContractDetail(contractId);
+      const contractDetail = res.data?.data || null;
+      setContractDetail(contractDetail);
+
+      // Update installment contract map if contract detail has installmentContractId
+      if (contractDetail?.installmentContractId) {
+        setInstallmentContractMap((prev) => ({
+          ...prev,
+          [contractId]: contractDetail.installmentContractId,
+        }));
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to load contract detail");
+      setIsDetailModalOpen(false);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const handleRowClick = (item) => {
+    handleViewDetail(item.id);
+  };
+
+  const fetchInstallmentPlans = async () => {
+    setLoadingInstallmentPlans(true);
+    try {
+      const response = await PrivateDealerManagerApi.getInstallmentPlan(
+        user?.agencyId,
+        { page: 1, limit: 100, status: "ACTIVE" }
+      );
+      setInstallmentPlanList(response.data.data || []);
+    } catch (error) {
+      toast.error(error.message || "Failed to load installment plans");
+    } finally {
+      setLoadingInstallmentPlans(false);
+    }
+  };
+
+  const handleUpdateInstallmentPayment = async (e) => {
+    console.log(installmentPaymentForm);
+    
+    setSubmit(true);
+    e.preventDefault();
+    try {
+      await PrivateDealerManagerApi.updateInstallmentPayment(selectedId, installmentPaymentForm);
+      toast.success("Update success");
+      setUpdateInstallmentModal(false);
+    } catch (error) {
+      toast.error(error.response.data.message || "Update fail");
+    } finally {
+      setSubmit(false);
+    }
+  };
+
+  const handleOpenInstallmentContractModal = async (contract) => {
+    console.log("handleOpenInstallmentContractModal called with:", contract);
+    // Only allow for DEBT contracts
+    if (contract.contractPaidType !== "DEBT") {
+      toast.error("Only DEBT contracts can have installment contracts");
+      return;
+    }
+
+    // First check in local map
+    const existingInstallmentId = installmentContractMap[contract.id];
+    if (existingInstallmentId) {
+      toast.warning(
+        "This contract already has an installment contract. Please view it instead."
+      );
+      handleViewInstallmentContract(existingInstallmentId);
+      return;
+    }
+
+    // Use the dedicated API to check if installment contract exists
+    try {
+      const res =
+        await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(
+          contract.id
+        );
+      const installmentContract = res.data?.data;
+
+      if (installmentContract?.id) {
+        toast.warning(
+          "This contract already has an installment contract. Please view it instead."
+        );
+        setInstallmentContractMap((prev) => ({
+          ...prev,
+          [contract.id]: installmentContract.id,
+        }));
+        handleViewInstallmentContract(installmentContract.id);
+        return;
+      }
+    } catch (error) {
+      // If 404 or not found, it means no installment contract exists - that's fine
+      if (error.response?.status === 404) {
+        // No installment contract exists, proceed with creation
+      } else {
+        console.error("Error checking installment contract:", error);
+        toast.error("Failed to verify contract status. Please try again.");
+        return; // Don't proceed if we can't verify
+      }
+    }
+
+    // If no installment contract found, proceed with creation
+    setInstallmentContractForm({
+      startDate: "",
+      penaltyValue: 0,
+      penaltyType: "FIXED",
+      status: "ACTIVE",
+      customerContractId: contract.id,
+      installmentPlanId: "",
+    });
+    setInstallmentContractModal(true);
+    fetchInstallmentPlans();
+  };
+
+  const handleCreateInstallmentContract = async (e) => {
+    e.preventDefault();
+
+    // Validate all required fields before submitting
+    if (!installmentContractForm.startDate) {
+      toast.error("Please select a start date");
+      return;
+    }
+    if (!installmentContractForm.installmentPlanId) {
+      toast.error("Please select an installment plan");
+      return;
+    }
+    if (!installmentContractForm.penaltyType) {
+      toast.error("Please select a penalty type");
+      return;
+    }
+    if (
+      installmentContractForm.penaltyValue === null ||
+      installmentContractForm.penaltyValue === undefined ||
+      installmentContractForm.penaltyValue < 0
+    ) {
+      toast.error("Please enter a valid penalty value (must be >= 0)");
+      return;
+    }
+    if (!installmentContractForm.customerContractId) {
+      toast.error("Customer contract ID is missing");
+      return;
+    }
+
+    setSubmit(true);
+    try {
+      // Final check using the dedicated API before creating
+      try {
+        const res =
+          await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(
+            installmentContractForm.customerContractId
+          );
+        const existingInstallment = res.data?.data;
+
+        if (existingInstallment?.id) {
+          toast.warning(
+            "This contract already has an installment contract. Please view it instead."
+          );
+          setInstallmentContractMap((prev) => ({
+            ...prev,
+            [installmentContractForm.customerContractId]:
+              existingInstallment.id,
+          }));
+          setInstallmentContractModal(false);
+          handleViewInstallmentContract(existingInstallment.id);
+          setSubmit(false);
+          return;
+        }
+      } catch (checkError) {
+        // If 404, it means no installment contract exists - that's fine, continue
+        if (checkError.response?.status !== 404) {
+          console.error(
+            "Error checking installment contract before create:",
+            checkError
+          );
+          toast.error("Failed to verify contract status. Please try again.");
+          setSubmit(false);
+          return;
+        }
+      }
+
+      // Prepare data with all required fields
+      const sendData = {
+        startDate: new Date(installmentContractForm.startDate).toISOString(),
+        penaltyValue: Number(installmentContractForm.penaltyValue),
+        penaltyType: installmentContractForm.penaltyType,
+        status: installmentContractForm.status || "ACTIVE",
+        customerContractId: Number(installmentContractForm.customerContractId),
+        installmentPlanId: Number(installmentContractForm.installmentPlanId),
+      };
+
+      // Verify all fields are present
+      if (
+        !sendData.startDate ||
+        !sendData.penaltyType ||
+        !sendData.customerContractId ||
+        !sendData.installmentPlanId
+      ) {
+        toast.error("Please fill in all required fields");
+        setSubmit(false);
+        return;
+      }
+
+      const response = await PrivateDealerManagerApi.createInstallmentContract(
+        sendData
+      );
+      const installmentContractId = response.data?.data?.id;
+      if (installmentContractId) {
+        // Store the mapping immediately
+        setInstallmentContractMap((prev) => ({
+          ...prev,
+          [installmentContractForm.customerContractId]: installmentContractId,
+        }));
+
+        // Generate payment schedules after creating contract
+        try {
+          await PrivateDealerManagerApi.generateInstallmentPayments(
+            installmentContractId
+          );
+          toast.success(
+            "Installment contract created and payment schedules generated successfully"
+          );
+        } catch (generateError) {
+          console.error("Error generating payment schedules:", generateError);
+          toast.warning(
+            "Contract created but failed to generate payment schedules. Please try again later."
+          );
+        }
+      } else {
+        toast.success("Create installment contract successfully");
+      }
+      setInstallmentContractModal(false);
+
+      // Refresh the list to update UI
+      await fetchCustomerContractList();
+
+      // Double check by fetching contract detail to ensure map is updated
+      try {
+        const contractDetailRes =
+          await PrivateDealerManagerApi.getCustomerContractDetail(
+            installmentContractForm.customerContractId
+          );
+        const contractDetail = contractDetailRes.data?.data;
+        if (contractDetail?.installmentContractId) {
+          setInstallmentContractMap((prev) => ({
+            ...prev,
+            [installmentContractForm.customerContractId]:
+              contractDetail.installmentContractId,
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching contract detail after creation:", error);
+      }
+      setInstallmentContractForm({
+        startDate: "",
+        penaltyValue: 0,
+        penaltyType: "FIXED",
+        status: "ACTIVE",
+        customerContractId: "",
+        installmentPlanId: "",
+      });
+    } catch (error) {
+      // Better error handling
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to create installment contract";
+      if (
+        errorMessage.includes("Unique") ||
+        errorMessage.includes("unique constraint") ||
+        errorMessage.includes("customerContractId")
+      ) {
+        toast.warning(
+          "This contract already has an installment contract. Fetching details..."
+        );
+        setInstallmentContractModal(false);
+
+        // Try to fetch the existing installment contract using the dedicated API
+        try {
+          const res =
+            await PrivateDealerManagerApi.getInstallmentContractByCustomerContractId(
+              installmentContractForm.customerContractId
+            );
+          const existingInstallment = res.data?.data;
+
+          if (existingInstallment?.id) {
+            setInstallmentContractMap((prev) => ({
+              ...prev,
+              [installmentContractForm.customerContractId]:
+                existingInstallment.id,
+            }));
+            handleViewInstallmentContract(existingInstallment.id);
+          } else {
+            // If we can't find it, refresh the list
+            fetchCustomerContractList();
+          }
+        } catch (fetchError) {
+          console.error(
+            "Error fetching installment contract after unique constraint error:",
+            fetchError
+          );
+          // Refresh the list as fallback
+          fetchCustomerContractList();
+        }
+      } else {
+        toast.error(errorMessage);
+      }
+    } finally {
+      setSubmit(false);
+    }
+  };
+
+  const handleViewInstallmentContract = async (installmentContractId) => {
+    setLoadingInstallmentDetail(true);
+    setIsInstallmentDetailModalOpen(true);
+    try {
+      const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
+        installmentContractId
+      );
+      setInstallmentContractDetail(res.data?.data || null);
+    } catch (error) {
+      toast.error(
+        error.message || "Failed to load installment contract detail"
+      );
+      setIsInstallmentDetailModalOpen(false);
+    } finally {
+      setLoadingInstallmentDetail(false);
+    }
+  };
+
+  const handleGenerateInterestPayments = async (installmentContractId) => {
+    setGeneratingInterestPayments(true);
+    try {
+      await PrivateDealerManagerApi.generateInterestPayments(installmentContractId);
+      toast.success("Interest payments generated successfully");
+      // Refresh the detail to show the generated interest payments
+      const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
+        installmentContractId
+      );
+      setInstallmentContractDetail(res.data?.data || null);
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || error.message || "Failed to generate interest payments"
+      );
+    } finally {
+      setGeneratingInterestPayments(false);
+    }
+  };
+
+  const handleMarkPaymentAsPaid = (payment) => {
+    if (payment.status === "PAID") {
+      toast.info("This payment is already marked as PAID");
+      return;
+    }
+
+    setSelectedPaymentForConfirm(payment);
+    setIsPaymentConfirmModalOpen(true);
+  };
+
+  const handleConfirmMarkPaymentAsPaid = async () => {
+    if (!selectedPaymentForConfirm) return;
+
+    setIsMarkingPaymentAsPaid(true);
+    try {
+      const payment = selectedPaymentForConfirm;
+      const updateData = {
+        dueDate: payment.dueDate
+          ? new Date(payment.dueDate).toISOString()
+          : new Date().toISOString(),
+        paidDate: new Date().toISOString(),
+        amountDue: payment.amountDue || 0,
+        amountPaid: payment.amountDue || 0, // Mark as fully paid
+        penaltyAmount: payment.penaltyAmount || 0,
+        status: "PAID",
+      };
+
+      await PrivateDealerManagerApi.updateInstallmentPayment(
+        payment.id,
+        updateData
+      );
+      toast.success("Payment marked as PAID successfully");
+
+      setIsPaymentConfirmModalOpen(false);
+      setSelectedPaymentForConfirm(null);
+
+      // Refresh installment contract detail to show updated status
+      if (installmentContractDetail?.id) {
+        const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
+          installmentContractDetail.id
+        );
+        setInstallmentContractDetail(res.data?.data || null);
+      }
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to update payment status"
+      );
+    } finally {
+      setIsMarkingPaymentAsPaid(false);
+    }
+  };
+
+  const handleSendContractEmail = async (customerContractId) => {
+    if (!customerContractId) {
+      toast.error("Customer contract ID is missing");
+      return;
+    }
+
+    setSendingContractEmail(true);
+    try {
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      await api.sendCustomerContractEmail(customerContractId);
+      toast.success("Email sent successfully to customer");
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to send email");
+    } finally {
+      setSendingContractEmail(false);
+    }
+  };
+
+  const handleSendInstallmentScheduleEmail = async (installmentContractId) => {
+    if (!installmentContractId) {
+      toast.error("Installment contract ID is missing");
+      return;
+    }
+
+    setSendingInstallmentEmail(true);
+    try {
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      await api.sendInstallmentScheduleEmail(installmentContractId);
+      toast.success("Installment schedule email sent successfully to customer");
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to send email");
+    } finally {
+      setSendingInstallmentEmail(false);
+    }
+  };
+
+  const getNestedValue = (obj, path) => {
+    if (!obj || !path) return null;
+    return path
+      .split(".")
+      .reduce(
+        (currentObj, key) =>
+          currentObj && currentObj[key] !== undefined ? currentObj[key] : null,
+        obj
+      );
+  };
+
+  const handleViewDetailFromRow = (item) => {
+    handleViewDetail(item.id);
+  };
 
   const columns = [
     { key: "id", title: "Id" },
+    {
+      key: "contractCode",
+      title: "Contract Code",
+      render: (code) => <span className="font-mono text-xs">{code}</span>,
+    },
     { key: "title", title: "Title" },
-    { key: "content", title: "Content" },
     {
-      key: "totalAmount",
-      title: "Total amount",
-      render: (amount) => amount.toLocaleString(),
-    },
-    { key: "depositAmount", title: "Deposit amount" },
-    {
-      key: "finalAmount",
-      title: "Final amount",
-      render: (amount) => amount.toLocaleString(),
+      key: "finalPrice",
+      title: "Final Price",
+      render: (price) => formatCurrency(price),
     },
     {
-      key: "createDate",
-      title: "Create date",
-      render: (date) => dayjs(date).format("DD-MM-YYYY"),
-    },
-    { key: "contractPaidType", title: "Contract paid type" },
-    { key: "contractType", title: "Contract type" },
-    { key: "status", title: "Status" },
-    { key: "customerId", title: "Customer" },
-    { key: "staffId", title: "Staff" },
-    { key: "agencyId", title: "Agency" },
-    {
-      key: "electricMotorbikeId",
-      title: "Electric motorbike",
-      render: (electricMotorbikeId) => (
-        <span
-          onClick={() => {
-            setMotorModal(true);
-            fetchMotorById(electricMotorbikeId);
-          }}
-          className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
-        >
-          View
-        </span>
-      ),
-    },
-    { key: "colorId", title: "Color" },
-    {
-      key: "action1",
-      title: "Update",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setIsedit(true);
-            setSelectedId(item.id);
-            setFormModal(true);
-            setUpdateForm({
-              ...item,
-              createDate: dayjs(item.createDate).format('YYYY-MM-DD')
-            })
-          }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
-        >
-          Update
-        </span>
-      ),
+      key: "signDate",
+      title: "Sign Date",
+      render: (date) => (date ? dayjs.utc(date).format("DD/MM/YYYY") : "-"),
     },
     {
-      key: "action2",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setDeleteModal(true);
-          }}
-          className="cursor-pointer bg-red-500 rounded-lg flex justify-center items-center text-white p-2"
-        >
-          Delete
-        </span>
-      ),
+      key: "deliveryDate",
+      title: "Delivery Date",
+      render: (date) => (date ? dayjs.utc(date).format("DD/MM/YYYY") : "-"),
+    },
+    { key: "contractPaidType", title: "Contract Paid Type" },
+    {
+      key: "status",
+      title: "Status",
+      render: (status) => renderStatusTag(status),
+    },
+  ];
+
+  const actions = [
+    {
+      type: "edit",
+      label: "Installment Contract",
+      icon: CreditCard,
+      onClick: (item) => {
+        console.log("Installment Contract button clicked for item:", item);
+        const installmentContractId = installmentContractMap[item.id];
+        const hasInstallmentContract = !!installmentContractId;
+        if (hasInstallmentContract) {
+          console.log("Has existing installment contract, viewing:", installmentContractId);
+          handleViewInstallmentContract(installmentContractId);
+        } else {
+          console.log("No existing installment contract, opening modal");
+          handleOpenInstallmentContractModal(item);
+        }
+      },
+      show: (item) => {
+        const isDealerStaff = user?.roles?.includes("Dealer Staff");
+        // Allow creating installment contract for DEBT contracts with status PENDING, CONFIRMED, or PROCESSING
+        const allowedStatuses = ["PENDING", "CONFIRMED", "PROCESSING"];
+        const hasAllowedStatus = allowedStatuses.includes(item.status);
+        const isDebtType = item.contractPaidType === "DEBT";
+        const canShowInstallmentButton = hasAllowedStatus && isDebtType;
+        const shouldShow = canShowInstallmentButton && !isDealerStaff;
+        
+        // More detailed logging
+        if (!shouldShow) {
+          console.log(`[Installment Button] NOT SHOWING for Contract #${item.id}:`, {
+            status: item.status,
+            hasAllowedStatus,
+            contractPaidType: item.contractPaidType,
+            isDebtType,
+            isDealerStaff,
+            reason: !hasAllowedStatus ? `Status "${item.status}" not in allowed list` 
+                   : !isDebtType ? `Contract type is "${item.contractPaidType}", not DEBT`
+                   : isDealerStaff ? "User is Dealer Staff"
+                   : "Unknown reason"
+          });
+        } else {
+          console.log(`[Installment Button] SHOWING for Contract #${item.id}`);
+        }
+        
+        return shouldShow;
+      },
+    },
+    {
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: (item) => {
+        setIsedit(true);
+        setSelectedId(item.id);
+        setFormModal(true);
+        setUpdateForm({
+          ...item,
+          signDate: dayjs(item.signDate).format("YYYY-MM-DD"),
+        });
+      },
+      show: (item) => !user?.roles?.includes("Dealer Staff"),
+    },
+    {
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setSelectedId(item.id);
+        setDeleteModal(true);
+      },
+      show: (item) => !user?.roles?.includes("Dealer Staff"),
     },
   ];
 
   return (
     <div>
       <div className="my-3 flex justify-end items-center gap-5">
-        <div>
-          <label className="mr-2 font-medium text-gray-600">Staff:</label>
-          <select
-            className="border border-gray-300 rounded-md px-2 py-1"
-            value={staffId}
-            onChange={(e) => {
-              setStaffId(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All</option>
-            {staffList.map((staff) => (
-              <option value={staff.id}>
-                {staff.fullname} - {staff.id}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!user?.role?.includes("Dealer Staff") && (
+          <div>
+            <label className="mr-2 font-medium text-gray-600">Staff:</label>
+            <select
+              className="border border-gray-300 rounded-md px-2 py-1"
+              value={staffId}
+              onChange={(e) => {
+                setStaffId(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All</option>
+              {staffList.map((staff) => (
+                <option value={staff.id}>
+                  {staff.fullname} - {staff.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="mr-2 font-medium text-gray-600">Customer:</label>
           <select
@@ -321,8 +966,8 @@ function CustomerContract() {
             }}
           >
             <option value="">All</option>
-            <option value="AT_STORE">AT_STORE</option>
-            <option value="ORDER">ORDER</option>
+            <option value="FULL">FULL</option>
+            <option value="DEBT">DEBT</option>
           </select>
         </div>
         <div>
@@ -331,21 +976,23 @@ function CustomerContract() {
               setFormModal(true);
               setIsedit(false);
             }}
-            className="bg-blue-500 hover:bg-blue-600 transition cursor-pointer rounded-lg p-2 text-white"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create contract
+            <Plus size={20} />
           </button>
         </div>
       </div>
-      <PaginationTable
+      <DataTable
+        title="Customer Contract"
         columns={columns}
         data={customerContractList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
         totalItem={totalItem}
-        title={"Customer contract"}
+        limit={limit}
+        onRowClick={handleViewDetailFromRow}
+        actions={actions}
       />
       <GroupModal
         data={motorbike}
@@ -361,8 +1008,12 @@ function CustomerContract() {
         onClose={() => setFormModal(false)}
         title={isEdit ? "Update contract" : "Create contract"}
         isDelete={false}
-        onSubmit={isEdit ? handleUpdateCustomerContract : handleCreateCustomerContract}
+        onSubmit={
+          isEdit ? handleUpdateCustomerContract : handleCreateCustomerContract
+        }
         isSubmitting={submit}
+        isCreate={!isEdit}
+        isUpdate={isEdit}
       >
         <ContractForm
           colorList={colorList}
@@ -389,6 +1040,791 @@ function CustomerContract() {
           Are you sure you want to delete this staff member? This action cannot
           be undone.
         </p>
+      </FormModal>
+
+      <FormModal
+        isOpen={installmentContractModal}
+        onClose={() => {
+          setInstallmentContractModal(false);
+          setInstallmentContractForm({
+            startDate: "",
+            penaltyValue: 0,
+            penaltyType: "FIXED",
+            status: "ACTIVE",
+            customerContractId: "",
+            installmentPlanId: "",
+          });
+        }}
+        onSubmit={handleCreateInstallmentContract}
+        isSubmitting={submit}
+        title={"Create Installment Contract"}
+        isDelete={false}
+        isCreate={true}
+      >
+        <div className="space-y-3">
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Start Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="datetime-local"
+              name="startDate"
+              value={installmentContractForm.startDate}
+              onChange={(e) =>
+                setInstallmentContractForm({
+                  ...installmentContractForm,
+                  startDate: e.target.value,
+                })
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
+              required
+            />
+          </div>
+
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Installment Plan <span className="text-red-500">*</span>
+            </label>
+            {loadingInstallmentPlans ? (
+              <div className="flex justify-center py-4">
+                <CircularProgress size={24} />
+              </div>
+            ) : (
+              <select
+                name="installmentPlanId"
+                value={installmentContractForm.installmentPlanId}
+                onChange={(e) =>
+                  setInstallmentContractForm({
+                    ...installmentContractForm,
+                    installmentPlanId: e.target.value,
+                  })
+                }
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer"
+                required
+              >
+                <option value="">Select Installment Plan</option>
+                {installmentPlanList.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name} - {plan.tensor} ({plan.totalPaidMonth} months,{" "}
+                    {plan.interestPaidType})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Penalty Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="penaltyType"
+              value={installmentContractForm.penaltyType}
+              onChange={(e) =>
+                setInstallmentContractForm({
+                  ...installmentContractForm,
+                  penaltyType: e.target.value,
+                })
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer"
+              required
+            >
+              <option value="FIXED">FIXED</option>
+              <option value="DAILY">DAILY</option>
+            </select>
+          </div>
+
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Penalty Value <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              name="penaltyValue"
+              value={installmentContractForm.penaltyValue}
+              onChange={(e) =>
+                setInstallmentContractForm({
+                  ...installmentContractForm,
+                  penaltyValue: e.target.value ? Number(e.target.value) : 0,
+                })
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
+              min={0}
+              required
+            />
+          </div>
+        </div>
+      </FormModal>
+      <BaseModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setContractDetail(null);
+        }}
+        title="Contract Detail"
+        size="lg"
+      >
+        {loadingDetail ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : contractDetail ? (
+          <div className="space-y-6">
+            {/* Header Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                    {contractDetail.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 font-mono">
+                    {contractDetail.contractCode}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {renderStatusTag(contractDetail.status)}
+                  <button
+                    onClick={() => handleSendContractEmail(contractDetail.id)}
+                    disabled={sendingContractEmail}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Send contract to customer email"
+                  >
+                    <Mail size={18} />
+                    {sendingContractEmail ? "Sending..." : "Send Email"}
+                  </button>
+                </div>
+              </div>
+              <p className="text-sm text-gray-700">{contractDetail.content}</p>
+            </div>
+
+            {/* Price Section */}
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 border-2 border-indigo-200">
+              <p className="text-sm text-gray-600 mb-1">Final Price</p>
+              <p className="text-2xl font-bold text-indigo-700">
+                {formatCurrency(contractDetail.finalPrice)}
+              </p>
+            </div>
+
+            {/* Dates Section */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <p className="text-sm text-gray-600 mb-1">Sign Date</p>
+                <p className="font-medium text-gray-800">
+                  {contractDetail.signDate
+                    ? dayjs.utc(contractDetail.signDate).format("DD/MM/YYYY")
+                    : "-"}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <p className="text-sm text-gray-600 mb-1">Delivery Date</p>
+                <p className="font-medium text-gray-800">
+                  {contractDetail.deliveryDate
+                    ? dayjs
+                        .utc(contractDetail.deliveryDate)
+                        .format("DD/MM/YYYY")
+                    : "-"}
+                </p>
+              </div>
+            </div>
+
+            {/* Contract Info */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Contract Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">
+                    Contract Paid Type
+                  </p>
+                  <p className="font-medium text-gray-800">
+                    {contractDetail.contractPaidType || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Quotation ID</p>
+                  <p className="font-medium text-gray-800">
+                    {contractDetail.quotationId || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Information */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Customer Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Name</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.name") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Phone</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.phone") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Email</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.email") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Address</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.address") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Date of Birth</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.dob")
+                      ? dayjs
+                          .utc(getNestedValue(contractDetail, "customer.dob"))
+                          .format("DD/MM/YYYY")
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Credential ID</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "customer.credentialId") ||
+                      "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Staff Information */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Staff Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Username</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "staff.username") || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Email</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "staff.email") || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Product Information */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Product Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Motorbike Name</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "electricMotorbike.name") ||
+                      "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Model</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(
+                      contractDetail,
+                      "electricMotorbike.model"
+                    ) || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Version</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(
+                      contractDetail,
+                      "electricMotorbike.version"
+                    ) || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Make From</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(
+                      contractDetail,
+                      "electricMotorbike.makeFrom"
+                    ) || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Color</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "color.colorType") || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No data available
+          </div>
+        )}
+      </BaseModal>
+
+      <BaseModal
+        isOpen={isInstallmentDetailModalOpen}
+        onClose={() => {
+          setIsInstallmentDetailModalOpen(false);
+          setInstallmentContractDetail(null);
+        }}
+        title="Installment Contract Detail"
+        size="lg"
+      >
+        {loadingInstallmentDetail ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : installmentContractDetail ? (
+          <div className="space-y-6">
+            {/* Header Section */}
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-6 border border-purple-100">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                    Installment Contract #{installmentContractDetail.id}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-3">
+                  {renderStatusTag(installmentContractDetail.status)}
+                  <button
+                    onClick={() => handleGenerateInterestPayments(installmentContractDetail.id)}
+                    disabled={generatingInterestPayments}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generate interest payments"
+                  >
+                    {generatingInterestPayments ? "Generating..." : "Generate Interest Payments"}
+                  </button>
+                  <button
+                    onClick={() => handleSendInstallmentScheduleEmail(installmentContractDetail.id)}
+                    disabled={sendingInstallmentEmail}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Send installment schedule to customer email"
+                  >
+                    <Mail size={18} />
+                    {sendingInstallmentEmail ? "Sending..." : "Send Email"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Summary */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 border-2 border-indigo-200">
+                <p className="text-sm text-gray-600 mb-1">Pre Paid Total</p>
+                <p className="text-xl font-bold text-indigo-700">
+                  {formatCurrency(installmentContractDetail.prePaidTotal || 0)}
+                </p>
+              </div>
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-200">
+                <p className="text-sm text-gray-600 mb-1">Total Debt Paid</p>
+                <p className="text-xl font-bold text-green-700">
+                  {formatCurrency(installmentContractDetail.totalDebtPaid || 0)}
+                </p>
+              </div>
+              <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-lg p-4 border-2 border-orange-200">
+                <p className="text-sm text-gray-600 mb-1">Penalty Value</p>
+                <p className="text-xl font-bold text-orange-700">
+                  {formatCurrency(installmentContractDetail.penaltyValue || 0)}
+                </p>
+              </div>
+            </div>
+
+            {/* Contract Info */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Contract Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Start Date</p>
+                  <p className="font-medium text-gray-800">
+                    {installmentContractDetail.startDate
+                      ? dayjs
+                          .utc(installmentContractDetail.startDate)
+                          .format("DD/MM/YYYY HH:mm")
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Penalty Type</p>
+                  <p className="font-medium text-gray-800">
+                    {installmentContractDetail.penaltyType || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Contract Info */}
+            {installmentContractDetail.customerContract && (
+              <div className="bg-white rounded-lg p-5 border border-gray-200">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                  Customer Contract Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Title</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.customerContract.title || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+                    <p className="font-medium text-gray-800">
+                      {formatCurrency(
+                        installmentContractDetail.customerContract.finalPrice ||
+                          0
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Deposit Amount</p>
+                    <p className="font-medium text-gray-800">
+                      {formatCurrency(
+                        installmentContractDetail.customerContract
+                          .depositAmount || 0
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Contract Type</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.customerContract.type || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Status</p>
+                    <p className="font-medium text-gray-800">
+                      {renderStatusTag(
+                        installmentContractDetail.customerContract.status
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Installment Plan Info */}
+            {installmentContractDetail.installmentPlan && (
+              <div className="bg-white rounded-lg p-5 border border-gray-200">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                  Installment Plan Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan.name || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Tensor</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan.tensor || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Interest Rate</p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan.interestRate ||
+                        0}
+                      %
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Total Paid Months
+                    </p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan
+                        .totalPaidMonth || 0}{" "}
+                      months
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Interest Paid Type
+                    </p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan
+                        .interestPaidType || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Pre Paid Percent
+                    </p>
+                    <p className="font-medium text-gray-800">
+                      {installmentContractDetail.installmentPlan
+                        .prePaidPercent || 0}
+                      %
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Process Fee</p>
+                    <p className="font-medium text-gray-800">
+                      {formatCurrency(
+                        installmentContractDetail.installmentPlan.processFee ||
+                          0
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Installment Payments */}
+            {installmentContractDetail.installmentPayments &&
+              installmentContractDetail.installmentPayments.length > 0 && (
+                <div className="bg-white rounded-lg p-5 border border-gray-200">
+                  <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                    Installment Payments (
+                    {installmentContractDetail.installmentPayments.length})
+                  </h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Period
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Due Date
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Paid Date
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Amount Due
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Amount Paid
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Penalty
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Status
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {installmentContractDetail.installmentPayments.map(
+                          (payment) => (
+                            <tr key={payment.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-gray-800">
+                                {payment.period
+                                  ? dayjs
+                                      .utc(payment.period)
+                                      .format("DD/MM/YYYY")
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {payment.dueDate
+                                  ? dayjs
+                                      .utc(payment.dueDate)
+                                      .format("DD/MM/YYYY")
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {payment.paidDate
+                                  ? dayjs
+                                      .utc(payment.paidDate)
+                                      .format("DD/MM/YYYY")
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {formatCurrency(payment.amountDue || 0)}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {formatCurrency(payment.amountPaid || 0)}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {formatCurrency(payment.penaltyAmount || 0)}
+                              </td>
+                              <td className="px-4 py-2">
+                                {renderStatusTag(payment.status)}
+                              </td>
+                              <td className="px-4 py-2">
+                                {payment.status !== "PAID" && (
+                                  <div className="flex gap-5">
+                                    <button
+                                      onClick={() =>
+                                        handleMarkPaymentAsPaid(payment)
+                                      }
+                                      className="cursor-pointer text-white bg-green-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
+                                      title="Mark as PAID"
+                                    >
+                                      <CheckCircle size={18} />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setUpdateInstallmentModal(true);
+                                        setInstallmentPaymentForm({
+                                          ...installmentPaymentForm,
+                                          dueDate: payment.dueDate
+                                        });
+                                        setSelectedId(payment.id)
+                                      }}
+                                      className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
+                                      title="Update"
+                                    >
+                                      <Edit size={18} />
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+            {/* Interest Payments */}
+            {installmentContractDetail.interestPayments &&
+              installmentContractDetail.interestPayments.length > 0 && (
+                <div className="bg-white rounded-lg p-5 border border-gray-200">
+                  <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                    Interest Payments (
+                    {installmentContractDetail.interestPayments.length})
+                  </h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Period
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Due Date
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Paid Date
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Interest Amount
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Amount Paid
+                          </th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {installmentContractDetail.interestPayments.map(
+                          (payment) => (
+                            <tr key={payment.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-gray-800">
+                                {payment.period
+                                  ? dayjs
+                                      .utc(payment.period)
+                                      .format("DD/MM/YYYY")
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {payment.dueDate
+                                  ? dayjs
+                                      .utc(payment.dueDate)
+                                      .format("DD/MM/YYYY")
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {payment.paidDate
+                                  ? dayjs
+                                      .utc(payment.paidDate)
+                                      .format("DD/MM/YYYY")
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {formatCurrency(payment.interestAmount || payment.amount || 0)}
+                              </td>
+                              <td className="px-4 py-2 text-gray-800">
+                                {formatCurrency(payment.amountPaid || 0)}
+                              </td>
+                              <td className="px-4 py-2">
+                                {renderStatusTag(payment.status)}
+                              </td>
+                            </tr>
+                          )
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No data available
+          </div>
+        )}
+      </BaseModal>
+
+      <ConfirmModal
+        isOpen={isPaymentConfirmModalOpen} 
+        onClose={() => {
+          setIsPaymentConfirmModalOpen(false);
+          setSelectedPaymentForConfirm(null);
+        }}
+        onConfirm={handleConfirmMarkPaymentAsPaid}
+        isSubm itting={isMarkingPaymentAsPaid}
+        title="Mark Payment as PAID"
+        message={
+          selectedPaymentForConfirm
+            ? `Are you sure you want to mark payment #${
+                selectedPaymentForConfirm.id
+              } as PAID? Amount: ${formatCurrency(
+                selectedPaymentForConfirm.amountDue || 0
+              )}`
+            : "Are you sure you want to mark this payment as PAID?"
+        }
+        confirmText="Mark as PAID"
+        cancelText="Cancel"
+        type="warning"
+      />
+
+      <FormModal
+        isOpen={updateInstallmentModal}
+        onClose={() => setUpdateInstallmentModal(false)}
+        title={"Update installment payment"}
+        isDelete={false}
+        isSubmitting={submit}
+        onSubmit={handleUpdateInstallmentPayment}
+      >
+        {/* <MotorForm
+          form={form}
+          isEdit={isEdit}
+          setForm={setForm}
+          updateForm={updateForm}
+          setUpdateForm={setUpdateForm}
+        /> */}
+        <InstallmentPaymentForm
+          form={installmentPaymentForm}
+          setForm={setInstallmentPaymentForm}
+        />
       </FormModal>
     </div>
   );

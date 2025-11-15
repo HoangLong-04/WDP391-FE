@@ -1,8 +1,9 @@
+import { formatCurrency } from "../../../../utils/currency";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
 import { toast } from "react-toastify";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../../components/dataTable/DataTable";
 import dayjs from "dayjs";
 import GroupModal from "../../../../components/modal/groupModal/GroupModal";
 import {
@@ -16,6 +17,8 @@ import useWarehouseAgency from "../../../../hooks/useWarehouseAgency";
 import usePromotionAgency from "../../../../hooks/usePromotionAgency";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import OrderRestockForm from "./orderRestockForm/OrderRestockForm";
+import { Send, Plus, Trash2 } from "lucide-react";
+import { renderStatusTag } from "../../../../utils/statusTag";
 
 function OrderRestockAgency() {
   const { user } = useAuth();
@@ -29,7 +32,7 @@ function OrderRestockAgency() {
 
   const [page, setPage] = useState(1);
   const [totalItem, setTotalItem] = useState(0);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [status, setStatus] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -39,18 +42,25 @@ function OrderRestockAgency() {
   const [formModal, setFormModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
   const [sendRequestModal, setSendRequestModal] = useState(false)
+  const [deleteModal, setDeleteModal] = useState(false)
 
   const [form, setForm] = useState({
-    quantity: 0,
-    discountId: 0,
-    promotionId: 0,
-    warehouseId: 0,
-    motorbikeId: 0,
-    colorId: 0,
+    orderType: "FULL",
+    orderItems: [
+      {
+        quantity: 0,
+        discountId: null,
+        promotionId: null,
+        warehouseId: 0,
+        motorbikeId: 0,
+        colorId: 0,
+      },
+    ],
     agencyId: user?.agencyId,
   });
 
   const [selectedId, setSelectedId] = useState('')
+  const [selectedDeleteId, setSelectedDeleteId] = useState('')
 
   const fetchRestockList = async () => {
     setLoading(true);
@@ -59,8 +69,9 @@ function OrderRestockAgency() {
         user?.agencyId,
         { page, limit, status }
       );
-      setRestockList(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      const list = response.data?.data || [];
+      setRestockList(list);
+      setTotalItem(response.data?.paginationInfo?.total ?? list.length ?? 0);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -68,10 +79,24 @@ function OrderRestockAgency() {
     }
   };
 
-  const fetchOrderRestockDetail = async (id) => {
+  const fetchOrderRestockDetail = async (item) => {
     setViewModalLoading(true);
     try {
-      const response = await PrivateDealerManagerApi.getRestockDetail(id);
+      // Kiểm tra nếu order có orderItems và lấy orderItemId đầu tiên
+      const orderItems = item?.orderItems || [];
+      if (orderItems.length === 0) {
+        toast.error("This order has no items to display");
+        setViewModalLoading(false);
+        return;
+      }
+      // Lấy orderItemId đầu tiên từ orderItems
+      const orderItemId = orderItems[0]?.id;
+      if (!orderItemId) {
+        toast.error("Cannot find order item ID");
+        setViewModalLoading(false);
+        return;
+      }
+      const response = await PrivateDealerManagerApi.getRestockOrderItemDetail(orderItemId);
       setRestockDetail(response.data.data);
     } catch (error) {
       toast.error(error.message);
@@ -84,19 +109,56 @@ function OrderRestockAgency() {
     e.preventDefault();
     setSubmit(true);
     try {
-      await PrivateDealerManagerApi.createRestock(form);
+      // Filter valid items (items that will be created)
+      const validItems = form.orderItems.filter(
+        (item) =>
+          item.motorbikeId > 0 &&
+          item.colorId > 0 &&
+          item.warehouseId > 0 &&
+          item.quantity > 0
+      );
+
+      if (validItems.length === 0) {
+        toast.error("Please fill in at least one valid order item");
+        setSubmit(false);
+        return;
+      }
+
+      // Chuyển đổi form thành format API: loại bỏ null/0 và chỉ gửi giá trị hợp lệ
+      const payload = {
+        orderType: form.orderType,
+        orderItems: validItems.map((item) => ({
+          quantity: item.quantity,
+          motorbikeId: item.motorbikeId,
+          colorId: item.colorId,
+          warehouseId: item.warehouseId,
+          ...(item.discountId && item.discountId > 0 && { discountId: item.discountId }),
+          ...(item.promotionId && item.promotionId > 0 && { promotionId: item.promotionId }),
+        })),
+        agencyId: user?.agencyId,
+      };
+
+      await PrivateDealerManagerApi.createRestock(payload);
+      
+      // Reset form to default after successful creation
       setForm({
-        quantity: 0,
-        discountId: 0,
-        promotionId: 0,
-        warehouseId: 0,
-        motorbikeId: 0,
-        colorId: 0,
+        orderType: "FULL",
+        orderItems: [
+          {
+            quantity: 0,
+            discountId: null,
+            promotionId: null,
+            warehouseId: 0,
+            motorbikeId: 0,
+            colorId: 0,
+          },
+        ],
         agencyId: user?.agencyId,
       });
+
       fetchRestockList();
       setFormModal(false);
-      toast.success("Create successfully");
+      toast.success(`Create successfully. ${validItems.length} item(s) created.`);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -110,6 +172,10 @@ function OrderRestockAgency() {
     try {
       await PrivateDealerManagerApi.sendApproveToAdmin(selectedId)
       setSendRequestModal(false)
+      // Cập nhật nhanh trên UI: chuyển sang PENDING
+      setRestockList((prev) =>
+        prev.map((o) => (o.id === selectedId ? { ...o, status: "PENDING" } : o))
+      )
       fetchRestockList()
       toast.success('Send success')
     } catch (error) {
@@ -119,54 +185,79 @@ function OrderRestockAgency() {
     }
   }
 
+  const handleDeleteOrder = async (e) => {
+    e.preventDefault();
+    setSubmit(true);
+    try {
+      await PrivateDealerManagerApi.deleteRestock(selectedDeleteId);
+      setDeleteModal(false);
+      // Xóa ngay trên UI
+      setRestockList((prev) => prev.filter((o) => o.id !== selectedDeleteId));
+      setTotalItem((t) => Math.max(0, t - 1));
+      toast.success('Delete successfully');
+      // Refetch để đồng bộ
+      fetchRestockList();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSubmit(false);
+    }
+  }
+
   useEffect(() => {
     fetchRestockList();
   }, [page, limit, status]);
 
-  const column = [
+  const handleViewDetail = async (item) => {
+    setViewModal(true);
+    fetchOrderRestockDetail(item);
+  };
+
+  const columns = [
     { key: "id", title: "Id" },
-    { key: "quantity", title: "Quantity" },
-    { key: "basePrice", title: "Base price" },
-    { key: "wholeSalePrice", title: "Wholesale price" },
-    { key: "discountTotal", title: "Discount total" },
-    { key: "promotionTotal", title: "Promotion total" },
-    { key: "finalPrice", title: "Final price" },
-    { key: "subTotal", title: "Sub total" },
+    { key: "orderType", title: "Order type" },
+    { key: "itemQuantity", title: "Items" },
+    {
+      key: "subtotal",
+      title: "Subtotal",
+      render: (val) => (typeof val === "number" ? formatCurrency(val) : val),
+    },
     {
       key: "orderAt",
       title: "Order date",
-      render: (date) => dayjs(date).format("DD-MM-YYYY"),
-    },
-    { key: "status", title: "Status" },
-    {
-      key: "action1",
-      title: "Detail",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setViewModal(true);
-            fetchOrderRestockDetail(item.id);
-          }}
-          className="cursor-pointer text-white p-2 bg-blue-500 rounded-lg"
-        >
-          View
-        </span>
-      ),
+      render: (date) => (date ? dayjs(date).format("DD-MM-YYYY") : "-"),
     },
     {
-      key: "action2",
-      title: "Update status",
-      render: (_, item) => (
-        <span
-            onClick={() => {
-              setSendRequestModal(true);
-              setSelectedId(item.id);
-            }}
-          className="cursor-pointer text-white p-2 bg-blue-500 rounded-lg"
-        >
-          Send request
-        </span>
-      ),
+      key: "status",
+      title: "Status",
+      render: (status) => renderStatusTag(status),
+    },
+  ];
+
+  const actions = [
+    {
+      type: "edit",
+      label: "Send to Pending",
+      icon: Send,
+      onClick: (item) => {
+        if (item.status === 'DRAFT') {
+          setSendRequestModal(true);
+          setSelectedId(item.id);
+        }
+      },
+      show: (item) => item.status === 'DRAFT',
+    },
+    {
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        if (item.status === 'DRAFT') {
+          setDeleteModal(true);
+          setSelectedDeleteId(item.id);
+        }
+      },
+      show: (item) => item.status === 'DRAFT',
     },
   ];
 
@@ -189,7 +280,7 @@ function OrderRestockAgency() {
             <option value="APPROVED">APPROVED</option>
             <option value="DELIVERED">DELIVERED</option>
             <option value="PAID">PAID</option>
-            <option value="PERCENT">CANCELED</option>
+            <option value="CANCELED">CANCELED</option>
           </select>
         </div>
 
@@ -198,21 +289,23 @@ function OrderRestockAgency() {
             onClick={() => {
               setFormModal(true);
             }}
-            className="bg-blue-500 hover:bg-blue-600 transition text-white rounded-lg p-2 cursor-pointer"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create restock
+            <Plus size={20} />
           </button>
         </div>
       </div>
-      <PaginationTable
-        columns={column}
+      <DataTable
+        title="Order Restock"
+        columns={columns}
         data={restockList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Order restock"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
       <GroupModal
         data={restockDetail}
@@ -230,6 +323,7 @@ function OrderRestockAgency() {
         isDelete={false}
         onSubmit={handleCreateRestock}
         isSubmitting={submit}
+        isCreate={true}
       >
         <OrderRestockForm
           colorList={colorList}
@@ -252,6 +346,19 @@ function OrderRestockAgency() {
       >
         <p className="text-gray-700">
           Do you want to send order {selectedId}? 
+        </p>
+      </FormModal>
+
+      <FormModal
+        isOpen={deleteModal}
+        onClose={() => setDeleteModal(false)}
+        onSubmit={handleDeleteOrder}
+        isSubmitting={submit}
+        title={"Confirm delete"}
+        isDelete={true}
+      >
+        <p className="text-gray-700">
+          Are you sure you want to delete order {selectedDeleteId}? This action cannot be undone.
         </p>
       </FormModal>
     </div>

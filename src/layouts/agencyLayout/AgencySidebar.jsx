@@ -15,6 +15,7 @@ import WysiwygIcon from "@mui/icons-material/Wysiwyg";
 import PeopleIcon from "@mui/icons-material/People";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import BorderColorIcon from "@mui/icons-material/BorderColor";
+import PaymentIcon from "@mui/icons-material/Payment";
 
 function AgencySidebar() {
   const location = useLocation();
@@ -61,17 +62,34 @@ function AgencySidebar() {
           },
         ]
       : []),
+    ...(user.role && user.role[0] === "Dealer Manager"
+      ? [
+          {
+            path: "/agency/ap-batch-management",
+            label: "AP Batches",
+            Icon: PaymentIcon,
+          },
+        ]
+      : []),
   ];
 
   const handleLogout = async () => {
     try {
       const response = await PrivateApi.logout();
       logout();
-      toast.success(response.data.message);
+      toast.success(response.data.message || "Logout successfully");
       navigate("/login");
     } catch (error) {
-      toast.error("Logout fail");
-      console.log(error);
+      // Nếu JWT hết hạn, vẫn logout local mà không báo lỗi
+      if (error.response?.status === 401) {
+        logout();
+        toast.success("Logout successfully");
+        navigate("/login");
+      } else {
+        // Các lỗi khác vẫn logout local
+        logout();
+        navigate("/login");
+      }
     }
   };
   const toggleDropdown = (label) => {

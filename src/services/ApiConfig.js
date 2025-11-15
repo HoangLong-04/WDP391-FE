@@ -12,7 +12,6 @@ const publicApi = axios.create({
 
 const privateApi = axios.create({
   baseURL: BASE_URL,
-  // headers: { "Content-Type": "application/json" },
 });
 
 privateApi.interceptors.request.use(
@@ -30,10 +29,34 @@ privateApi.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// privateApi.interceptors.request.use(
+//   (config) => {
+//     try {
+//       const accessToken = sessionStorage.getItem("accessToken");
+//       if (accessToken) {
+//         config.headers.Authorization = `Bearer ${accessToken}`;
+//       }
+//       // Ensure Content-Type is set for POST/PUT/PATCH requests with data
+//       if (config.data && !config.headers['Content-Type']) {
+//         config.headers['Content-Type'] = 'application/json';
+//       }
+//     } catch (error) {
+//       console.error("Error retrieving accessToken from sessionStorage:", error);
+//     }
+//     return config;
+//   },
+//   (error) => Promise.reject(error)
+// );
+
 privateApi.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Skip interceptor cho logout request khi token hết hạn
+    if (originalRequest._skipRefreshToken) {
+      return Promise.reject(error);
+    }
 
     // 🧩 Trường hợp token hết hạn
     if (error.response?.status === 401 && !originalRequest._retry) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import PrivateAdminApi from "../../../../services/PrivateAdminApi";
 import PaginationTable from "../../../../components/paginationTable/PaginationTable";
-import EditIcon from "@mui/icons-material/Edit";
+import { Pencil } from "lucide-react";
 
 function RoleManagement() {
   const [role, setRole] = useState([]);
@@ -57,7 +57,7 @@ function RoleManagement() {
       title: "Action",
       render: () => (
         <span className="cursor-pointer text-blue-500">
-          <EditIcon />
+          <Pencil className="w-5 h-5" />
         </span>
       ),
     },

@@ -3,16 +3,20 @@ import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerAp
 import { toast } from "react-toastify";
 import { useAuth } from "../../../../hooks/useAuth";
 import dayjs from "dayjs";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../../components/dataTable/DataTable";
 import FormModal from "../../../../components/modal/formModal/FormModal";
+import ConfirmModal from "../../../../components/modal/confirmModal/ConfirmModal";
 import DealerStaffForm from "../dealerStaffForm/DealerStaffForm";
+import { Pencil, Trash2, Plus } from "lucide-react";
+import { renderStatusTag } from "../../../../utils/statusTag";
+import GroupModal from "../../../../components/modal/groupModal/GroupModal";
 
 function DealerStaffManagement() {
   const { user } = useAuth();
   const [staffList, setStaffList] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(0);
 
   const [loading, setLoading] = useState(false);
@@ -43,12 +47,17 @@ function DealerStaffManagement() {
 
   const [iseEdit, setIsEdit] = useState(false);
   const [selectedId, setSelectedId] = useState("");
+  const [viewModal, setViewModal] = useState(false);
+  const [viewModalLoading, setViewModalLoading] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
 
   const fetchAllStaff = async () => {
+    if (!user?.agencyId) return;
+    
     setLoading(true);
     try {
       const response = await PrivateDealerManagerApi.getStaffListByAgencyId(
-        user?.agencyId,
+        user.agencyId,
         { page, limit }
       );
       setStaffList(response.data.data);
@@ -62,7 +71,8 @@ function DealerStaffManagement() {
 
   useEffect(() => {
     fetchAllStaff();
-  }, [page, limit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.agencyId, page, limit]);
 
   const handleCreateDealerStaff = async (e) => {
     setSubmit(true);
@@ -96,99 +106,59 @@ function DealerStaffManagement() {
     }
   };
 
-  const handleDeleteStaff = async (e) => {
-    e.preventDefault()
-    setSubmit(true)
+  const handleDeleteStaff = async () => {
+    setSubmit(true);
     try {
-      await PrivateDealerManagerApi.deleteStaff(selectedId)
-      toast.success('Delete successfully')
-      setDeleteModal(false)
-      fetchAllStaff()
+      await PrivateDealerManagerApi.deleteStaff(selectedId);
+      toast.success("Delete successfully");
+      setDeleteModal(false);
+      fetchAllStaff();
     } catch (error) {
-      toast.error(error.message)
+      toast.error(error.message);
     } finally {
-      setSubmit(false)
+      setSubmit(false);
     }
-  }
+  };
 
-  const column = [
+  const handleViewDetail = async (item) => {
+    setSelectedStaff(item);
+    setViewModal(true);
+  };
+
+  const columns = [
     { key: "id", title: "Id" },
-    // { key: "avatar", title: "User name" },
     { key: "username", title: "User name" },
     { key: "fullname", title: "Full name" },
     { key: "email", title: "Email" },
     { key: "phone", title: "Phone" },
     { key: "address", title: "Address" },
     {
-      key: "createAt",
-      title: "Create date",
-      render: (createAt) => dayjs(createAt).format("DD/MM/YYYY"),
-    },
-    { key: "roleNames", title: "Roles" },
-    {
       key: "isActive",
       title: "Status",
-      render: (isActive) => (
-        <span
-          className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
-            isActive ? "bg-green-500" : "bg-red-500"
-          }`}
-        >
-          {isActive ? "Active" : "Inactive"}
-        </span>
-      ),
+      render: (isActive) => renderStatusTag(isActive ? "ACTIVE" : "INACTIVE"),
+    },
+  ];
+
+  const actions = [
+    {
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: (item) => {
+        setIsEdit(true);
+        setSelectedId(item.id);
+        setUpdateForm(item);
+        setFormModal(true);
+      },
     },
     {
-      key: "isDeleted",
-      title: "Available",
-      render: (isDeleted) => (
-        <div
-          className={`px-3 py-1 rounded-full text-white text-sm font-medium text-center ${
-            isDeleted ? "bg-red-500" : "bg-green-500"
-          }`}
-        >
-          {isDeleted ? "Unavailable" : "Available"}
-        </div>
-      ),
-    },
-    {
-      key: "agencyId",
-      title: "Agency",
-      render: (agencyId) => <>{agencyId && agencyId}</>,
-    },
-    {
-      key: "action1",
-      title: "Update",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setIsEdit(true);
-            setSelectedId(item.id);
-            setUpdateForm(item);
-            setFormModal(true);
-          }}
-          className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg"
-        >
-          Update
-        </span>
-      ),
-    },
-    {
-      key: "action2",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            console.log(item.id);
-            
-            setSelectedId(item.id);
-            setDeleteModal(true);
-          }}
-          className="cursor-pointer text-white bg-red-500 p-2 rounded-lg"
-        >
-          Delete
-        </span>
-      ),
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setSelectedId(item.id);
+        setDeleteModal(true);
+      },
     },
   ];
   return (
@@ -200,21 +170,23 @@ function DealerStaffManagement() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="bg-blue-500 hover:bg-blue-600 transition cursor-pointer rounded-lg p-2 text-white"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create staff
+            <Plus size={20} />
           </button>
         </div>
       </div>
-      <PaginationTable
-        columns={column}
+      <DataTable
+        title="Dealer Staff Management"
+        columns={columns}
         data={staffList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Dealer staff management"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
 
       <FormModal
@@ -223,6 +195,8 @@ function DealerStaffManagement() {
         title={iseEdit ? "Update dealer staff" : "Create dealer staff"}
         isSubmitting={submit}
         onSubmit={iseEdit ? handleUpdateStaff : handleCreateDealerStaff}
+        isCreate={!iseEdit}
+        isUpdate={iseEdit}
       >
         <DealerStaffForm
           form={form}
@@ -233,19 +207,41 @@ function DealerStaffManagement() {
         />
       </FormModal>
 
-      <FormModal
+      <ConfirmModal
         isOpen={deleteModal}
         onClose={() => setDeleteModal(false)}
-        onSubmit={handleDeleteStaff}
+        onConfirm={handleDeleteStaff}
         isSubmitting={submit}
-        title={"Confirm delete"}
-        isDelete={true}
-      >
-        <p className="text-gray-700">
-          Are you sure you want to delete this staff member? This action cannot
-          be undone.
-        </p>
-      </FormModal>
+        title="Confirm Delete"
+        message="Are you sure you want to delete this staff member? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
+
+      <GroupModal
+        data={selectedStaff}
+        isOpen={viewModal}
+        loading={viewModalLoading}
+        onClose={() => {
+          setViewModal(false);
+          setSelectedStaff(null);
+        }}
+        title="Staff Detail"
+        generalFields={[
+          { key: "id", label: "ID" },
+          { key: "username", label: "Username" },
+          { key: "fullname", label: "Full Name" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+          { key: "address", label: "Address" },
+          {
+            key: "isActive",
+            label: "Status",
+            render: (isActive) => renderStatusTag(isActive ? "ACTIVE" : "INACTIVE"),
+          },
+        ]}
+      />
     </div>
   );
 }

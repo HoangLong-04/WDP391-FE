@@ -1,7 +1,5 @@
 import React from 'react'
-import FacebookIcon from '@mui/icons-material/Facebook';
-import EmailIcon from '@mui/icons-material/Email';
-import CallIcon from '@mui/icons-material/Call';
+import { Facebook, Mail, Phone } from "lucide-react";
 
 function Footer() {
   return (
@@ -9,15 +7,15 @@ function Footer() {
       <div className='flex flex-col gap-5'>
         <p className='text-white text-xl font-medium'>CONTACT US AT</p>
         <div className='flex gap-2'>
-          <CallIcon sx={{color: 'white'}} />
+          <Phone className="text-white w-5 h-5" />
           <p className='cursor-pointer hover:underline text-[rgb(98,158,255)]'>+84 368870624</p>
         </div>
         <div className='flex gap-2'>
-          <EmailIcon sx={{color: 'white'}} />
+          <Mail className="text-white w-5 h-5" />
           <p className='cursor-pointer hover:underline text-[rgb(98,158,255)]'>longlhse182935@fpt.edu.vn</p>
         </div>
         <div className='flex gap-2'>
-          <FacebookIcon sx={{color: 'white'}} />
+          <Facebook className="text-white w-5 h-5" />
           <p className='cursor-pointer hover:underline text-[rgb(98,158,255)]'>fb</p>
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 const inputClasses =
   "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400";
 const selectClasses = `${inputClasses} bg-white cursor-pointer appearance-none`;
@@ -155,11 +156,16 @@ function PromotionForm({
           disabled={isEdit}
           name="motorbikeId"
           value={currentForm.motorbikeId || ""}
-          onChange={(e) => setForm({ ...form, motorbikeId: e.target.value })}
+          onChange={(e) => {
+            isEdit
+              ? setUpdateForm({ ...updateForm, motorbikeId: e.target.value })
+              : setForm({ ...form, motorbikeId: e.target.value });
+          }}
           className={selectClasses}
           required
         >
           <option value="">-- Select Motorbike --</option>
+          <option value="ALL">All</option>
           {motorList.map((motor) => (
             <option key={motor.id} value={motor.id}>
               {motor.name} - {motor.model}
@@ -170,5 +176,4 @@ function PromotionForm({
     </div>
   );
 }
-
 export default PromotionForm;

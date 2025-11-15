@@ -1,25 +1,41 @@
 import dayjs from "dayjs";
-
-// Function to format currency (assuming VND)
-const formatCurrency = (amount) => {
-  if (amount === null || amount === undefined) return "0";
-  return amount.toLocaleString();
-};
+import { renderStatusTag } from "../../../utils/statusTag";
+import { formatCurrency } from "../../../utils/currency";
 
 // Function to format date and time
 const formatDate = (date) => {
   return date ? dayjs(date).format("DD/MM/YYYY") : "-";
 };
 export const generalFields = [
-  { key: "id", label: "Order id" },
-  { key: "status", label: "Status" },
+  { key: "orderId", label: "Order id" },
   {
-    key: "wholesalePrice",
-    label: "Total amount",
+    key: "orderSubtotal",
+    label: "Order subtotal",
     render: formatCurrency,
   },
-  { key: "finalPrice", label: "Final price", render: formatCurrency },
-  { key: "orderAt", label: "Order date", render: formatDate },
+  {
+    key: "orderItemQuantity",
+    label: "Item quantity",
+  },
+  {
+    key: "orderAt",
+    label: "Order date",
+    render: formatDate,
+  },
+  {
+    key: "orderType",
+    label: "Order type",
+  },
+  {
+    key: "orderStatus",
+    label: "Status",
+    render: (status) => renderStatusTag(status),
+  },
+  {
+    key: "creditChecked",
+    label: "Credit checked",
+    render: (checked) => (checked ? "Yes" : "No"),
+  },
 ];
 
 export const groupedFields = [
@@ -29,8 +45,7 @@ export const groupedFields = [
     title: "PRODUCT DETAILS",
     fields: [
       { label: "Motorbike Name", key: "electricMotorbike.name" }, // Nested object access
-      { label: "Motorbike ID", key: "electricMotorbikeId" },
-      { label: "Color ID", key: "colorId" },
+      { label: "Color", key: "color.colorType" },
       { label: "Quantity", key: "quantity", type: "number" },
     ],
   },
@@ -38,9 +53,8 @@ export const groupedFields = [
   // --- WAREHOUSE AND AGENCY INFORMATION ---
   {
     key: "location_info",
-    title: "WAREHOUSE AND AGENCY",
+    title: "WAREHOUSE",
     fields: [
-      { label: "Agency ID", key: "agencyId" },
       { label: "Warehouse Name", key: "warehouse.name" },
       { label: "Warehouse Address", key: "warehouse.address" },
       { label: "Warehouse Location", key: "warehouse.location" },
@@ -55,7 +69,7 @@ export const groupedFields = [
       { label: "Base Price", key: "basePrice", render: formatCurrency },
       {
         label: "Wholesale Price",
-        key: "wholesalePrice",
+        key: "wholeSalePrice",
         render: formatCurrency,
       },
       {
@@ -68,10 +82,28 @@ export const groupedFields = [
         key: "discountTotal",
         render: formatCurrency,
       },
-      { label: "Subtotal", key: "subtotal", render: formatCurrency },
-      { label: "Price Policy ID", key: "pricePolicyId" },
-      { label: "Promotion ID", key: "promotionId" },
-      { label: "Discount ID", key: "discountId" },
+      { label: "Final Price", key: "finalPrice", render: formatCurrency },
+      { label: "Discount Policy", key: "discountPolicy.name" },
+      { label: "Discount Type", key: "discountPolicy.type" },
+      { label: "Discount Value", key: "discountPolicy.value", render: (value, data) => {
+        const discountPolicy = data?.discountPolicy;
+        if (!discountPolicy) return "-";
+        const valueType = discountPolicy.valueType || discountPolicy.value_type;
+        if (valueType === "PERCENT") {
+          return `${value}%`;
+        }
+        return formatCurrency(value);
+      }},
+      { label: "Promotion", key: "promotion.name" },
+      { label: "Promotion Value", key: "promotion.value", render: (value, data) => {
+        const promotion = data?.promotion;
+        if (!promotion) return "-";
+        const valueType = promotion.valueType || promotion.value_type;
+        if (valueType === "PERCENT") {
+          return `${value}%`;
+        }
+        return formatCurrency(value);
+      }},
     ],
   },
   {

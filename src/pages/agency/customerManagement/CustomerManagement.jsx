@@ -1,18 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
-import PaginationTable from "../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../components/dataTable/DataTable";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import CustomerForm from "./customerForm/CustomerForm";
+import { Pencil, Trash2, Plus } from "lucide-react";
 
 function CustomerManagement() {
   const { user } = useAuth();
   const [customerList, setCustomerList] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(0);
 
   const [loading, setLoading] = useState(false);
@@ -42,20 +43,21 @@ function CustomerManagement() {
   const [isEdit, setIsedit] = useState(false);
   const [selectedId, setSelectedId] = useState("");
 
-  const fetchCustomerList = async () => {
+  const fetchCustomerList = useCallback(async () => {
+    if (!user?.agencyId) return;
     setLoading(true);
     try {
       const response = await PrivateDealerManagerApi.getCustomerList(
-        user?.agencyId
+        user.agencyId, {page, limit}
       );
       setCustomerList(response.data.data);
-      setTotalItem(response.data.paginationInfo);
+      setTotalItem(response.data.paginationInfo.total);
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.agencyId, page, limit]);
 
   const handleCreateCustomer = async (e) => {
     setSubmit(true);
@@ -113,7 +115,11 @@ function CustomerManagement() {
 
   useEffect(() => {
     fetchCustomerList();
-  }, [page, limit]);
+  }, [fetchCustomerList]);
+
+  const handleViewDetail = (item) => {
+    // Can add view detail modal if needed
+  };
 
   const columns = [
     { key: "id", title: "Id" },
@@ -125,43 +131,34 @@ function CustomerManagement() {
     {
       key: "dob",
       title: "Dob",
-      render: (dob) => dayjs(dob).format("DD-MM-YYYY"),
+      render: (dob) => dob ? dayjs(dob).format("DD-MM-YYYY") : "-",
     },
     { key: "agencyId", title: "Agency" },
+  ];
+
+  const actions = [
     {
-      key: "action1",
-      title: "Update",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setFormModal(true);
-            setIsedit(true);
-            setUpdateForm({
-              ...item,
-              dob: dayjs(item.dob).format("YYYY-MM-DD"),
-            });
-          }}
-          className="cursor-pointer p-2 text-white rounded-lg bg-blue-500"
-        >
-          Update
-        </span>
-      ),
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: (item) => {
+        setSelectedId(item.id);
+        setFormModal(true);
+        setIsedit(true);
+        setUpdateForm({
+          ...item,
+          dob: item.dob ? dayjs(item.dob).format("YYYY-MM-DD") : "",
+        });
+      },
     },
     {
-      key: "action2",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setDeleteModal(true);
-          }}
-          className="cursor-pointer p-2 text-white rounded-lg bg-red-500"
-        >
-          Delete
-        </span>
-      ),
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setSelectedId(item.id);
+        setDeleteModal(true);
+      },
     },
   ];
 
@@ -174,21 +171,23 @@ function CustomerManagement() {
               setFormModal(true);
               setIsedit(false);
             }}
-            className="text-white cursor-pointer bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create customer
+            <Plus size={20} />
           </button>
         </div>
       </div>
-      <PaginationTable
+      <DataTable
+        title="Customer Management"
         columns={columns}
         data={customerList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Customer management"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
 
       <FormModal
@@ -198,6 +197,8 @@ function CustomerManagement() {
         isDelete={false}
         onSubmit={isEdit ? handleUpdateCustomer : handleCreateCustomer}
         isSubmitting={submit}
+        isCreate={!isEdit}
+        isUpdate={isEdit}
       >
         <CustomerForm
           form={form}

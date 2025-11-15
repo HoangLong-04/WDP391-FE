@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import dayjs from "dayjs";
@@ -16,10 +16,12 @@ import {
   inventoryGroupFields,
 } from "../../../components/viewModel/inventoryModel/InventoryModel";
 import { warehouseFields } from "../../../components/viewModel/warehouseModel/WarehouseModel";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 function InventoryManagement() {
   const [inventoryList, setInventoryList] = useState([]);
   const [motorList, setMototList] = useState([]);
+  const [allMotorList, setAllMotorList] = useState([]); // All motorbikes for form
   const [warehouseList, setWarehouseList] = useState([]);
   const [motor, setMotor] = useState({});
   const [warehouse, setWarehouse] = useState({});
@@ -55,6 +57,7 @@ function InventoryManagement() {
 
   const [isEdit, setIsedit] = useState(false);
   const [isDelete, setIsDelete] = useState(false);
+  const isFetchingAllMotorsRef = useRef(false);
 
   // const [selectedId, setSelectedId] = useState(null)
 
@@ -70,6 +73,62 @@ function InventoryManagement() {
       setLoading(false);
     }
   };
+  // Fetch all motorbikes for form using GET /motorbike API
+  const fetchAllMotorbikes = async () => {
+    // Prevent duplicate fetches
+    if (isFetchingAllMotorsRef.current || allMotorList.length > 0) return;
+    
+    isFetchingAllMotorsRef.current = true;
+    try {
+      let allMotors = [];
+      let currentPage = 1;
+      const pageSize = 100;
+      let hasMore = true;
+      let totalItems = 0;
+
+      // Fetch all pages using GET /motorbike API
+      while (hasMore) {
+        const response = await PrivateAdminApi.getAllMotorbikes({
+          page: currentPage,
+          limit: pageSize,
+        });
+        const motors = response.data?.data || [];
+        
+        // If no motors returned, stop fetching
+        if (motors.length === 0) {
+          hasMore = false;
+          break;
+        }
+        
+        // Filter out deleted motorbikes
+        const activeMotors = motors.filter(motor => !motor.isDeleted);
+        allMotors = [...allMotors, ...activeMotors];
+        
+        // Get total items from first response
+        if (currentPage === 1) {
+          totalItems = response.data?.paginationInfo?.total || 0;
+        }
+        
+        // Check if we've fetched all items
+        hasMore = allMotors.length < totalItems && motors.length === pageSize;
+        currentPage++;
+        
+        // Safety check: prevent infinite loop
+        if (currentPage > 100) {
+          console.warn("Reached maximum page limit for fetching motorbikes");
+          break;
+        }
+      }
+
+      setAllMotorList(allMotors);
+    } catch (error) {
+      toast.error(error.message);
+      isFetchingAllMotorsRef.current = false; // Reset on error to allow retry
+    } finally {
+      isFetchingAllMotorsRef.current = false;
+    }
+  };
+
   useEffect(() => {
     const fetchMotorList = async () => {
       try {
@@ -100,18 +159,24 @@ function InventoryManagement() {
     fetchWarehouseList();
   }, [page, limit]);
 
+  // Fetch all motorbikes only once when component mounts
   useEffect(() => {
-    if (motorList && motorList.length > 0) {
+    fetchAllMotorbikes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (allMotorList && allMotorList.length > 0) {
       const currentMotorId = form.motorId;
       if (!currentMotorId || currentMotorId === "") {
-        const defaultMotorId = motorList[0].id;
+        const defaultMotorId = allMotorList[0].id;
         setForm((prevForm) => ({
           ...prevForm,
           motorId: defaultMotorId,
         }));
       }
     }
-  }, [motorList, setForm, form.motorId]);
+  }, [allMotorList, form.motorId]);
 
   useEffect(() => {
     if (warehouseList && warehouseList.length > 0) {
@@ -169,11 +234,16 @@ function InventoryManagement() {
   const handleCreateInventory = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    
+    // Convert stockDate to ISO string format
+    const stockDateISO = form.stockDate 
+      ? new Date(form.stockDate).toISOString()
+      : new Date().toISOString();
+    
     const sendData = {
       quantity: Number(form.quantity),
-      stockDate: form.stockDate,
+      stockDate: stockDateISO,
     };
-    console.log(sendData);
 
     try {
       await PrivateAdminApi.createInventory(
@@ -183,9 +253,9 @@ function InventoryManagement() {
       );
       setForm({
         quantity: 0,
-        stockDate: dayjs().format("'YYYY-MM-DD'"),
-        motorId: form.motorId,
-        warehouseId: form.warehouseId,
+        stockDate: dayjs().format("YYYY-MM-DD"),
+        motorId: allMotorList.length > 0 ? allMotorList[0].id : "",
+        warehouseId: warehouseList.length > 0 ? warehouseList[0].id : "",
       });
       fetchInventory();
       setFormModal(false);
@@ -200,10 +270,19 @@ function InventoryManagement() {
   const handleUpdateInventory = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    
+    // Convert stockDate to ISO string format
+    const stockDateISO = updateForm.stockDate 
+      ? (typeof updateForm.stockDate === 'string' 
+          ? new Date(updateForm.stockDate).toISOString()
+          : new Date(updateForm.stockDate).toISOString())
+      : new Date().toISOString();
+    
     const sendData = {
       quantity: Number(updateForm.quantity),
-      stockDate: updateForm.stockDate,
+      stockDate: stockDateISO,
     };
+    
     try {
       await PrivateAdminApi.updateInventory(
         updateForm.motorId,
@@ -249,9 +328,9 @@ function InventoryManagement() {
             setMotorModal(true);
             fetchMotorById(electricMotorbikeId);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          View
+          <Eye className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -264,9 +343,9 @@ function InventoryManagement() {
             setWarehouseModal(true);
             fetchWarehouseById(warehouseId);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg p-2 flex justify-center items-center text-white"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          View
+          <Eye className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -290,9 +369,9 @@ function InventoryManagement() {
             setInventoryModal(true);
             fetchInventoryDetail(item.electricMotorbikeId, item.warehouseId);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          View
+          <Eye className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -311,9 +390,9 @@ function InventoryManagement() {
             setIsedit(true);
             setFormModal(true);
           }}
-          className="cursor-pointer bg-blue-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
         >
-          Update
+          <Pencil className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -330,9 +409,9 @@ function InventoryManagement() {
             setIsDelete(true);
             setDeleteForm(true);
           }}
-          className="cursor-pointer bg-red-500 rounded-lg flex justify-center items-center text-white p-2"
+          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
         >
-          Delete
+          <Trash2 className="w-5 h-5 text-white" />
         </span>
       ),
     },
@@ -373,7 +452,7 @@ function InventoryManagement() {
         <InventoryForm
           form={form}
           updateForm={updateForm}
-          motorList={motorList}
+          motorList={allMotorList}
           warehouseList={warehouseList}
           setForm={setForm}
           setUpdateForm={setUpdateForm}

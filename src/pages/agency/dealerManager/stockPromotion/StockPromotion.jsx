@@ -3,10 +3,12 @@ import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
-import PaginationTable from "../../../../components/paginationTable/PaginationTable";
+import DataTable from "../../../../components/dataTable/DataTable";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import StockPromotionForm from "./stockPromotionForm/StockPromotionForm";
 import useStockListAgency from "../../../../hooks/useStockListAgency";
+import { Pencil, Trash2, Tag, Plus } from "lucide-react";
+import { renderStatusTag } from "../../../../utils/statusTag";
 
 const inputClasses =
   "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400";
@@ -18,7 +20,7 @@ function StockPromotion() {
   const [listStockId, setListStockId] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [valueType, setValueType] = useState("");
   const [status, setStatus] = useState("");
   const [totalItem, setTotalItem] = useState(0);
@@ -148,12 +150,16 @@ function StockPromotion() {
     }
   };
 
+  const handleViewDetail = (item) => {
+    // Can add view detail modal if needed
+  };
+
   const columns = [
     { key: "id", title: "Id" },
     { key: "name", title: "Name" },
     { key: "description", title: "Description" },
     { key: "valueType", title: "Value type" },
-    { key: "value", title: "Value", render: (value) => value.toLocaleString() },
+    { key: "value", title: "Value", render: (value) => `${Number(value).toLocaleString('vi-VN')} đ` },
     {
       key: "startAt",
       title: "Start date",
@@ -164,58 +170,47 @@ function StockPromotion() {
       title: "End date",
       render: (date) => dayjs(date).format("DD-MM-YYYY"),
     },
-    { key: "status", title: "Status" },
+    {
+      key: "status",
+      title: "Status",
+      render: (status) => renderStatusTag(status),
+    },
     { key: "agencyId", title: "Agency" },
+  ];
+
+  const actions = [
     {
-      key: "action1",
-      title: "Update",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setIsEdit(true);
-            setFormModal(true);
-            setSelectedId(item.id);
-            setUpdateForm({
-              ...item,
-              endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
-              startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
-            });
-          }}
-          className="bg-blue-500 cursor-pointer p-2 rounded-lg text-white"
-        >
-          Update
-        </span>
-      ),
+      type: "edit",
+      label: "Edit",
+      icon: Pencil,
+      onClick: (item) => {
+        setIsEdit(true);
+        setFormModal(true);
+        setSelectedId(item.id);
+        setUpdateForm({
+          ...item,
+          endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
+          startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
+        });
+      },
     },
     {
-      key: "action2",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setDeleteModal(true);
-            setSelectedId(item.id);
-          }}
-          className="bg-red-500 cursor-pointer p-2 rounded-lg text-white"
-        >
-          Delete
-        </span>
-      ),
+      type: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: (item) => {
+        setDeleteModal(true);
+        setSelectedId(item.id);
+      },
     },
     {
-      key: "action3",
-      title: "Apply promotion for stock",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setAssignModal(true);
-            setSelectedId(item.id);
-          }}
-          className="bg-gray-500 cursor-pointer p-2 rounded-lg text-white"
-        >
-          Assign
-        </span>
-      ),
+      type: "edit",
+      label: "Assign to Stock",
+      icon: Tag,
+      onClick: (item) => {
+        setAssignModal(true);
+        setSelectedId(item.id);
+      },
     },
   ];
 
@@ -272,21 +267,23 @@ function StockPromotion() {
               setFormModal(true);
               setIsEdit(false);
             }}
-            className="bg-blue-500 hover:bg-blue-600 transition text-white rounded-lg p-2 cursor-pointer"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Create stock
+            <Plus size={20} />
           </button>
         </div>
       </div>
-      <PaginationTable
+      <DataTable
+        title="Stock Promotion"
         columns={columns}
         data={stockPromoList}
         loading={loading}
         page={page}
-        pageSize={limit}
         setPage={setPage}
-        title={"Stock promotion"}
         totalItem={totalItem}
+        limit={limit}
+        onRowClick={handleViewDetail}
+        actions={actions}
       />
 
       <FormModal
@@ -298,6 +295,8 @@ function StockPromotion() {
           isEdit ? handleUpdateStockPromotion : handleCreateStockPromotion
         }
         isSubmitting={submit}
+        isCreate={!isEdit}
+        isUpdate={isEdit}
       >
         <StockPromotionForm
           form={form}
