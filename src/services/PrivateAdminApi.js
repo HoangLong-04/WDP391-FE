@@ -55,6 +55,8 @@ const PrivateAdminApi = {
   getMotorbikeById: (id) => apiConfig.privateApi.get(`motorbike/${id}`),
   getMotorList: (params) =>
     apiConfig.privateApi.get("motorbike/admin", { params }),
+  getAllMotorbikes: (params) =>
+    apiConfig.privateApi.get("motorbike", { params }),
   createMotorbike: (data) => apiConfig.privateApi.post("motorbike", data),
   updateMotorbike: (id, data) =>
     apiConfig.privateApi.patch(`motorbike/${id}`, data),
