@@ -21,7 +21,8 @@ function Contract({
   contractDocuments,
   onViewDetail,
   onOpen,
-  onPay,
+  viewPeriod,
+  onGetPeriod,
   loading,
 }) {
   return (
@@ -63,16 +64,22 @@ function Contract({
           value={`${totalAmount?.toLocaleString()} VND`}
         />
         <div />
-        {status === "PENDING" && contractType === "FULL" && (
-          <div>
-            <button
-              onClick={onPay}
-              className="bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg text-white cursor-pointer"
-            >
-              Pay
-            </button>
-          </div>
-        )}
+
+        <div>
+          <button
+            onClick={async () => {
+              try {
+                await onGetPeriod();
+                viewPeriod();
+              } catch (error) {
+                console.error(error);
+              }
+            }}
+            className="bg-blue-500 hover:bg-blue-600 transition p-2 rounded-lg text-white cursor-pointer"
+          >
+            Get period
+          </button>
+        </div>
       </div>
 
       {/* Nội dung mô tả */}

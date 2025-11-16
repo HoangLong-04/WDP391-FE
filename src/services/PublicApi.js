@@ -13,6 +13,8 @@ const PublicApi = {
 
   submitDrivingTest: (data) =>
     apiConfig.publicApi.post("drive-trial/public/booking", data),
+  getMotorListDriveTrial: (agencyId) =>
+    apiConfig.publicApi.get(`drive-trial/list/motorbike-available/${agencyId}`),
 
   getCustomerContract: (credentialId, agencyId, params) =>
     apiConfig.publicApi.get(
@@ -27,6 +29,8 @@ const PublicApi = {
     }),
   getDeposit: (quotationId) =>
     apiConfig.publicApi.get(`customer/deposit/${quotationId}`),
+  getContractFullPayment: (contractId) =>
+    apiConfig.publicApi.get(`contract-full-payment/list/${contractId}`),
 
   payCustomerInstallment: (platform, data) =>
     apiConfig.publicApi.post(
