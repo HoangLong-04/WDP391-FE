@@ -31,6 +31,7 @@ import {
   Megaphone,
   CreditCard,
   Box,
+  BanknoteArrowUp,
 } from "lucide-react";
 
 function SharedSidebar() {
@@ -79,6 +80,11 @@ function SharedSidebar() {
           path: "/agency/ap-batch-management",
           label: "AP Batches",
           Icon: CreditCard,
+        },
+        {
+          path: "/agency/credit-line",
+          label: "Credit line",
+          Icon: BanknoteArrowUp,
         },
       ];
     }
@@ -164,9 +170,9 @@ function SharedSidebar() {
           ],
         },
         {
-              path: "/company/all-staff",
-              label: "Staffs",
-              Icon: Users,
+          path: "/company/all-staff",
+          label: "Staffs",
+          Icon: Users,
         },
         {
           label: "Policy",
@@ -193,6 +199,11 @@ function SharedSidebar() {
           path: "/company/order-restock",
           label: "Order restock",
           Icon: ShoppingCart,
+        },
+        {
+          path: "/company/credit-line",
+          label: "Credit line",
+          Icon: BanknoteArrowUp,
         },
       ];
     }
@@ -233,6 +244,11 @@ function SharedSidebar() {
           path: "/company/evm-staff/batches",
           label: "AP Batches",
           Icon: FileText,
+        },
+        {
+          path: "/company/credit-line",
+          label: "Credit line",
+          Icon: BanknoteArrowUp,
         },
       ];
     }
@@ -314,7 +330,11 @@ function SharedSidebar() {
     if (userRole === "Dealer Manager" || userRole === "Dealer Staff") {
       return "AGENCY";
     }
-    if (userRole === "Admin" || userRole === "Evm Staff" || userRole === "EVM Staff") {
+    if (
+      userRole === "Admin" ||
+      userRole === "Evm Staff" ||
+      userRole === "EVM Staff"
+    ) {
       return "COMPANY";
     }
     return "";
@@ -326,15 +346,14 @@ function SharedSidebar() {
         isCollapse ? "w-[80px] px-2" : "w-[250px] px-4"
       }`}
     >
+      {/* Header */}
       <div
-        className={`mb-8 flex items-center ${
+        className={`mb-6 flex items-center ${
           isCollapse ? "justify-center w-full" : "justify-between w-full"
         }`}
       >
         {!isCollapse && (
-          <p className="text-white font-medium text-2xl">
-            {getSidebarTitle()}
-          </p>
+          <p className="text-white font-medium text-2xl">{getSidebarTitle()}</p>
         )}
         <button
           onClick={() => setIsCollapse(!isCollapse)}
@@ -350,11 +369,8 @@ function SharedSidebar() {
         </button>
       </div>
 
-      <nav
-        className={`flex flex-col gap-3 w-full overflow-y-auto ${
-          isCollapse ? "px-0" : "px-0"
-        }`}
-      >
+      {/* Scrollable Menu */}
+      <nav className={`flex flex-col gap-3 w-full overflow-y-auto pr-1 flex-1`}>
         {navItems.map((item) =>
           item.children ? (
             <div key={item.label} className="w-full">
@@ -395,12 +411,11 @@ function SharedSidebar() {
         )}
       </nav>
 
+      {/* Fixed Logout Button */}
       <button
         onClick={handleLogout}
-        className={`bg-white absolute bottom-6 flex justify-center items-center cursor-pointer rounded-full p-2 transition-all duration-300 ${
-          isCollapse
-            ? "w-10 h-10 left-1/2 -translate-x-1/2"
-            : "left-4 right-4 gap-2 px-4 py-2"
+        className={`bg-white mt-4 flex justify-center items-center cursor-pointer rounded-full p-2 transition-all duration-300 ${
+          isCollapse ? "w-10 h-10 self-center" : "w-full gap-2 px-4 py-2"
         }`}
       >
         <LogOut className="w-5 h-5 text-black" />
@@ -413,4 +428,3 @@ function SharedSidebar() {
 }
 
 export default SharedSidebar;
-

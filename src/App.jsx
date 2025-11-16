@@ -51,6 +51,8 @@ import BatchesManagement from "./pages/company/evmStaff/batchesManagement/Batche
 import ContractForCustomer from "./pages/customer/customerContract/ContractForCustomer";
 import CustomerQuotation from "./pages/customer/customerQuotation/CustomerQuotation";
 import ApBatchManagement from "./pages/agency/dealerManager/apBatchManagement/ApBatchManagement";
+import CreditLineManagement from "./pages/company/creditLineManagement/CreditLineManagement";
+import CreditLineAgency from "./pages/agency/dealerManager/creditLineAgency/CreditLineAgency";
 
 function App() {
   return (
@@ -122,6 +124,10 @@ function App() {
               path="agency/ap-batch-management"
               element={<ApBatchManagement />}
             />
+            <Route
+              path="agency/credit-line"
+              element={<CreditLineAgency />}
+            />
           </Route>
 
           {/* Private company */}
@@ -150,6 +156,7 @@ function App() {
             <Route path="company/dealerManager" element={<DealerManager />} />
             <Route path="company/motorbike" element={<MotorbikeManagement />} />
             <Route path="company/color" element={<ColorManagement />} />
+            <Route path="company/credit-line" element={<CreditLineManagement />} />
             <Route
               path="company/appearance"
               element={<AppearanceManagement />}
