@@ -161,6 +161,16 @@ const PrivateAdminApi = {
     apiConfig.privateApi.patch(`batches-management/${batchId}`, data),
   deleteBatch: (batchId) =>
     apiConfig.privateApi.delete(`batches-management/${batchId}`),
+
+  //credit-line
+  getCreditLineList: (params) =>
+    apiConfig.privateApi.get("credit-line/list", { params }),
+  getCreditLineDetail: (id) =>
+    apiConfig.privateApi.get(`credit-line/detail/${id}`),
+  createCreditLine: (data) => apiConfig.privateApi.post("credit-line", data),
+  updateCreditLine: (id, data) =>
+    apiConfig.privateApi.patch(`credit-line/${id}`, data),
+  deleteCreditLine: (id) => apiConfig.privateApi.delete(`credit-line/${id}`),
 };
 
 export default PrivateAdminApi;

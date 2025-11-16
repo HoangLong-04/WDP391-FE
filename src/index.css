@@ -1,9 +1,8 @@
 @import "tailwindcss";
 @import url("https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap");
 
-
 @theme {
-  --font-roboto: 'Roboto', sans-serif;
+  --font-roboto: "Roboto", sans-serif;
 }
 
 @layer base {
@@ -33,4 +32,28 @@
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+.modern-card {
+  @apply bg-[#0f0f0f]/65 backdrop-blur-xl border border-white/10 p-6 rounded-2xl text-white w-full max-w-lg hover:shadow-xl transition duration-300;
+}
+
+.icon-wrapper {
+  @apply p-3 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md;
+}
+
+.info-row {
+  @apply flex justify-between py-2 border-b border-white/10 last:border-none;
+}
+
+.label {
+  @apply text-gray-400 text-sm;
+}
+
+.value {
+  @apply text-white text-sm;
+}
+
+.skeleton {
+  @apply bg-white/10 rounded-md;
 }
