@@ -10,7 +10,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import BaseModal from "../../../../components/modal/baseModal/BaseModal";
 import FormModal from "../../../../components/modal/formModal/FormModal";
-import { CheckCircle, XCircle, Clock, RotateCcw, Loader2, FileText, Trash2, Wallet, CreditCard, HandCoins } from "lucide-react";
+import { CheckCircle, XCircle, Clock, RotateCcw, Loader2, FileText, Wallet, CreditCard, HandCoins, Printer, Pencil } from "lucide-react";
 import CircularProgress from "@mui/material/CircularProgress";
 
 dayjs.extend(utc);
@@ -45,9 +45,6 @@ function QuotationManagement() {
   const [quotationDepositMap, setQuotationDepositMap] = useState(new Map()); // Map quotationId -> deposit info
   const [loadingDeposits, setLoadingDeposits] = useState(false);
   const [quotationDetailCache, setQuotationDetailCache] = useState(new Map()); // Cache quotation details
-  const [deleteModal, setDeleteModal] = useState(false);
-  const [selectedQuotationForDelete, setSelectedQuotationForDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
   const [depositModal, setDepositModal] = useState(false);
   const [selectedQuotationForDeposit, setSelectedQuotationForDeposit] = useState(null);
   const [depositSubmitting, setDepositSubmitting] = useState(false);
@@ -69,67 +66,62 @@ function QuotationManagement() {
     installmentPlanId: "",
   });
   const [creatingInstallmentContract, setCreatingInstallmentContract] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedQuotationForEdit, setSelectedQuotationForEdit] = useState(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    basePrice: 0,
+    promotionPrice: 0,
+    finalPrice: 0,
+    validUntil: "",
+    promotionId: "",
+  });
+  const [stockPromotions, setStockPromotions] = useState([]);
+  const [loadingPromotions, setLoadingPromotions] = useState(false);
+  const [selectedPromotion, setSelectedPromotion] = useState(null);
 
   const fetchQuotations = useCallback(async () => {
     if (!user?.agencyId) return;
     setLoading(true);
     try {
-      // Fetch all quotations with pagination
-      let allQuotationsData = [];
-      let currentPage = 1;
-      const pageSize = 100;
-      let hasMore = true;
-
-      // Fetch all pages
-      while (hasMore) {
+      // Fetch only current page with limit = 5
       const params = {
-          page: currentPage,
-          limit: pageSize,
+        page: page,
+        limit: limit,
         ...(type && { type }),
         ...(status && { status }),
         ...(quoteCode && { quoteCode }),
       };
       const res = await PrivateDealerStaffApi.getQuotationList(user.agencyId, params);
       const list = res.data?.data || [];
-        allQuotationsData = [...allQuotationsData, ...list];
-        
-        const totalItems = res.data?.paginationInfo?.total || 0;
-        hasMore = allQuotationsData.length < totalItems;
-        currentPage++;
-      }
+      const totalItems = res.data?.paginationInfo?.total || 0;
+      const totalPages = res.data?.paginationInfo?.totalPages || Math.ceil(totalItems / limit);
 
-      // Apply filters in frontend if needed (for consistency)
-      let filteredQuotations = allQuotationsData;
-      if (type) {
-        filteredQuotations = filteredQuotations.filter(q => q.type === type);
-      }
-      if (status) {
-        filteredQuotations = filteredQuotations.filter(q => q.status === status);
-      }
-      if (quoteCode) {
-        filteredQuotations = filteredQuotations.filter(q => 
-          q.quoteCode?.toLowerCase().includes(quoteCode.toLowerCase())
-        );
-      }
-
-      // Sort newest first by createDate (using raw data time -> UTC instant order)
-      filteredQuotations.sort((a, b) => {
-        // Try createDate first, then id (higher id = newer)
-        if (a.createDate && b.createDate) {
-          return new Date(b.createDate) - new Date(a.createDate);
+      // Auto-update EXPIRED status for quotations that have passed validUntil
+      // Only update DRAFT and REJECTED quotations (ACCEPTED and REVERSED should not expire)
+      // Note: Auto-update is done in background, won't block the UI
+      list.forEach(quotation => {
+        if (quotation.validUntil && 
+            (quotation.status === "DRAFT" || quotation.status === "REJECTED") &&
+            dayjs.utc().isAfter(dayjs.utc(quotation.validUntil))) {
+          // Auto-update to EXPIRED if expired (only for DRAFT and REJECTED)
+          PrivateDealerStaffApi.updateQuotation(quotation.id, { status: "EXPIRED" })
+            .then(() => {
+              // Update local state immediately
+              setAllQuotations(prev => prev.map(q => 
+                q.id === quotation.id ? { ...q, status: "EXPIRED" } : q
+              ));
+            })
+            .catch(err => console.error("Failed to auto-update expired status:", err));
         }
-        if (a.id && b.id) {
-          return b.id - a.id; // Higher id = newer
-        }
-        return 0;
       });
 
-      setAllQuotations(filteredQuotations);
-      setTotalItem(filteredQuotations.length);
+      setAllQuotations(list);
+      setTotalItem(totalItems);
       
       // Check if quotation list includes depositId or deposit info
       const depositMap = new Map();
-      filteredQuotations.forEach(quotation => {
+      list.forEach(quotation => {
         // If deposit info is directly in quotation list, use it immediately
         if (quotation.deposit) {
           depositMap.set(quotation.id, quotation.deposit);
@@ -147,25 +139,23 @@ function QuotationManagement() {
     } finally {
       setLoading(false);
     }
-  }, [user?.agencyId, type, status, quoteCode]);
+  }, [user?.agencyId, page, limit, type, status, quoteCode]);
 
-  // Paginate the sorted list in frontend
-  const quotations = useMemo(() => {
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    return allQuotations.slice(startIndex, endIndex);
-  }, [allQuotations, page, limit]);
+  // Use quotations directly from API (no frontend pagination needed)
+  const quotations = allQuotations;
 
   const fetchQuotationIdsWithContracts = useCallback(async () => {
     if (!user?.agencyId) return;
     try {
+      // Fetch contracts with pagination - fetch first few pages to get quotationIds
+      // Since we only need quotationIds, we can limit to first 5 pages (25 contracts)
       let allContracts = [];
       let currentPage = 1;
-      const pageSize = 100;
+      const pageSize = 20;
+      const maxPages = 5; // Limit to first 5 pages to avoid loading too much
       let hasMore = true;
 
-      // Fetch all contracts with pagination
-      while (hasMore) {
+      while (hasMore && currentPage <= maxPages) {
         const response = await PrivateDealerStaffApi.getCustomerContractList(
           user.agencyId,
           { page: currentPage, limit: pageSize }
@@ -549,35 +539,114 @@ function QuotationManagement() {
     }
   };
 
-  const handleOpenDeleteModal = (quotation) => {
-    setSelectedQuotationForDelete(quotation);
-    setDeleteModal(true);
-  };
+  // Removed delete functionality - quotations cannot be deleted once created
 
-  const handleDeleteQuotation = async (e) => {
-    e.preventDefault();
-    if (!selectedQuotationForDelete) return;
-    
-    setDeleting(true);
+  const handleOpenEditModal = async (quotation) => {
     try {
-      await PrivateDealerStaffApi.deleteQuotation(selectedQuotationForDelete.id);
-      toast.success("Quotation deleted successfully");
-      setDeleteModal(false);
-      setSelectedQuotationForDelete(null);
-      // Refresh quotations list
-      fetchQuotations();
-      // If this quotation had a contract, remove it from the set
-      if (quotationIdsWithContracts.has(selectedQuotationForDelete.id)) {
-        setQuotationIdsWithContracts((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(selectedQuotationForDelete.id);
-          return newSet;
+      // Fetch full quotation detail
+      const res = await PrivateDealerStaffApi.getQuotationDetail(quotation.id);
+      const detail = res.data?.data || quotation;
+      setSelectedQuotationForEdit(detail);
+      
+      // Load stock promotions if quotation type is AT_STORE
+      if (detail.type === "AT_STORE" && user?.agencyId) {
+        setLoadingPromotions(true);
+        try {
+          const promoRes = await PrivateDealerStaffApi.getStockPromotionListStaff(user.agencyId);
+          const promotions = promoRes.data?.data || [];
+          setStockPromotions(promotions);
+          
+          // Find current promotion if exists
+          const currentPromo = promotions.find(p => 
+            detail.promotionPrice > 0 && 
+            ((p.valueType === "PERCENT" && Math.abs((detail.basePrice * p.value / 100) - detail.promotionPrice) < 1) ||
+             (p.valueType === "FIXED" && Math.abs(p.value - detail.promotionPrice) < 1))
+          );
+          
+          if (currentPromo) {
+            setSelectedPromotion(currentPromo);
+            setEditForm({
+              basePrice: detail.basePrice || 0,
+              promotionPrice: detail.promotionPrice || 0,
+              finalPrice: detail.finalPrice || 0,
+              validUntil: detail.validUntil 
+                ? dayjs.utc(detail.validUntil).format("YYYY-MM-DD")
+                : "",
+              promotionId: String(currentPromo.id),
+            });
+          } else {
+            setSelectedPromotion(null);
+            setEditForm({
+              basePrice: detail.basePrice || 0,
+              promotionPrice: detail.promotionPrice || 0,
+              finalPrice: detail.finalPrice || 0,
+              validUntil: detail.validUntil 
+                ? dayjs.utc(detail.validUntil).format("YYYY-MM-DD")
+                : "",
+              promotionId: "",
+            });
+          }
+        } catch (error) {
+          console.error("Error loading promotions:", error);
+          setStockPromotions([]);
+          setEditForm({
+            basePrice: detail.basePrice || 0,
+            promotionPrice: detail.promotionPrice || 0,
+            finalPrice: detail.finalPrice || 0,
+            validUntil: detail.validUntil 
+              ? dayjs.utc(detail.validUntil).format("YYYY-MM-DD")
+              : "",
+            promotionId: "",
+          });
+        } finally {
+          setLoadingPromotions(false);
+        }
+      } else {
+        setStockPromotions([]);
+        setSelectedPromotion(null);
+        setEditForm({
+          basePrice: detail.basePrice || 0,
+          promotionPrice: detail.promotionPrice || 0,
+          finalPrice: detail.finalPrice || 0,
+          validUntil: detail.validUntil 
+            ? dayjs.utc(detail.validUntil).format("YYYY-MM-DD")
+            : "",
+          promotionId: "",
         });
       }
+      
+      setIsEditModalOpen(true);
     } catch (error) {
-      toast.error(error.message || "Failed to delete quotation");
+      toast.error(error.message || "Failed to load quotation detail");
+    }
+  };
+
+  const handleUpdateQuotation = async (e) => {
+    e.preventDefault();
+    if (!selectedQuotationForEdit) return;
+    
+    setEditSubmitting(true);
+    try {
+      const payload = {
+        basePrice: Number(editForm.basePrice || 0),
+        promotionPrice: Number(editForm.promotionPrice || 0),
+        finalPrice: Number(editForm.finalPrice || 0),
+        validUntil: editForm.validUntil 
+          ? new Date(editForm.validUntil).toISOString()
+          : null,
+      };
+      
+      await PrivateDealerStaffApi.updateQuotation(selectedQuotationForEdit.id, payload);
+      toast.success("Quotation updated successfully");
+      setIsEditModalOpen(false);
+      setSelectedQuotationForEdit(null);
+      
+      // Refresh quotations list
+      fetchQuotations();
+    } catch (error) {
+      toast.error(error.message || "Failed to update quotation");
     } finally {
-      setDeleting(false);
+      setEditSubmitting(false);
     }
   };
 
@@ -789,13 +858,22 @@ function QuotationManagement() {
     // Can update from DRAFT to ACCEPTED or REJECTED
     if (currentStatus === "DRAFT") return true;
     
-    // Can update ORDER or PRE_ORDER to REVERSED when bike arrives
-    if ((currentStatus === "ACCEPTED" || currentStatus === "DRAFT") && 
+    // Can update from REJECTED back to DRAFT (to allow editing)
+    if (currentStatus === "REJECTED") return true;
+    
+    // Can update ORDER or PRE_ORDER from ACCEPTED to REVERSED when bike arrives
+    if (currentStatus === "ACCEPTED" && 
         (quotation.type === "ORDER" || quotation.type === "PRE_ORDER")) {
       return true;
     }
     
     return false;
+  };
+
+  const canEditQuotation = (quotation) => {
+    if (!quotation) return false;
+    // Can edit DRAFT and REJECTED quotations
+    return quotation.status === "DRAFT" || quotation.status === "REJECTED";
   };
 
   const columns = [
@@ -829,6 +907,7 @@ function QuotationManagement() {
           ACCEPTED: "bg-green-100 text-green-700",
           REJECTED: "bg-red-100 text-red-700",
           EXPIRED: "bg-orange-100 text-orange-700",
+          REVERSED: "bg-purple-100 text-purple-700",
         };
         return (
           <span className={`px-2 py-1 rounded text-xs ${statusColors[status] || "bg-gray-100 text-gray-700"}`}>
@@ -891,76 +970,63 @@ function QuotationManagement() {
         
         return (
           <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+            {/* DRAFT status: Show "In" button to open detail modal */}
             {row.status === "DRAFT" && (
-              <>
-                <button
-                  onClick={() => handleUpdateStatus(row.id, "ACCEPTED")}
-                  disabled={isUpdating}
-                  className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Accept"
-                >
-                  {isUpdating ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <CheckCircle size={18} />
-                  )}
-                </button>
-                <button
-                  onClick={() => handleUpdateStatus(row.id, "REJECTED")}
-                  disabled={isUpdating}
-                  className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Reject"
-                >
-                  {isUpdating ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <XCircle size={18} />
-                  )}
-                </button>
-              </>
-            )}
-            
-            {/* If has contract, only show delete button */}
-            {hasContract && (
               <button
-                onClick={() => handleOpenDeleteModal(row)}
-                className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-                title="Delete Quotation"
+                onClick={() => handleRowClick(row)}
+                className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                title="In (Xem chi tiết)"
               >
-                <Trash2 size={18} />
+                <Printer size={18} />
               </button>
             )}
             
-            {/* If no contract */}
+            {/* REJECTED status: Show edit button to open edit modal */}
+            {row.status === "REJECTED" && (
+              <button
+                onClick={() => {
+                  // Load quotation detail and open edit modal
+                  handleOpenEditModal(row);
+                }}
+                className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                title="Edit quotation"
+              >
+                <Pencil size={18} />
+              </button>
+            )}
+            
+            {/* ACCEPTED status: Show create contract button */}
+            {row.status === "ACCEPTED" && !hasContract && (
+              <button
+                onClick={() => handleOpenContractModal(row, "FULL")}
+                className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
+                title="Tạo hợp đồng"
+              >
+                <FileText size={18} />
+              </button>
+            )}
+            
+            {/* ORDER or PRE_ORDER with ACCEPTED status: can change to REVERSED when bike arrives */}
+            {isOrderOrPreOrder && row.status === "ACCEPTED" && (
+              <button
+                onClick={() => handleUpdateStatus(row.id, "REVERSED")}
+                disabled={isUpdating}
+                className="p-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Mark as REVERSED (bike arrived at manufacturer)"
+              >
+                {isUpdating ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <RotateCcw size={18} />
+                )}
+              </button>
+            )}
+            
+            {/* Removed delete button - quotations cannot be deleted once created */}
+            
+            {/* If no contract - Additional actions for AT_STORE and ORDER/PRE_ORDER */}
             {!hasContract && (
               <>
-                {/* AT_STORE type: Show Trả góp / Trả full / Delete */}
-                {isATStore && row.status === "ACCEPTED" && !depositInfo && (
-                  <>
-                    <button
-                      onClick={() => handleOpenDepositModal(row)}
-                      className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                      title="Trả góp (Create Deposit)"
-                    >
-                      <CreditCard size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleOpenContractModal(row, "FULL")}
-                      className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
-                      title="Trả full (Create Contract)"
-                    >
-                      <Wallet size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleOpenDeleteModal(row)}
-                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-                      title="Delete Quotation"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </>
-                )}
-                
                 {/* AT_STORE with deposit PENDING or quotation status PENDING: Show "Đã nhận cọc" button */}
                 {isATStore && row.status === "ACCEPTED" && depositInfo && depositInfo.status === "PENDING" && (
                   <>
@@ -975,13 +1041,6 @@ function QuotationManagement() {
                       ) : (
                         <HandCoins size={18} />
                       )}
-                    </button>
-                    <button
-                      onClick={() => handleOpenDeleteModal(row)}
-                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-                      title="Delete Quotation"
-                    >
-                      <Trash2 size={18} />
                     </button>
                   </>
                 )}
@@ -1001,13 +1060,6 @@ function QuotationManagement() {
                         <HandCoins size={18} />
                       )}
                     </button>
-                    <button
-                      onClick={() => handleOpenDeleteModal(row)}
-                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-                      title="Delete Quotation"
-                    >
-                      <Trash2 size={18} />
-                    </button>
                   </>
                 )}
                 
@@ -1021,17 +1073,10 @@ function QuotationManagement() {
                     >
                       <FileText size={18} />
                     </button>
-                    <button
-                      onClick={() => handleOpenDeleteModal(row)}
-                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-                      title="Delete Quotation"
-                    >
-                      <Trash2 size={18} />
-                    </button>
                   </>
                 )}
                 
-                {/* ORDER or PRE_ORDER: Show Đặt cọc / Delete */}
+                {/* ORDER or PRE_ORDER: Show Đặt cọc */}
                 {isOrderOrPreOrder && row.status === "ACCEPTED" && !depositInfo && (
                   <>
                     <button
@@ -1040,13 +1085,6 @@ function QuotationManagement() {
                       title="Đặt cọc (Create Deposit)"
                     >
                       <CreditCard size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleOpenDeleteModal(row)}
-                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-                      title="Delete Quotation"
-                    >
-                      <Trash2 size={18} />
                     </button>
                   </>
                 )}
@@ -1066,13 +1104,6 @@ function QuotationManagement() {
                         <HandCoins size={18} />
                       )}
                     </button>
-                    <button
-                      onClick={() => handleOpenDeleteModal(row)}
-                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-                      title="Delete Quotation"
-                    >
-                      <Trash2 size={18} />
-                    </button>
                   </>
                 )}
                 
@@ -1091,13 +1122,6 @@ function QuotationManagement() {
                         <HandCoins size={18} />
                       )}
                     </button>
-                    <button
-                      onClick={() => handleOpenDeleteModal(row)}
-                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-                      title="Delete Quotation"
-                    >
-                      <Trash2 size={18} />
-                    </button>
                   </>
                 )}
                 
@@ -1110,13 +1134,6 @@ function QuotationManagement() {
                       title="Tạo hợp đồng khách hàng"
                     >
                       <FileText size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleOpenDeleteModal(row)}
-                      className="p-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
-                      title="Delete Quotation"
-                    >
-                      <Trash2 size={18} />
                     </button>
                   </>
                 )}
@@ -1178,6 +1195,7 @@ function QuotationManagement() {
             <option value="ACCEPTED">ACCEPTED</option>
             <option value="REJECTED">REJECTED</option>
             <option value="EXPIRED">EXPIRED</option>
+            <option value="REVERSED">REVERSED</option>
           </select>
         </div>
         <div>
@@ -1340,6 +1358,52 @@ function QuotationManagement() {
               </div>
             </div>
 
+            {/* Action buttons for DRAFT status */}
+            {quotationDetail.status === "DRAFT" && (
+              <div className="flex gap-4 justify-end pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    handleUpdateStatus(quotationDetail.id, "REJECTED");
+                    setIsDetailModalOpen(false);
+                  }}
+                  disabled={updatingStatus && updatingStatusId === quotationDetail.id}
+                  className="px-6 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {updatingStatus && updatingStatusId === quotationDetail.id ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Đang xử lý...</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle size={18} />
+                      <span>REJECT</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    handleUpdateStatus(quotationDetail.id, "ACCEPTED");
+                    setIsDetailModalOpen(false);
+                  }}
+                  disabled={updatingStatus && updatingStatusId === quotationDetail.id}
+                  className="px-6 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {updatingStatus && updatingStatusId === quotationDetail.id ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Đang xử lý...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={18} />
+                      <span>ACCEPT</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
           </div>
         ) : (
           <div className="text-center py-12 text-gray-500">No data available</div>
@@ -1411,23 +1475,6 @@ function QuotationManagement() {
             </select>
           </div>
         </div>
-      </FormModal>
-      <FormModal
-        isOpen={deleteModal}
-        onClose={() => {
-          setDeleteModal(false);
-          setSelectedQuotationForDelete(null);
-        }}
-        title="Confirm Delete"
-        isDelete={true}
-        onSubmit={handleDeleteQuotation}
-        isSubmitting={deleting}
-      >
-        <p className="text-gray-700">
-          Are you sure you want to delete quotation{" "}
-          <span className="font-semibold">{selectedQuotationForDelete?.quoteCode || selectedQuotationForDelete?.id}</span>?
-          This action cannot be undone.
-        </p>
       </FormModal>
       <FormModal
         isOpen={depositModal}
@@ -1593,6 +1640,178 @@ function QuotationManagement() {
               step="0.01"
             />
           </div>
+        </div>
+      </FormModal>
+      <FormModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedQuotationForEdit(null);
+          setEditForm({
+            basePrice: 0,
+            promotionPrice: 0,
+            finalPrice: 0,
+            validUntil: "",
+            promotionId: "",
+          });
+          setStockPromotions([]);
+          setSelectedPromotion(null);
+        }}
+        title="Chỉnh sửa báo giá"
+        isDelete={false}
+        isCreate={false}
+        onSubmit={handleUpdateQuotation}
+        isSubmitting={editSubmitting}
+      >
+        <div className="space-y-4">
+          {selectedQuotationForEdit && (
+            <>
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <p className="text-sm text-gray-600 mb-1">Quote Code</p>
+                <p className="font-semibold text-gray-800">
+                  {selectedQuotationForEdit.quoteCode || selectedQuotationForEdit.id}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Base Price <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded-lg"
+                  value={editForm.basePrice}
+                  onChange={(e) => {
+                    const basePrice = Number(e.target.value || 0);
+                    const promotionPrice = Number(editForm.promotionPrice || 0);
+                    const finalPrice = basePrice - promotionPrice;
+                    setEditForm(prev => ({
+                      ...prev,
+                      basePrice,
+                      finalPrice: finalPrice > 0 ? finalPrice : 0
+                    }));
+                  }}
+                  min="0"
+                  step="1000"
+                  required
+                />
+              </div>
+              
+              {selectedQuotationForEdit.type === "AT_STORE" && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Promotion (optional)
+                  </label>
+                  {loadingPromotions ? (
+                    <div className="text-sm text-gray-500 py-2">Đang tải promotions...</div>
+                  ) : (
+                    <select
+                      className="w-full px-3 py-2 border rounded-lg"
+                      value={editForm.promotionId}
+                      onChange={(e) => {
+                        const promoId = e.target.value;
+                        setEditForm(prev => ({ ...prev, promotionId: promoId }));
+                        
+                        if (!promoId) {
+                          // No promotion selected
+                          setSelectedPromotion(null);
+                          const basePrice = Number(editForm.basePrice || 0);
+                          setEditForm(prev => ({
+                            ...prev,
+                            promotionPrice: 0,
+                            finalPrice: basePrice,
+                          }));
+                        } else {
+                          // Find selected promotion
+                          const promoItem = stockPromotions.find((p) => {
+                            return String(p.id) === String(promoId);
+                          });
+                          if (promoItem) {
+                            setSelectedPromotion(promoItem);
+                            const basePrice = Number(editForm.basePrice || 0);
+                            let promotionPrice = 0;
+                            if (promoItem.valueType === "PERCENT") {
+                              promotionPrice = (basePrice * Number(promoItem.value || 0)) / 100;
+                            } else {
+                              promotionPrice = Number(promoItem.value || 0);
+                            }
+                            const finalPrice = basePrice - promotionPrice;
+                            setEditForm(prev => ({
+                              ...prev,
+                              promotionPrice,
+                              finalPrice: Math.max(0, finalPrice),
+                            }));
+                          }
+                        }
+                      }}
+                    >
+                      <option value="">-- No Promotion --</option>
+                      {stockPromotions.map((promo) => (
+                        <option key={promo.id} value={promo.id}>
+                          {promo.name} - {promo.valueType === "PERCENT" 
+                            ? `${promo.value}%` 
+                            : formatCurrency(promo.value)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Promotion Price
+                </label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded-lg"
+                  value={editForm.promotionPrice}
+                  onChange={(e) => {
+                    const promotionPrice = Number(e.target.value || 0);
+                    const basePrice = Number(editForm.basePrice || 0);
+                    const finalPrice = basePrice - promotionPrice;
+                    setEditForm(prev => ({
+                      ...prev,
+                      promotionPrice,
+                      finalPrice: finalPrice > 0 ? finalPrice : 0,
+                      promotionId: "", // Clear promotion selection if manually edited
+                    }));
+                    setSelectedPromotion(null);
+                  }}
+                  min="0"
+                  step="1000"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Final Price <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded-lg bg-gray-100"
+                  value={editForm.finalPrice}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, finalPrice: Number(e.target.value || 0) }))}
+                  min="0"
+                  step="1000"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Valid Until <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 border rounded-lg"
+                  value={editForm.validUntil}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, validUntil: e.target.value }))}
+                  required
+                />
+              </div>
+            </>
+          )}
         </div>
       </FormModal>
     </div>

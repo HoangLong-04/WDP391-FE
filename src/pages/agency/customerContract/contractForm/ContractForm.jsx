@@ -74,7 +74,7 @@ function ContractForm({
 
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Create Date <span className="text-red-500">*</span>
+          Sign Date
         </label>
         <input
           type="date"
@@ -82,25 +82,39 @@ function ContractForm({
           value={currentForm.signDate}
           onChange={handleChange}
           className={inputClasses}
-          required
         />
       </div>
 
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Total Amount <span className="text-red-500">*</span>
+          Delivery Date
         </label>
         <input
-          type="number"
-          name="finalPrice"
-          value={currentForm.finalPrice || 0}
+          type="date"
+          name="deliveryDate"
+          value={currentForm.deliveryDate}
           onChange={handleChange}
           className={inputClasses}
-          placeholder="Total value of the contract"
-          min={1}
-          required
         />
       </div>
+
+      {!isEdit && (
+        <div className="group">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Total Amount <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            name="finalPrice"
+            value={currentForm.finalPrice || 0}
+            onChange={handleChange}
+            className={inputClasses}
+            placeholder="Total value of the contract"
+            min={1}
+            required
+          />
+        </div>
+      )}
 
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -119,14 +133,14 @@ function ContractForm({
 
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Payment Type <span className="text-red-500">*</span>
+          Payment Type {!isEdit && <span className="text-red-500">*</span>}
         </label>
         <select
           name="contractPaidType"
           value={currentForm.contractPaidType || ""}
           onChange={handleChange}
           className={selectClasses}
-          required
+          required={!isEdit}
         >
           <option value="">-- Select Payment Type --</option>
           <option value="FULL">FULL</option>
@@ -134,42 +148,27 @@ function ContractForm({
         </select>
       </div>
 
-      <div className="group">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Contract Type <span className="text-red-500">*</span>
-        </label>
-        <select
-          name="contractType"
-          value={currentForm.contractType || ""}
-          onChange={handleChange}
-          className={selectClasses}
-          required
-        >
-          <option value="">-- Select Contract Type --</option>
-          <option value="AT_STORE">AT_STORE</option>
-          <option value="ORDER">ORDER</option>
-        </select>
-      </div>
-
-      <div className="group">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Status <span className="text-red-500">*</span>
-        </label>
-        <select
-          name="status"
-          value={currentForm.status || ""}
-          onChange={handleChange}
-          className={selectClasses}
-          required
-        >
-          <option value="">-- Select Status --</option>
-          <option value="PENDING">PENDING</option>
-          <option value="CONFIRMED">CONFIRMED</option>
-          <option value="PROCESSING">PROCESSING</option>
-          <option value="DELIVERED">DELIVERED</option>
-          <option value="COMPLETED">COMPLETED</option>
-        </select>
-      </div>
+      {!isEdit && (
+        <div className="group">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Status <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="status"
+            value={currentForm.status || ""}
+            onChange={handleChange}
+            className={selectClasses}
+            required
+          >
+            <option value="">-- Select Status --</option>
+            <option value="PENDING">PENDING</option>
+            <option value="CONFIRMED">CONFIRMED</option>
+            <option value="PROCESSING">PROCESSING</option>
+            <option value="COMPLETED">COMPLETED</option>
+            <option value="REJECTED">REJECTED</option>
+          </select>
+        </div>
+      )}
 
       {!isEdit && (
         <div className="group">
@@ -211,43 +210,47 @@ function ContractForm({
         </div>
       )}
 
-      <div className="group">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Electric Motorbike <span className="text-red-500">*</span>
-        </label>
-        <select
-          name="electricMotorbikeId"
-          value={currentForm.electricMotorbikeId || ""}
-          onChange={handleChange}
-          className={selectClasses}
-          required
-        >
-          <option value="">-- Select Motorbike --</option>
-          {motorbikeList.map((motor) => (
-            <option value={motor.id}>
-              {motor.name} - {motor.model}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!isEdit && (
+        <>
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Electric Motorbike <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="electricMotorbikeId"
+              value={currentForm.electricMotorbikeId || ""}
+              onChange={handleChange}
+              className={selectClasses}
+              required
+            >
+              <option value="">-- Select Motorbike --</option>
+              {motorbikeList.map((motor) => (
+                <option value={motor.id}>
+                  {motor.name} - {motor.model}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div className="group">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Color <span className="text-red-500">*</span>
-        </label>
-        <select
-          name="colorId"
-          value={currentForm.colorId || ""}
-          onChange={handleChange}
-          className={selectClasses}
-          required
-        >
-          <option value="">-- Select Color --</option>
-          {colorList.map((color) => (
-            <option value={color.id}>{color.colorType}</option>
-          ))}
-        </select>
-      </div>
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Color <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="colorId"
+              value={currentForm.colorId || ""}
+              onChange={handleChange}
+              className={selectClasses}
+              required
+            >
+              <option value="">-- Select Color --</option>
+              {colorList.map((color) => (
+                <option value={color.id}>{color.colorType}</option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
     </div>
   );
 }

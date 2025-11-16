@@ -142,6 +142,11 @@ const PrivateDealerManagerApi = {
   //credit-line
   getCreditLine: (agencyId) =>
     apiConfig.privateApi.get(`credit-line/agency/${agencyId}`),
+    apiConfig.privateApi.post(`email/customer/installment-schedule/${installmentContractId}`),
+
+  // Full Payment APIs
+  createContractFullPayment: (data) =>
+    apiConfig.privateApi.post("contract-full-payment", data),
 };
 
 export default PrivateDealerManagerApi;
