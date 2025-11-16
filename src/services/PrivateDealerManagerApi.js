@@ -130,6 +130,10 @@ const PrivateDealerManagerApi = {
     apiConfig.privateApi.post(`email/customer-contract/${customerContractId}`),
   sendInstallmentScheduleEmail: (installmentContractId) =>
     apiConfig.privateApi.post(`email/customer/installment-schedule/${installmentContractId}`),
+
+  // Full Payment APIs
+  createContractFullPayment: (data) =>
+    apiConfig.privateApi.post("contract-full-payment", data),
 };
 
 export default PrivateDealerManagerApi;
