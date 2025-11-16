@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 
 function DrivingTest() {
   const [agencyList, setAgencyList] = useState([]);
-  const [motorList, setMotorList] = useState([]);
+  // const [motorList, setMotorList] = useState([]);
 
   const [submit, setSubmit] = useState(false);
 
@@ -20,14 +20,14 @@ function DrivingTest() {
   });
 
   useEffect(() => {
-    const fetchMotor = async () => {
-      try {
-        const response = await PublicApi.getMotorList({ page: 1, limit: 100 });
-        setMotorList(response.data.data);
-      } catch (error) {
-        console.log(error);
-      }
-    };
+    // const fetchMotor = async () => {
+    //   try {
+    //     const response = await PublicApi.getMotorList({ page: 1, limit: 100 });
+    //     setMotorList(response.data.data);
+    //   } catch (error) {
+    //     console.log(error);
+    //   }
+    // };
     const fetchAgency = async () => {
       try {
         const response = await PublicApi.getAgencyListCustomer({
@@ -40,7 +40,7 @@ function DrivingTest() {
       }
     };
 
-    fetchAgency(), fetchMotor();
+    fetchAgency();
   }, []);
 
   const handleSubmitDrive = async (e) => {
@@ -71,7 +71,6 @@ function DrivingTest() {
       <TestDrive
         agencyList={agencyList}
         form={form}
-        motorList={motorList}
         setForm={setForm}
         submit={submit}
         handleSubmit={handleSubmitDrive}
