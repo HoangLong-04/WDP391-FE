@@ -567,7 +567,11 @@ function Catalogue() {
               {(() => {
                 const motor = motorDetail;
                 const name = motor?.name || `Motor #${motor?.id}`;
-                const bannerImg = motor?.images?.[0]?.imageUrl || motor?.images?.[0] || "";
+                const bannerImg =
+                  (hasStock && selectedDetail?.imageColor) ||
+                  motor?.images?.[0]?.imageUrl ||
+                  motor?.images?.[0] ||
+                  "";
                 const colorType = selectedDetail?.colorId
                   ? motor?.colors?.find((c) => String(c.color?.id) === String(selectedDetail.colorId))?.color?.colorType
                   : motor?.colors?.[0]?.color?.colorType;

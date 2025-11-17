@@ -18,6 +18,8 @@ const PrivateDealerManagerApi = {
 
   getStockList: (agencyId, params) =>
     apiConfig.privateApi.get(`agency-stock/list/${agencyId}`, { params }),
+  getStockListInfo: (agencyId, params) =>
+    apiConfig.privateApi.get(`agency-stock/list/info/${agencyId}`, { params }),
   getStockById: (id) => apiConfig.privateApi.get(`agency-stock/detail/${id}`),
   createStock: (data) => apiConfig.privateApi.post("agency-stock", data),
   updateStock: (id, data) =>
