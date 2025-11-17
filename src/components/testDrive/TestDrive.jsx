@@ -1,13 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import PublicApi from "../../services/PublicApi";
 
-function TestDrive({
-  form,
-  setForm,
-  motorList,
-  agencyList,
-  handleSubmit,
-  submit,
-}) {
+function TestDrive({ form, setForm, agencyList, handleSubmit, submit }) {
+  const [motorList, setMotorList] = useState([]);
+  const [loadingMotor, setLoadingMotor] = useState(false);
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -21,6 +17,32 @@ function TestDrive({
       [name]: processedValue,
     }));
   };
+
+  const handleAgencyChange = (e) => {
+    const agencyId = e.target.value;
+    setForm((prev) => ({ ...prev, agencyId, motorbikeId: "" }));
+  };
+
+  const fetchAvailableMotor = async () => {
+    setLoadingMotor(true);
+    try {
+      const response = await PublicApi.getMotorListDriveTrial(form.agencyId);
+      setMotorList(response.data.data);
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setLoadingMotor(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!form.agencyId) {
+      setMotorList([]);
+      return;
+    }
+    fetchAvailableMotor();
+  }, [form.agencyId]);
+
   const inputStyle = "border-1 border-[rgb(196,196,196)] w-full p-2";
   return (
     <div className="py-5 px-12 rounded-sm shadow-xl/30">
@@ -48,20 +70,21 @@ function TestDrive({
             required
           />
         </div>
+
         <div>
           <select
             className="border-1 border-[rgb(196,196,196)] w-full p-3"
-            name="motorbikeId"
-            value={form.motorbikeId || ""}
-            onChange={handleChange}
+            name="agencyId"
+            value={form.agencyId || ""}
+            onChange={handleAgencyChange}
             required
           >
             <option value="" disabled>
-              -- Choose Motorbike Type --
+              -- Select Location / Agency --
             </option>
-            {motorList.map((bike) => (
-              <option key={bike.id} value={bike.id}>
-                {bike.name} - {bike.model}
+            {agencyList.map((agency) => (
+              <option key={agency.id} value={agency.id}>
+                {agency.name} - {agency.location}
               </option>
             ))}
           </select>
@@ -114,24 +137,34 @@ function TestDrive({
             required
           />
         </div>
-        <div>
+        {!form.agencyId ? (
+          <div className="text-gray-500 italic">
+            Please choose an agency first
+          </div>
+        ) : loadingMotor ? (
+          <div className="text-blue-600">Loading motorbikes...</div>
+        ) : motorList.length === 0 ? (
+          <div className="text-red-500">
+            No motorbikes available for this agency
+          </div>
+        ) : (
           <select
             className="border-1 border-[rgb(196,196,196)] w-full p-3"
-            name="agencyId"
-            value={form.agencyId || ""}
+            name="motorbikeId"
+            value={form.motorbikeId || ""}
             onChange={handleChange}
             required
           >
             <option value="" disabled>
-              -- Select Location / Agency --
+              -- Choose Motorbike Type --
             </option>
-            {agencyList.map((agency) => (
-              <option key={agency.id} value={agency.id}>
-                {agency.name} - {agency.location}
+            {motorList.map((bike) => (
+              <option key={bike.id} value={bike.id}>
+                {bike.name}
               </option>
             ))}
           </select>
-        </div>
+        )}
       </form>
 
       <div className="flex justify-center items-center">

@@ -21,7 +21,7 @@ import useColorList from "../../../hooks/useColorList";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
-import { Pencil, Trash2, Plus, CreditCard, CheckCircle, Mail, Edit } from "lucide-react";
+import { Pencil, Trash2, Plus, CreditCard, CheckCircle, Mail, Edit, XCircle, Loader2, Wallet } from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
 import BaseModal from "../../../components/modal/baseModal/BaseModal";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -95,6 +95,15 @@ function CustomerContract() {
   const [sendingContractEmail, setSendingContractEmail] = useState(false);
   const [sendingInstallmentEmail, setSendingInstallmentEmail] = useState(false);
   const [generatingInterestPayments, setGeneratingInterestPayments] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState(null);
+  const [fullPaymentModal, setFullPaymentModal] = useState(false);
+  const [fullPaymentForm, setFullPaymentForm] = useState({
+    period: 1,
+    amount: 0,
+    customerContractId: "",
+  });
+  const [creatingFullPayment, setCreatingFullPayment] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -265,6 +274,7 @@ function CustomerContract() {
       customerId: Number(form.customerId),
       electricMotorbikeId: Number(form.electricMotorbikeId),
       staffId: Number(form.staffId),
+      status: form.status || "PENDING", // Default to PENDING if not specified
     };
     try {
       await PrivateDealerManagerApi.createCustomerContract(sendData);
@@ -297,15 +307,72 @@ function CustomerContract() {
     setSubmit(true);
     e.preventDefault();
     try {
+      // Fetch current contract detail to get accurate status
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      
+      let currentContract = null;
+      try {
+        const res = await api.getCustomerContractDetail(selectedId);
+        currentContract = res.data?.data;
+      } catch (err) {
+        // Fallback to finding in allContracts if detail fetch fails
+        currentContract = allContracts.find(c => c.id === Number(selectedId));
+      }
+      
+      // Only allow updating: title, content, signDate, deliveryDate, contractPaidType
+      const updateData = {};
+      
+      // Only include fields that have values
+      if (updateForm.title !== undefined && updateForm.title !== null && updateForm.title !== "") {
+        updateData.title = updateForm.title;
+      }
+      if (updateForm.content !== undefined && updateForm.content !== null) {
+        updateData.content = updateForm.content;
+      }
+      if (updateForm.signDate) {
+        updateData.signDate = new Date(updateForm.signDate).toISOString();
+      }
+      if (updateForm.deliveryDate) {
+        updateData.deliveryDate = new Date(updateForm.deliveryDate).toISOString();
+      }
+      if (updateForm.contractPaidType) {
+        updateData.contractPaidType = updateForm.contractPaidType;
+      }
+      
+      // Auto-transition: REJECTED -> PENDING after editing (to allow accept again)
+      if (currentContract?.status === "REJECTED") {
+        updateData.status = "PENDING";
+        toast.info("Status automatically changed to PENDING after editing. You can now accept the contract again.");
+      }
+      
+      // Auto-transition: CONFIRMED -> PROCESSING when signDate is updated
+      if (currentContract?.status === "CONFIRMED" && updateData.signDate) {
+        // If signDate is provided and contract is CONFIRMED, auto-transition to PROCESSING
+        updateData.status = "PROCESSING";
+        toast.info("Status automatically changed to PROCESSING after updating sign date");
+      }
+      
       await PrivateDealerManagerApi.updateCustomerContract(
         selectedId,
-        updateForm
+        updateData
       );
-      toast.success("Update successfully");
+      
+      // Only show success message if update was successful
+      if (updateData.status === "CONFIRMED") {
+        toast.success("Contract confirmed successfully");
+      } else {
+        toast.success("Update successfully");
+      }
+      
       setFormModal(false);
       fetchCustomerContractList();
     } catch (error) {
-      toast.error(error.message);
+      // Show full error message from backend
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+      console.error("Update contract error:", error);
+      console.error("Error response:", error.response?.data);
+      toast.error(errorMessage || "Failed to update contract");
     } finally {
       setSubmit(false);
     }
@@ -399,9 +466,6 @@ function CustomerContract() {
     // First check in local map
     const existingInstallmentId = installmentContractMap[contract.id];
     if (existingInstallmentId) {
-      toast.warning(
-        "This contract already has an installment contract. Please view it instead."
-      );
       handleViewInstallmentContract(existingInstallmentId);
       return;
     }
@@ -415,9 +479,6 @@ function CustomerContract() {
       const installmentContract = res.data?.data;
 
       if (installmentContract?.id) {
-        toast.warning(
-          "This contract already has an installment contract. Please view it instead."
-        );
         setInstallmentContractMap((prev) => ({
           ...prev,
           [contract.id]: installmentContract.id,
@@ -489,9 +550,6 @@ function CustomerContract() {
         const existingInstallment = res.data?.data;
 
         if (existingInstallment?.id) {
-          toast.warning(
-            "This contract already has an installment contract. Please view it instead."
-          );
           setInstallmentContractMap((prev) => ({
             ...prev,
             [installmentContractForm.customerContractId]:
@@ -548,20 +606,7 @@ function CustomerContract() {
           [installmentContractForm.customerContractId]: installmentContractId,
         }));
 
-        // Generate payment schedules after creating contract
-        try {
-          await PrivateDealerManagerApi.generateInstallmentPayments(
-            installmentContractId
-          );
-          toast.success(
-            "Installment contract created and payment schedules generated successfully"
-          );
-        } catch (generateError) {
-          console.error("Error generating payment schedules:", generateError);
-          toast.warning(
-            "Contract created but failed to generate payment schedules. Please try again later."
-          );
-        }
+        toast.success("Installment contract created successfully");
       } else {
         toast.success("Create installment contract successfully");
       }
@@ -569,6 +614,11 @@ function CustomerContract() {
 
       // Refresh the list to update UI
       await fetchCustomerContractList();
+      
+      // Redirect to detail page after creating
+      if (installmentContractId) {
+        handleViewInstallmentContract(installmentContractId);
+      }
 
       // Double check by fetching contract detail to ensure map is updated
       try {
@@ -606,9 +656,6 @@ function CustomerContract() {
         errorMessage.includes("unique constraint") ||
         errorMessage.includes("customerContractId")
       ) {
-        toast.warning(
-          "This contract already has an installment contract. Fetching details..."
-        );
         setInstallmentContractModal(false);
 
         // Try to fetch the existing installment contract using the dedicated API
@@ -653,7 +700,8 @@ function CustomerContract() {
       const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
         installmentContractId
       );
-      setInstallmentContractDetail(res.data?.data || null);
+      const detail = res.data?.data || null;
+      setInstallmentContractDetail(detail);
     } catch (error) {
       toast.error(
         error.message || "Failed to load installment contract detail"
@@ -669,11 +717,33 @@ function CustomerContract() {
     try {
       await PrivateDealerManagerApi.generateInterestPayments(installmentContractId);
       toast.success("Interest payments generated successfully");
-      // Refresh the detail to show the generated interest payments
-      const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
-        installmentContractId
-      );
-      setInstallmentContractDetail(res.data?.data || null);
+      
+      // Immediately refresh the detail to get updated data
+      try {
+        const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
+          installmentContractId
+        );
+        const updatedDetail = res.data?.data || null;
+        // Update detail - this will automatically hide the button if interestPayments exist
+        setInstallmentContractDetail(updatedDetail);
+        
+        // If still no interestPayments after refresh, try again after a short delay
+        if (!updatedDetail?.interestPayments || updatedDetail.interestPayments.length === 0) {
+          setTimeout(async () => {
+            try {
+              const retryRes = await PrivateDealerManagerApi.getInstallmentContractDetail(
+                installmentContractId
+              );
+              const retryDetail = retryRes.data?.data || null;
+              setInstallmentContractDetail(retryDetail);
+            } catch (retryError) {
+              console.error("Error retrying refresh after generate:", retryError);
+            }
+          }, 1000);
+        }
+      } catch (refreshError) {
+        console.error("Error refreshing detail after generate:", refreshError);
+      }
     } catch (error) {
       toast.error(
         error.response?.data?.message || error.message || "Failed to generate interest payments"
@@ -775,6 +845,57 @@ function CustomerContract() {
     }
   };
 
+  const handleUpdateContractStatus = async (contractId, newStatus) => {
+    setUpdatingStatus(true);
+    setUpdatingStatusId(contractId);
+    try {
+      const isDealerStaff = user?.roles?.includes("Dealer Staff");
+      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      
+      // Only update status, don't update signDate automatically
+      // signDate will be updated separately when customer signs
+      const updateData = { status: newStatus };
+      
+      await api.updateCustomerContract(contractId, updateData);
+      toast.success(`Contract status updated to ${newStatus}`);
+      
+      // Close detail modal after updating status
+      setIsDetailModalOpen(false);
+      setContractDetail(null);
+      
+      fetchCustomerContractList();
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to update contract status");
+    } finally {
+      setUpdatingStatus(false);
+      setUpdatingStatusId(null);
+    }
+  };
+
+  const handleCreateFullPayment = async (e) => {
+    e.preventDefault();
+    setCreatingFullPayment(true);
+    try {
+      await PrivateDealerManagerApi.createContractFullPayment({
+        period: Number(fullPaymentForm.period),
+        amount: Number(fullPaymentForm.amount),
+        customerContractId: Number(fullPaymentForm.customerContractId),
+      });
+      toast.success("Create payment period for contract full success");
+      setFullPaymentModal(false);
+      setFullPaymentForm({
+        period: 1,
+        amount: 0,
+        customerContractId: "",
+      });
+      fetchCustomerContractList();
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to create full payment");
+    } finally {
+      setCreatingFullPayment(false);
+    }
+  };
+
   const getNestedValue = (obj, path) => {
     if (!obj || !path) return null;
     return path
@@ -813,7 +934,7 @@ function CustomerContract() {
       title: "Delivery Date",
       render: (date) => (date ? dayjs.utc(date).format("DD/MM/YYYY") : "-"),
     },
-    { key: "contractPaidType", title: "Contract Paid Type" },
+    { key: "contractPaidType", title: "Payment Type" },
     {
       key: "status",
       title: "Status",
@@ -824,7 +945,10 @@ function CustomerContract() {
   const actions = [
     {
       type: "edit",
-      label: "Installment Contract",
+      label: (item) => {
+        const installmentContractId = installmentContractMap[item.id];
+        return installmentContractId ? "View" : "Installment Contract";
+      },
       icon: CreditCard,
       onClick: (item) => {
         console.log("Installment Contract button clicked for item:", item);
@@ -840,9 +964,8 @@ function CustomerContract() {
       },
       show: (item) => {
         const isDealerStaff = user?.roles?.includes("Dealer Staff");
-        // Allow creating installment contract for DEBT contracts with status PENDING, CONFIRMED, or PROCESSING
-        const allowedStatuses = ["PENDING", "CONFIRMED", "PROCESSING"];
-        const hasAllowedStatus = allowedStatuses.includes(item.status);
+        // Allow creating installment contract for DEBT contracts with status COMPLETED only
+        const hasAllowedStatus = item.status === "COMPLETED";
         const isDebtType = item.contractPaidType === "DEBT";
         const canShowInstallmentButton = hasAllowedStatus && isDebtType;
         const shouldShow = canShowInstallmentButton && !isDealerStaff;
@@ -855,7 +978,7 @@ function CustomerContract() {
             contractPaidType: item.contractPaidType,
             isDebtType,
             isDealerStaff,
-            reason: !hasAllowedStatus ? `Status "${item.status}" not in allowed list` 
+            reason: !hasAllowedStatus ? `Status "${item.status}" must be COMPLETED` 
                    : !isDebtType ? `Contract type is "${item.contractPaidType}", not DEBT`
                    : isDealerStaff ? "User is Dealer Staff"
                    : "Unknown reason"
@@ -876,11 +999,40 @@ function CustomerContract() {
         setSelectedId(item.id);
         setFormModal(true);
         setUpdateForm({
-          ...item,
-          signDate: dayjs(item.signDate).format("YYYY-MM-DD"),
+          title: item.title || "",
+          content: item.content || "",
+          signDate: item.signDate ? dayjs(item.signDate).format("YYYY-MM-DD") : "",
+          deliveryDate: item.deliveryDate ? dayjs(item.deliveryDate).format("YYYY-MM-DD") : "",
+          contractPaidType: item.contractPaidType || "",
         });
       },
-      show: (item) => !user?.roles?.includes("Dealer Staff"),
+      show: (item) => {
+        // Allow edit for REJECTED and CONFIRMED status
+        return item.status === "REJECTED" || item.status === "CONFIRMED";
+      },
+    },
+    {
+      type: "edit",
+      label: "Mark as COMPLETED",
+      icon: CheckCircle,
+      onClick: (item) => {
+        handleUpdateContractStatus(item.id, "COMPLETED");
+      },
+      show: (item) => item.status === "PROCESSING",
+    },
+    {
+      type: "edit",
+      label: "Create Payment",
+      icon: Wallet,
+      onClick: (item) => {
+        setFullPaymentForm({
+          period: 1,
+          amount: item.finalPrice || 0,
+          customerContractId: item.id,
+        });
+        setFullPaymentModal(true);
+      },
+      show: (item) => item.status === "COMPLETED" && item.contractPaidType === "FULL",
     },
     {
       type: "delete",
@@ -949,8 +1101,8 @@ function CustomerContract() {
             <option value="PENDING">PENDING</option>
             <option value="CONFIRMED">CONFIRMED</option>
             <option value="PROCESSING">PROCESSING</option>
-            <option value="DELIVERED">DELIVERED</option>
             <option value="COMPLETED">COMPLETED</option>
+            <option value="REJECTED">REJECTED</option>
           </select>
         </div>
         <div>
@@ -1235,7 +1387,7 @@ function CustomerContract() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">
-                    Contract Paid Type
+                    Payment Type
                   </p>
                   <p className="font-medium text-gray-800">
                     {contractDetail.contractPaidType || "-"}
@@ -1369,6 +1521,75 @@ function CustomerContract() {
                 </div>
               </div>
             </div>
+
+            {/* Action buttons for status transitions */}
+            {contractDetail.status === "PENDING" && (
+              <div className="flex gap-4 justify-end pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    handleUpdateContractStatus(contractDetail.id, "REJECTED");
+                  }}
+                  disabled={updatingStatus && updatingStatusId === contractDetail.id}
+                  className="px-6 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {updatingStatus && updatingStatusId === contractDetail.id ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Đang xử lý...</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle size={18} />
+                      <span>REJECT</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    handleUpdateContractStatus(contractDetail.id, "CONFIRMED");
+                  }}
+                  disabled={updatingStatus && updatingStatusId === contractDetail.id}
+                  className="px-6 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {updatingStatus && updatingStatusId === contractDetail.id ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Đang xử lý...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={18} />
+                      <span>CONFIRM</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {contractDetail.status === "CONFIRMED" && (
+              <div className="flex gap-4 justify-end pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setIsDetailModalOpen(false);
+                    setIsedit(true);
+                    setSelectedId(contractDetail.id);
+                    setFormModal(true);
+                    setUpdateForm({
+                      title: contractDetail.title || "",
+                      content: contractDetail.content || "",
+                      signDate: contractDetail.signDate ? dayjs(contractDetail.signDate).format("YYYY-MM-DD") : "",
+                      deliveryDate: contractDetail.deliveryDate ? dayjs(contractDetail.deliveryDate).format("YYYY-MM-DD") : "",
+                      contractPaidType: contractDetail.contractPaidType || "",
+                    });
+                  }}
+                  className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-2"
+                >
+                  <Pencil size={18} />
+                  <span>Edit</span>
+                </button>
+              </div>
+            )}
+
           </div>
         ) : (
           <div className="text-center py-12 text-gray-500">
@@ -1402,14 +1623,22 @@ function CustomerContract() {
                 </div>
                 <div className="flex items-center gap-3">
                   {renderStatusTag(installmentContractDetail.status)}
-                  <button
-                    onClick={() => handleGenerateInterestPayments(installmentContractDetail.id)}
-                    disabled={generatingInterestPayments}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Generate interest payments"
-                  >
-                    {generatingInterestPayments ? "Generating..." : "Generate Interest Payments"}
-                  </button>
+                  {/* Only show Generate button if installment payments don't exist */}
+                  {(!installmentContractDetail.installmentPayments || 
+                    !Array.isArray(installmentContractDetail.installmentPayments) ||
+                    installmentContractDetail.installmentPayments.length === 0) &&
+                   (!installmentContractDetail.interestPayments || 
+                    !Array.isArray(installmentContractDetail.interestPayments) ||
+                    installmentContractDetail.interestPayments.length === 0) ? (
+                    <button
+                      onClick={() => handleGenerateInterestPayments(installmentContractDetail.id)}
+                      disabled={generatingInterestPayments}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Generate interest payments"
+                    >
+                      {generatingInterestPayments ? "Generating..." : "Generate Interest Payments"}
+                    </button>
+                  ) : null}
                   <button
                     onClick={() => handleSendInstallmentScheduleEmail(installmentContractDetail.id)}
                     disabled={sendingInstallmentEmail}
@@ -1825,6 +2054,65 @@ function CustomerContract() {
           form={installmentPaymentForm}
           setForm={setInstallmentPaymentForm}
         />
+      </FormModal>
+
+      <FormModal
+        isOpen={fullPaymentModal}
+        onClose={() => {
+          setFullPaymentModal(false);
+          setFullPaymentForm({
+            period: 1,
+            amount: 0,
+            customerContractId: "",
+          });
+        }}
+        title="Create Full Payment"
+        isDelete={false}
+        isSubmitting={creatingFullPayment}
+        onSubmit={handleCreateFullPayment}
+        isCreate={true}
+      >
+        <div className="space-y-3">
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Period <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              name="period"
+              value={fullPaymentForm.period}
+              onChange={(e) =>
+                setFullPaymentForm({
+                  ...fullPaymentForm,
+                  period: e.target.value ? Number(e.target.value) : 1,
+                })
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
+              min={1}
+              required
+            />
+          </div>
+
+          <div className="group">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Amount <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              name="amount"
+              value={fullPaymentForm.amount}
+              onChange={(e) =>
+                setFullPaymentForm({
+                  ...fullPaymentForm,
+                  amount: e.target.value ? Number(e.target.value) : 0,
+                })
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400"
+              min={0}
+              required
+            />
+          </div>
+        </div>
       </FormModal>
     </div>
   );

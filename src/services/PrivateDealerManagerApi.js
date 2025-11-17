@@ -113,13 +113,19 @@ const PrivateDealerManagerApi = {
   getTotalRevenue: (agencyId) =>
     apiConfig.privateApi.get(`dashboard/total/revenue/${agencyId}`),
   getCustomerContractChart: (agencyId, params) =>
-    apiConfig.privateApi.get(`dashboard/chart/customer-contract/${agencyId}`, { params }),
+    apiConfig.privateApi.get(`dashboard/chart/customer-contract/${agencyId}`, {
+      params,
+    }),
   getStaffRevenueList: (agencyId, params) =>
-    apiConfig.privateApi.get(`dashboard/list/staff/revenue/${agencyId}`, { params }),
+    apiConfig.privateApi.get(`dashboard/list/staff/revenue/${agencyId}`, {
+      params,
+    }),
 
   // AP Batch APIs
   getApBatchList: (agencyId, params) =>
-    apiConfig.privateApi.get(`batches-management/list/agency/${agencyId}`, { params }),
+    apiConfig.privateApi.get(`batches-management/list/agency/${agencyId}`, {
+      params,
+    }),
   getApBatchDetail: (batchId) =>
     apiConfig.privateApi.get(`batches-management/detail/${batchId}`),
   payApBatch: (platform, data) =>
@@ -129,7 +135,17 @@ const PrivateDealerManagerApi = {
   sendCustomerContractEmail: (customerContractId) =>
     apiConfig.privateApi.post(`email/customer-contract/${customerContractId}`),
   sendInstallmentScheduleEmail: (installmentContractId) =>
-    apiConfig.privateApi.post(`email/customer/installment-schedule/${installmentContractId}`),
+    apiConfig.privateApi.post(
+      `email/customer/installment-schedule/${installmentContractId}`
+    ),
+
+  //credit-line
+  getCreditLine: (agencyId) =>
+    apiConfig.privateApi.get(`credit-line/agency/${agencyId}`),
+
+  // Full Payment APIs
+  createContractFullPayment: (data) =>
+    apiConfig.privateApi.post("contract-full-payment", data),
 };
 
 export default PrivateDealerManagerApi;

@@ -5,6 +5,7 @@ import Contract from "./contract/Contract";
 import { Loader2 } from "lucide-react";
 import ContractCustomerModal from "../../../components/modal/contractModal/ContractCustomerModal";
 import { useSearchParams } from "react-router";
+import FullPeriodModal from "../../../components/modal/periodModal/FullPeriodModal";
 
 function ContractForCustomer() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -13,9 +14,12 @@ function ContractForCustomer() {
   const initialAgencyId = searchParams.get("agencyId") || "";
   const [credentialId, setCredentialId] = useState("");
   const [agencyId, setAgencyId] = useState("");
+  const [sort, setSort] = useState("newest");
+
   const [agencyList, setAgencyList] = useState([]);
   const [contractList, setContractList] = useState([]);
   const [contractDetail, setContractDetail] = useState({});
+  const [periodFull, setPeriodFull] = useState([]);
 
   const [page, setPage] = useState(1);
   const [limit] = useState(1);
@@ -25,6 +29,7 @@ function ContractForCustomer() {
   const [viewLoading, setViewLoading] = useState(false);
 
   const [open, setOpen] = useState(false);
+  const [viewPeriod, setViewPeriod] = useState(false);
 
   useEffect(() => {
     const fetchAgencyList = async () => {
@@ -50,7 +55,7 @@ function ContractForCustomer() {
         const response = await PublicApi.getCustomerContract(
           initialCredentialId,
           initialAgencyId,
-          { page, limit }
+          { page, limit, sort }
         );
         setContractList(response.data.data);
         setTotalItems(response.data.paginationInfo.total);
@@ -61,7 +66,7 @@ function ContractForCustomer() {
       }
     };
     fetchContracts();
-  }, [initialCredentialId, initialAgencyId, page, limit]);
+  }, [initialCredentialId, initialAgencyId, page, limit, sort]);
 
   const handleGetContract = async () => {
     setLoading(true);
@@ -98,15 +103,12 @@ function ContractForCustomer() {
     }
   };
 
-  const handleMakeFullPayment = async (id) => {
+  const handleGetPeriodFullPayment = async (id) => {
     try {
-      const response = await PublicApi.payFullContract("web", {
-        customerContractId: id,
-      });
-      toast.success("Request payment success");
-      window.location.href = response.data.data.paymentUrl;
+      const response = await PublicApi.getContractFullPayment(id);
+      setPeriodFull(response.data.data);
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.response.data.message);
     }
   };
 
@@ -136,7 +138,7 @@ function ContractForCustomer() {
 
         {/* Search Form */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Credential ID */}
             <div className="flex flex-col">
               <label className="text-sm font-medium text-gray-700">
@@ -157,7 +159,7 @@ function ContractForCustomer() {
                 Agency
               </label>
               <select
-                value={agencyId}
+                value={agencyId || initialAgencyId}
                 onChange={(e) => setAgencyId(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:ring-2 focus:ring-blue-400 focus:outline-none"
               >
@@ -170,6 +172,21 @@ function ContractForCustomer() {
                     {a.name}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700">Sort</label>
+              <select
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                  setPage(1);
+                }}
+                className="border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
               </select>
             </div>
           </div>
@@ -196,7 +213,7 @@ function ContractForCustomer() {
           ) : contractList.length > 0 ? (
             contractList.map((c) => (
               <Contract
-              contractId={c.id}
+                contractId={c.id}
                 agencyId={c.agencyId}
                 colorId={c.colorId}
                 content={c.content}
@@ -217,8 +234,9 @@ function ContractForCustomer() {
                 onViewDetail={() =>
                   handleGetContractDetail(c.installmentContract.id)
                 }
+                onGetPeriod={() => handleGetPeriodFullPayment(c.id)}
+                viewPeriod={() => setViewPeriod(true)}
                 loading={viewLoading}
-                onPay={() => handleMakeFullPayment(c.id)}
               />
             ))
           ) : (
@@ -258,6 +276,12 @@ function ContractForCustomer() {
         loading={viewLoading}
         onClose={() => setOpen(false)}
         title={"Contract"}
+      />
+
+      <FullPeriodModal
+        onClose={() => setViewPeriod(false)}
+        open={viewPeriod}
+        periods={periodFull}
       />
     </div>
   );

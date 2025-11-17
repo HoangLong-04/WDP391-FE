@@ -33,6 +33,20 @@ function DataTable({
                   .filter((action) => !action.show || action.show(item))
                   .map((action, idx) => {
                     const Icon = action.icon || Eye;
+                    const labelText = typeof action.label === 'function' 
+                      ? action.label(item) 
+                      : action.label || action.type;
+                    // Determine button color based on label text
+                    const isViewButton = labelText === "View";
+                    const buttonColorClass = isViewButton
+                      ? "bg-blue-500 hover:bg-blue-600"
+                      : action.type === "view"
+                      ? "bg-blue-500 hover:bg-blue-600"
+                      : action.type === "edit"
+                      ? "bg-green-500 hover:bg-green-600"
+                      : action.type === "delete"
+                      ? "bg-red-500 hover:bg-red-600"
+                      : "bg-gray-500 hover:bg-gray-600";
                     return (
                       <button
                         key={idx}
@@ -40,16 +54,8 @@ function DataTable({
                           e.stopPropagation();
                           action.onClick && action.onClick(item);
                         }}
-                        className={`cursor-pointer text-white p-2 rounded-lg hover:opacity-90 transition-colors flex items-center justify-center ${
-                          action.type === "view"
-                            ? "bg-blue-500 hover:bg-blue-600"
-                            : action.type === "edit"
-                            ? "bg-green-500 hover:bg-green-600"
-                            : action.type === "delete"
-                            ? "bg-red-500 hover:bg-red-600"
-                            : "bg-gray-500 hover:bg-gray-600"
-                        }`}
-                        title={action.label || action.type}
+                        className={`cursor-pointer text-white p-2 rounded-lg hover:opacity-90 transition-colors flex items-center justify-center ${buttonColorClass}`}
+                        title={labelText}
                       >
                         <Icon size={18} />
                       </button>
