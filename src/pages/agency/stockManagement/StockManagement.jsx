@@ -58,6 +58,8 @@ function StockManagement() {
   // For update form: available order items with same motorbike and color
   const [availableOrderItemsForUpdate, setAvailableOrderItemsForUpdate] = useState([])
   const [selectedOrderItemIdsForUpdate, setSelectedOrderItemIdsForUpdate] = useState([]) // Array of selected order item IDs
+  // Track order items that have been used (added to stock) - these should never appear again
+  const [usedOrderItemIds, setUsedOrderItemIds] = useState(new Set())
 
   const fetchDeliveredOrderItems = useCallback(async () => {
     if (!user?.agencyId) return
@@ -106,12 +108,18 @@ function StockManagement() {
         }
       }
       
-      // Filter out items that already have stock created
+      // Filter out items that already have stock created OR have been used before
       // Check if stock exists for each item's motorbikeId and colorId
-      // Only show items that don't have stock yet (hide items that already have stock)
+      // Also check if order item has been used before (added to stock)
+      // Only show items that don't have stock yet AND haven't been used before
       const filteredOrders = normalizedOrders.map(order => ({
         ...order,
         items: order.items.filter(item => {
+          // Check if this order item has been used before (added to stock)
+          const hasBeenUsed = usedOrderItemIds.has(String(item.orderItemId))
+          if (hasBeenUsed) {
+            return false // Hide items that have been used
+          }
           // Check if stock already exists for this motorbike and color
           const hasStock = stockList.some(
             (s) => 
@@ -130,7 +138,7 @@ function StockManagement() {
     } finally {
       setLoadingDelivered(false)
     }
-  }, [user?.agencyId, stockList])
+  }, [user?.agencyId, stockList, usedOrderItemIds])
 
   // Fetch available order items for update (same motorbike and color)
   const fetchAvailableOrderItemsForUpdate = useCallback(async (motorbikeId, colorId) => {
@@ -193,12 +201,17 @@ function StockManagement() {
         }
       }
       
-      setAvailableOrderItemsForUpdate(allItems)
+      // Filter out items that have been used before
+      const filteredItems = allItems.filter(item => {
+        return !usedOrderItemIds.has(String(item.orderItemId))
+      })
+      
+      setAvailableOrderItemsForUpdate(filteredItems)
     } catch (error) {
       console.error("Error fetching available order items:", error)
       setAvailableOrderItemsForUpdate([])
     }
-  }, [user?.agencyId])
+  }, [user?.agencyId, usedOrderItemIds])
   const [isEdit, setIsEdit] = useState(false)
 
   // Track if motorList has been fetched to avoid duplicate fetches
@@ -316,7 +329,7 @@ function StockManagement() {
           quantity: newQuantity,
           price: form.price || existingStock.price, // Use new price if provided, otherwise keep existing
         });
-        toast.success(`Stock updated successfully. Quantity: ${existingStock.quantity} + ${form.quantity} = ${newQuantity}`);
+        toast.success('Stock quantity updated successfully');
       } else {
         // Create new stock
         await PrivateDealerManagerApi.createStock(form);
@@ -330,12 +343,17 @@ function StockManagement() {
         motorbikeId: "",
         colorId: "",
       });
+      // Mark the selected order item as used (so it won't appear again)
+      if (selectedOrderItemId) {
+        setUsedOrderItemIds(prev => new Set([...prev, String(selectedOrderItemId)]));
+      }
+      
       setSelectedDeliveredOrderId(""); // Reset delivered order selection
       setSelectedOrderItemId(""); // Reset order item selection
       
       // Refetch stock list after create/update
       await fetchAllStock();
-      // Refetch delivered orders to update the list (hide items that now have stock)
+      // Refetch delivered orders to update the list (hide items that now have stock or have been used)
       fetchDeliveredOrderItems();
       
       setFormModal(false);
@@ -394,18 +412,23 @@ function StockManagement() {
         quantity: newQuantity,
       })
       
-      if (additionalQuantity > 0) {
-        toast.success(`Stock updated successfully. Added ${additionalQuantity} from ${selectedOrderItemIdsForUpdate.length} order item(s). New quantity: ${newQuantity}`)
-      } else {
-        toast.success('Update successfully')
+      // Mark the selected order items as used (so they won't appear again)
+      if (selectedOrderItemIdsForUpdate.length > 0) {
+        setUsedOrderItemIds(prev => {
+          const newSet = new Set(prev);
+          selectedOrderItemIdsForUpdate.forEach(id => newSet.add(String(id)));
+          return newSet;
+        });
       }
+      
+      toast.success('Stock quantity updated successfully')
       
       setFormModal(false)
       setSelectedOrderItemIdsForUpdate([])
       setAvailableOrderItemsForUpdate([])
       // Refetch stock list after update
       await fetchAllStock()
-      // Refetch delivered orders to update the list
+      // Refetch delivered orders to update the list (hide items that have been used)
       fetchDeliveredOrderItems()
     } catch (error) {
       toast.error(error.message)
