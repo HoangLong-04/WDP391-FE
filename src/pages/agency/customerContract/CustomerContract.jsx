@@ -466,9 +466,6 @@ function CustomerContract() {
     // First check in local map
     const existingInstallmentId = installmentContractMap[contract.id];
     if (existingInstallmentId) {
-      toast.warning(
-        "This contract already has an installment contract. Please view it instead."
-      );
       handleViewInstallmentContract(existingInstallmentId);
       return;
     }
@@ -482,9 +479,6 @@ function CustomerContract() {
       const installmentContract = res.data?.data;
 
       if (installmentContract?.id) {
-        toast.warning(
-          "This contract already has an installment contract. Please view it instead."
-        );
         setInstallmentContractMap((prev) => ({
           ...prev,
           [contract.id]: installmentContract.id,
@@ -556,9 +550,6 @@ function CustomerContract() {
         const existingInstallment = res.data?.data;
 
         if (existingInstallment?.id) {
-          toast.warning(
-            "This contract already has an installment contract. Please view it instead."
-          );
           setInstallmentContractMap((prev) => ({
             ...prev,
             [installmentContractForm.customerContractId]:
@@ -615,20 +606,7 @@ function CustomerContract() {
           [installmentContractForm.customerContractId]: installmentContractId,
         }));
 
-        // Generate payment schedules after creating contract
-        try {
-          await PrivateDealerManagerApi.generateInstallmentPayments(
-            installmentContractId
-          );
-          toast.success(
-            "Installment contract created and payment schedules generated successfully"
-          );
-        } catch (generateError) {
-          console.error("Error generating payment schedules:", generateError);
-          toast.warning(
-            "Contract created but failed to generate payment schedules. Please try again later."
-          );
-        }
+        toast.success("Installment contract created successfully");
       } else {
         toast.success("Create installment contract successfully");
       }
@@ -636,6 +614,11 @@ function CustomerContract() {
 
       // Refresh the list to update UI
       await fetchCustomerContractList();
+      
+      // Redirect to detail page after creating
+      if (installmentContractId) {
+        handleViewInstallmentContract(installmentContractId);
+      }
 
       // Double check by fetching contract detail to ensure map is updated
       try {
@@ -673,9 +656,6 @@ function CustomerContract() {
         errorMessage.includes("unique constraint") ||
         errorMessage.includes("customerContractId")
       ) {
-        toast.warning(
-          "This contract already has an installment contract. Fetching details..."
-        );
         setInstallmentContractModal(false);
 
         // Try to fetch the existing installment contract using the dedicated API
@@ -720,7 +700,8 @@ function CustomerContract() {
       const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
         installmentContractId
       );
-      setInstallmentContractDetail(res.data?.data || null);
+      const detail = res.data?.data || null;
+      setInstallmentContractDetail(detail);
     } catch (error) {
       toast.error(
         error.message || "Failed to load installment contract detail"
@@ -736,11 +717,33 @@ function CustomerContract() {
     try {
       await PrivateDealerManagerApi.generateInterestPayments(installmentContractId);
       toast.success("Interest payments generated successfully");
-      // Refresh the detail to show the generated interest payments
-      const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
-        installmentContractId
-      );
-      setInstallmentContractDetail(res.data?.data || null);
+      
+      // Immediately refresh the detail to get updated data
+      try {
+        const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
+          installmentContractId
+        );
+        const updatedDetail = res.data?.data || null;
+        // Update detail - this will automatically hide the button if interestPayments exist
+        setInstallmentContractDetail(updatedDetail);
+        
+        // If still no interestPayments after refresh, try again after a short delay
+        if (!updatedDetail?.interestPayments || updatedDetail.interestPayments.length === 0) {
+          setTimeout(async () => {
+            try {
+              const retryRes = await PrivateDealerManagerApi.getInstallmentContractDetail(
+                installmentContractId
+              );
+              const retryDetail = retryRes.data?.data || null;
+              setInstallmentContractDetail(retryDetail);
+            } catch (retryError) {
+              console.error("Error retrying refresh after generate:", retryError);
+            }
+          }, 1000);
+        }
+      } catch (refreshError) {
+        console.error("Error refreshing detail after generate:", refreshError);
+      }
     } catch (error) {
       toast.error(
         error.response?.data?.message || error.message || "Failed to generate interest payments"
@@ -942,7 +945,10 @@ function CustomerContract() {
   const actions = [
     {
       type: "edit",
-      label: "Installment Contract",
+      label: (item) => {
+        const installmentContractId = installmentContractMap[item.id];
+        return installmentContractId ? "View" : "Installment Contract";
+      },
       icon: CreditCard,
       onClick: (item) => {
         console.log("Installment Contract button clicked for item:", item);
@@ -958,9 +964,8 @@ function CustomerContract() {
       },
       show: (item) => {
         const isDealerStaff = user?.roles?.includes("Dealer Staff");
-        // Allow creating installment contract for DEBT contracts with status PENDING, CONFIRMED, or PROCESSING
-        const allowedStatuses = ["PENDING", "CONFIRMED", "PROCESSING"];
-        const hasAllowedStatus = allowedStatuses.includes(item.status);
+        // Allow creating installment contract for DEBT contracts with status COMPLETED only
+        const hasAllowedStatus = item.status === "COMPLETED";
         const isDebtType = item.contractPaidType === "DEBT";
         const canShowInstallmentButton = hasAllowedStatus && isDebtType;
         const shouldShow = canShowInstallmentButton && !isDealerStaff;
@@ -973,7 +978,7 @@ function CustomerContract() {
             contractPaidType: item.contractPaidType,
             isDebtType,
             isDealerStaff,
-            reason: !hasAllowedStatus ? `Status "${item.status}" not in allowed list` 
+            reason: !hasAllowedStatus ? `Status "${item.status}" must be COMPLETED` 
                    : !isDebtType ? `Contract type is "${item.contractPaidType}", not DEBT`
                    : isDealerStaff ? "User is Dealer Staff"
                    : "Unknown reason"
@@ -1618,14 +1623,22 @@ function CustomerContract() {
                 </div>
                 <div className="flex items-center gap-3">
                   {renderStatusTag(installmentContractDetail.status)}
-                  <button
-                    onClick={() => handleGenerateInterestPayments(installmentContractDetail.id)}
-                    disabled={generatingInterestPayments}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Generate interest payments"
-                  >
-                    {generatingInterestPayments ? "Generating..." : "Generate Interest Payments"}
-                  </button>
+                  {/* Only show Generate button if installment payments don't exist */}
+                  {(!installmentContractDetail.installmentPayments || 
+                    !Array.isArray(installmentContractDetail.installmentPayments) ||
+                    installmentContractDetail.installmentPayments.length === 0) &&
+                   (!installmentContractDetail.interestPayments || 
+                    !Array.isArray(installmentContractDetail.interestPayments) ||
+                    installmentContractDetail.interestPayments.length === 0) ? (
+                    <button
+                      onClick={() => handleGenerateInterestPayments(installmentContractDetail.id)}
+                      disabled={generatingInterestPayments}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Generate interest payments"
+                    >
+                      {generatingInterestPayments ? "Generating..." : "Generate Interest Payments"}
+                    </button>
+                  ) : null}
                   <button
                     onClick={() => handleSendInstallmentScheduleEmail(installmentContractDetail.id)}
                     disabled={sendingInstallmentEmail}
