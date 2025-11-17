@@ -7,6 +7,12 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.patch(`drive-trial/${id}`, data),
   getStockList: (agencyId, params) =>
     apiConfig.privateApi.get(`agency-stock/list/${agencyId}`, { params }),
+  getStockListInfo: (agencyId, params) =>
+    apiConfig.privateApi.get(`agency-stock/list/info/${agencyId}`, { params }),
+  getNotAvailableStockList: (agencyId, params) =>
+    apiConfig.privateApi.get(`agency-stock/not-available/${agencyId}`, {
+      params,
+    }),
   getStockById: (id) => apiConfig.privateApi.get(`agency-stock/detail/${id}`),
   createQuotation: (data) => apiConfig.privateApi.post("quotation", data),
   getQuotationList: (agencyId, params) =>
