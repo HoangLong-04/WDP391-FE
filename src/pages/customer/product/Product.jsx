@@ -12,7 +12,8 @@ function Product() {
   const [page, setPage] = useState(1);
   const [limit] = useState(6);
   const [model, setModel] = useState("");
-  const [makeForm, setMakeForm] = useState("");
+  const [makeFrom, setmakeFrom] = useState("");
+  const [sort, setSort] = useState("newest");
   const [totalItem, setTotalItem] = useState(0);
 
   const [loading, setLoading] = useState(false);
@@ -23,8 +24,9 @@ function Product() {
       const response = await PublicApi.getMotorList({
         page,
         limit,
-        makeForm,
+        makeFrom,
         model,
+        sort,
       });
       setMotorList(response.data.data);
       setTotalItem(response.data.paginationInfo.total);
@@ -53,7 +55,7 @@ function Product() {
   useEffect(() => {
     fetchMotorList();
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [page, makeForm, model, limit]);
+  }, [page, makeFrom, model, limit, sort]);
 
   const TOTAL_PAGE = Math.ceil(totalItem / limit);
 
@@ -61,13 +63,15 @@ function Product() {
     <div>
       <header className="p-10">
         <ProductHeader
-          makeFrom={makeForm}
+          makeFrom={makeFrom}
           makeList={makeList}
           model={model}
           modelList={modelList}
-          setMakeFrom={setMakeForm}
+          setMakeFrom={setmakeFrom}
           setModel={setModel}
           setPage={setPage}
+          setSort={setSort}
+          sort={sort}
         />
       </header>
       <main className="container mx-auto px-4 py-8">
@@ -87,6 +91,11 @@ function Product() {
                 price={m.price}
               />
             ))}
+          </div>
+        )}
+        {motorList.length === 0 && (
+          <div className="text-gray-400 flex justify-center">
+            No motorbike found
           </div>
         )}
         {TOTAL_PAGE > 1 && (

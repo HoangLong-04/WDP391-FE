@@ -341,11 +341,28 @@ function SharedSidebar() {
   };
 
   return (
-    <div
-      className={`bg-black flex flex-col items-start h-[100dvh] py-6 shadow-lg relative transition-all duration-300 ${
-        isCollapse ? "w-[80px] px-2" : "w-[250px] px-4"
-      }`}
-    >
+    <>
+      <style>{`
+        /* Custom scrollbar for sidebar */
+        nav::-webkit-scrollbar {
+          width: 6px;
+        }
+        nav::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        nav::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 3px;
+        }
+        nav::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+      `}</style>
+      <div
+        className={`bg-black flex flex-col items-start h-[100dvh] py-6 shadow-lg relative transition-all duration-300 ${
+          isCollapse ? "w-[80px] px-2" : "w-[250px] px-4"
+        }`}
+      >
       {/* Header */}
       <div
         className={`mb-6 flex items-center ${
@@ -370,7 +387,13 @@ function SharedSidebar() {
       </div>
 
       {/* Scrollable Menu */}
-      <nav className={`flex flex-col gap-3 w-full overflow-y-auto pr-1 flex-1`}>
+      <nav 
+        className={`flex flex-col gap-3 w-full overflow-y-auto pr-1 flex-1`}
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(255, 255, 255, 0.2) transparent',
+        }}
+      >
         {navItems.map((item) =>
           item.children ? (
             <div key={item.label} className="w-full">
@@ -424,6 +447,7 @@ function SharedSidebar() {
         )}
       </button>
     </div>
+    </>
   );
 }
 
