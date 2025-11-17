@@ -8,6 +8,8 @@ function ProductHeader({
   makeFrom,
   setMakeFrom,
   setPage,
+  sort,
+  setSort,
 }) {
   return (
     <div>
@@ -46,6 +48,21 @@ function ProductHeader({
               {makeList?.map((m) => (
                 <option value={m.makeFrom}>{m.makeFrom}</option>
               ))}
+            </select>
+          </div>
+          <div className="flex gap-2 items-center">
+            <label>Sort</label>
+            <select
+              className="bg-[rgb(242,246,255)] border-none py-2 px-5 rounded-lg"
+              name="sort"
+              value={sort}
+              onChange={(e) => {
+                setSort(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
             </select>
           </div>
         </div>
