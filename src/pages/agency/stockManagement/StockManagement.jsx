@@ -241,11 +241,11 @@ function StockManagement() {
 
   const fetchAllStock = useCallback(async () => {
     if (!user?.agencyId || isFetchingStockRef.current) return;
-    
+
     isFetchingStockRef.current = true;
     setLoading(true);
     try {
-      const response = await PrivateDealerManagerApi.getStockList(
+      const response = await PrivateDealerManagerApi.getStockListInfo(
         user.agencyId,
         {
           page,
@@ -254,8 +254,9 @@ function StockManagement() {
           motorbikeId: motorbikeId || undefined,
         }
       );
-      setStockList(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      const stocks = response.data?.data || [];
+      setStockList(stocks);
+      setTotalItem(response.data?.paginationInfo?.total || stocks.length);
     } catch (error) {
       toast.error(error.message);
     } finally {
