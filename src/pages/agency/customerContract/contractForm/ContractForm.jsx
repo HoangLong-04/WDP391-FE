@@ -72,18 +72,20 @@ function ContractForm({
         />
       </div>
 
-      <div className="group">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Sign Date
-        </label>
-        <input
-          type="date"
-          name="signDate"
-          value={currentForm.signDate}
-          onChange={handleChange}
-          className={inputClasses}
-        />
-      </div>
+      {isEdit && (
+        <div className="group">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Sign Date
+          </label>
+          <input
+            type="date"
+            name="signDate"
+            value={currentForm.signDate}
+            onChange={handleChange}
+            className={inputClasses}
+          />
+        </div>
+      )}
 
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -116,20 +118,22 @@ function ContractForm({
         </div>
       )}
 
-      <div className="group">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Deposit Amount
-        </label>
-        <input
-          type="number"
-          name="depositAmount"
-          value={currentForm.depositAmount || 0}
-          onChange={handleChange}
-          className={inputClasses}
-          placeholder="Amount deposited by the customer"
-          min={0}
-        />
-      </div>
+      {!isEdit && (
+        <div className="group">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Deposit Amount
+          </label>
+          <input
+            type="number"
+            name="depositAmount"
+            value={currentForm.depositAmount || 0}
+            onChange={handleChange}
+            className={inputClasses}
+            placeholder="Amount deposited by the customer"
+            min={0}
+          />
+        </div>
+      )}
 
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">

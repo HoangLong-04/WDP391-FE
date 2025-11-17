@@ -366,7 +366,7 @@ function QuotationManagement() {
         title: `Contract for ${detail.customer?.name || "customer"}`,
         content: `Contract created from quotation #${detail.id}`,
         finalPrice: detail.finalPrice || 0,
-        signDate: dayjs().format("YYYY-MM-DD"),
+        signDate: "", // Will be set automatically when creating contract
         contractPaidType: contractPaidType,
       });
       setIsContractModalOpen(true);
@@ -1450,16 +1450,6 @@ function QuotationManagement() {
               value={contractForm.finalPrice}
               readOnly
               disabled
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Sign Date *</label>
-            <input
-              type="date"
-              className="w-full px-3 py-2 border rounded-lg"
-              value={contractForm.signDate}
-              onChange={(e) => setContractForm((prev) => ({ ...prev, signDate: e.target.value }))}
-              required
             />
           </div>
           <div>
