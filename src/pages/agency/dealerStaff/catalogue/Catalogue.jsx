@@ -53,36 +53,118 @@ function Catalogue() {
   const [loadedTabs, setLoadedTabs] = useState(new Set()); // Track which tabs have been loaded
   const [loadingInStock, setLoadingInStock] = useState(false);
   const [loadingOutOfStock, setLoadingOutOfStock] = useState(false);
+  const [notAvailableMotors, setNotAvailableMotors] = useState([]);
+
+  const updateMotorList = useCallback((incomingMotors = []) => {
+    if (!incomingMotors.length) return;
+    setMotorList((prev) => {
+      const prevArray = Array.isArray(prev) ? prev : [];
+      const map = new Map(prevArray.map((motor) => [motor.id, motor]));
+      incomingMotors.forEach((motor) => {
+        if (!motor || !motor.id) return;
+        const existing = map.get(motor.id);
+        if (existing) {
+          map.set(motor.id, {
+            ...existing,
+            ...motor,
+            images:
+              motor.images && motor.images.length > 0
+                ? motor.images
+                : existing.images,
+            colors:
+              motor.colors && motor.colors.length > 0
+                ? motor.colors
+                : existing.colors,
+          });
+        } else {
+          map.set(motor.id, motor);
+        }
+      });
+      return Array.from(map.values());
+    });
+  }, []);
 
   // Fetch data for "In Stock" tab - load stocks and motorList (needed for mapping)
   const fetchInStockData = useCallback(async () => {
     if (!user?.agencyId || loadedTabs.has("inStock")) return;
-    
+
     setLoadingInStock(true);
     try {
-      // Load stocks and motorList (motorList needed to map stocks to motors)
-        const [stockRes, motorRes] = await Promise.all([
-          PrivateDealerStaffApi.getStockList(user.agencyId, { page: 1, limit: 100 }),
-        motorList.length === 0 ? PublicApi.getMotorList({ page: 1, limit: 200 }) : Promise.resolve({ data: { data: motorList } }),
-        ]);
-        const stocksData = stockRes.data?.data || [];
-        const motorsData = motorRes.data?.data || [];
-      
-      // Only set stocks with quantity > 0 for "In Stock" tab
-      const stocksWithQuantity = stocksData.filter(s => s.price != null && s.price > 0 && (s.quantity || 0) > 0);
+      const stockRes = await PrivateDealerStaffApi.getStockListInfo(
+        user.agencyId,
+        { page: 1, limit: 100 }
+      );
+      const stocksData = stockRes.data?.data || [];
+
+      const normalizedStocks = stocksData.map((stock) => {
+        const color =
+          stock.color ||
+          (stock.colorId || stock.colorType
+            ? { id: stock.colorId, colorType: stock.colorType }
+            : null);
+
+        const motorFromApi =
+          stock.motorbike || {
+            id: stock.motorbikeId,
+            name: stock.name,
+            description: stock.description,
+            model: stock.model,
+            makeFrom: stock.makeFrom,
+            version: stock.version,
+            price:
+              stock.motorbikePrice ??
+              stock.basePrice ??
+              stock.price ??
+              (stock.motorbike ? stock.motorbike.price : 0),
+            images:
+              stock.images && stock.images.length > 0
+                ? stock.images
+                : stock.imageUrl
+                ? [stock.imageUrl]
+                : [],
+            isDeleted: stock.isDeleted,
+          };
+
+        const colors =
+          motorFromApi.colors && motorFromApi.colors.length > 0
+            ? motorFromApi.colors
+            : color
+            ? [
+                {
+                  colorId: color.id,
+                  color,
+                },
+              ]
+            : [];
+
+        return {
+          ...stock,
+          stockId: stock.id,
+          color,
+          motorbikeId: stock.motorbikeId || motorFromApi.id,
+          motor: { ...motorFromApi, colors },
+        };
+      });
+
+      const stocksWithQuantity = normalizedStocks.filter(
+        (s) => s.price != null && s.price > 0 && (s.quantity || 0) > 0
+      );
       setStocks(stocksWithQuantity);
-      
-      // Only set motorList if it's empty (to avoid overwriting)
-      if (motorList.length === 0) {
-        setMotorList(motorsData);
-      }
-      
-      // Create a map to identify which motors have stock
-      const motorIdsWithStock = new Set(stocksWithQuantity.map(s => s.motorbikeId).filter(Boolean));
+
+      const motorsFromStocks = normalizedStocks
+        .map((stock) => stock.motor)
+        .filter((motor) => motor && motor.id);
+      updateMotorList(motorsFromStocks);
+
+      const motorIdsWithStock = new Set(
+        stocksWithQuantity.map((s) => s.motorbikeId).filter(Boolean)
+      );
       const detailsMap = new Map(motorDetailsMap);
-        
-        // Fetch details for motors with stock (limit concurrent requests)
-      const stockFetchPromises = Array.from(motorIdsWithStock).slice(0, 20).map(async (motorId) => {
+
+      const stockFetchPromises = Array.from(motorIdsWithStock)
+        .filter((motorId) => !detailsMap.has(motorId))
+        .slice(0, 20)
+        .map(async (motorId) => {
           try {
             const detailRes = await PublicApi.getMotorDetailForUser(motorId);
             const detail = detailRes.data?.data || detailRes.data;
@@ -93,86 +175,69 @@ function Catalogue() {
             console.error(`Error fetching motor detail for ${motorId}:`, error);
           }
         });
-        
+
       await Promise.all(stockFetchPromises);
-        setMotorDetailsMap(detailsMap);
-      setLoadedTabs(prev => new Set([...prev, "inStock"]));
-      } catch (error) {
-        toast.error(error.message);
-      } finally {
+      setMotorDetailsMap(detailsMap);
+      setLoadedTabs((prev) => new Set([...prev, "inStock"]));
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
       setLoadingInStock(false);
     }
-  }, [user?.agencyId, loadedTabs, motorDetailsMap, motorList]);
+  }, [user?.agencyId, loadedTabs, motorDetailsMap, updateMotorList]);
 
   // Fetch data for "Out of Stock" tab - only load motorList
   const fetchOutOfStockData = useCallback(async () => {
-    if (loadedTabs.has("outOfStock")) return;
-    
+    if (!user?.agencyId || loadedTabs.has("outOfStock")) return;
+
     setLoadingOutOfStock(true);
     try {
-      // Load all stocks to check which motors have quantity > 0
-      const [motorRes, stockRes] = await Promise.all([
-        motorList.length === 0 ? PublicApi.getMotorList({ page: 1, limit: 200 }) : Promise.resolve({ data: { data: motorList } }),
-        user?.agencyId ? PrivateDealerStaffApi.getStockList(user.agencyId, { page: 1, limit: 100 }) : Promise.resolve({ data: { data: [] } }),
-      ]);
-      const motorsData = motorRes.data?.data || [];
-      const allStocksData = stockRes.data?.data || [];
-      
-      // Only set motorList if it's empty
-      if (motorList.length === 0) {
-        setMotorList(motorsData);
-      }
-      
-      // Get motor IDs that have stock with quantity > 0 (exclude these from out of stock)
-      const motorIdsWithStockQuantity = new Set(
-        allStocksData
-          .filter(s => s.motorbikeId && s.price != null && s.price > 0 && (s.quantity || 0) > 0)
-          .map(s => s.motorbikeId)
+      const res = await PrivateDealerStaffApi.getNotAvailableStockList(
+        user.agencyId,
+        { page: 1, limit: 200 }
       );
-      
-      // Store stocks with quantity = 0 for out of stock tab
-      const stocksWithZeroQuantity = allStocksData.filter(
-        s => s.motorbikeId && s.price != null && s.price > 0 && (s.quantity || 0) === 0
-      );
-      
-      // Fetch details for motors WITHOUT stock (or with quantity = 0) to get full color information
-      const motorsWithoutStockIds = motorsData
-        .filter(m => !m.isDeleted && !motorIdsWithStockQuantity.has(m.id))
-        .map(m => m.id)
-        .slice(0, 50); // Limit to 50 to avoid too many requests
-      
+      const motorsData = res.data?.data || [];
+
+      const normalizedMotors = motorsData.map((motor) => ({
+        ...motor,
+        images:
+          motor.images && motor.images.length > 0
+            ? motor.images
+            : motor.imageUrl
+            ? [motor.imageUrl]
+            : [],
+        colors: motor.colors || [],
+      }));
+
+      setNotAvailableMotors(normalizedMotors);
+      updateMotorList(normalizedMotors);
+
       const detailsMap = new Map(motorDetailsMap);
-      const outOfStockFetchPromises = motorsWithoutStockIds.map(async (motorId) => {
-        try {
-          const detailRes = await PublicApi.getMotorDetailForUser(motorId);
-          const detail = detailRes.data?.data || detailRes.data;
-          if (detail && detail.colors) {
-            detailsMap.set(motorId, detail);
+      const outOfStockFetchPromises = normalizedMotors
+        .map((motor) => motor.id)
+        .filter((motorId) => motorId && !detailsMap.has(motorId))
+        .slice(0, 50)
+        .map(async (motorId) => {
+          try {
+            const detailRes = await PublicApi.getMotorDetailForUser(motorId);
+            const detail = detailRes.data?.data || detailRes.data;
+            if (detail && detail.colors) {
+              detailsMap.set(motorId, detail);
+            }
+          } catch (error) {
+            console.error(`Error fetching motor detail for ${motorId}:`, error);
           }
-        } catch (error) {
-          console.error(`Error fetching motor detail for ${motorId}:`, error);
-        }
-      });
-      
+        });
+
       await Promise.all(outOfStockFetchPromises);
       setMotorDetailsMap(detailsMap);
-      
-      // Store stocks with zero quantity separately for rendering (merge with existing)
-      setStocks(prevStocks => {
-        // Get existing stock IDs (only quantity > 0 from "In Stock" tab)
-        const existingStockIds = new Set(prevStocks.map(s => s.stockId || s.id));
-        // Add zero quantity stocks
-        const newZeroQuantityStocks = stocksWithZeroQuantity.filter(s => !existingStockIds.has(s.stockId || s.id));
-        return [...prevStocks, ...newZeroQuantityStocks];
-      });
-      
-      setLoadedTabs(prev => new Set([...prev, "outOfStock"]));
+      setLoadedTabs((prev) => new Set([...prev, "outOfStock"]));
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoadingOutOfStock(false);
     }
-  }, [loadedTabs, motorDetailsMap, user?.agencyId, motorList]);
+  }, [loadedTabs, motorDetailsMap, user?.agencyId, updateMotorList]);
 
   // Load data when tab changes
   useEffect(() => {
@@ -324,47 +389,20 @@ function Catalogue() {
       .filter(Boolean); // Remove null entries
   }, [stocks, motorIdToMotor]);
 
-  // Tab "Out of Stock": get all from motorList + stocks with quantity = 0
+  // Tab "Out of Stock": use API data
   const motorsWithoutStock = useMemo(() => {
-    // Get motor IDs that have stock with quantity > 0 (exclude these from out of stock)
-    const motorIdsWithStockQuantity = new Set(
-      stocks
-        .filter(s => s.motorbikeId && s.price != null && s.price > 0 && (s.quantity || 0) > 0)
-        .map(s => s.motorbikeId)
-    );
-    
-    // Get motors from motorList that don't have stock with quantity > 0
-    const motorsFromList = motorList
-      .filter((motor) => !motor.isDeleted && !motorIdsWithStockQuantity.has(motor.id))
-      .map((motor) => {
-        return { motor, stockInfo: null, hasStock: false };
-      });
-    
-    // Get stocks with quantity = 0 (these should be in out of stock tab)
-    const stocksWithZeroQuantity = stocks
-      .filter((stock) => {
-        const motorId = stock.motorbikeId;
-        if (!motorId) return false;
-        const motor = motorIdToMotor.get(motorId);
-        // Include if motor exists, has valid price, but quantity = 0
-        return motor && !motor.isDeleted && stock.price != null && stock.price > 0 && (stock.quantity || 0) === 0;
-      })
-      .map((stock) => {
-        const motor = motorIdToMotor.get(stock.motorbikeId);
-        if (!motor) return null;
-        return { motor, stockInfo: stock, hasStock: false }; // hasStock = false because quantity = 0
-      })
-      .filter(Boolean);
-    
-    // Combine and remove duplicates by motor.id
-    const combined = [...motorsFromList, ...stocksWithZeroQuantity];
+    if (!notAvailableMotors || notAvailableMotors.length === 0) return [];
     const seen = new Set();
-    return combined.filter(({ motor }) => {
-      if (seen.has(motor.id)) return false;
-      seen.add(motor.id);
-      return true;
-    });
-  }, [motorList, stocks, motorIdToMotor]);
+    return notAvailableMotors
+      .filter((motor) => motor && !motor.isDeleted)
+      .map((motor) => ({ motor, stockInfo: null, hasStock: false }))
+      .filter(({ motor }) => {
+        if (!motor?.id) return false;
+        if (seen.has(motor.id)) return false;
+        seen.add(motor.id);
+        return true;
+      });
+  }, [notAvailableMotors]);
 
   const renderMotorCard = ({ motor, stockInfo, hasStock }) => {
     const name = motor?.name || `Motor #${motor.id}`;
@@ -529,7 +567,11 @@ function Catalogue() {
               {(() => {
                 const motor = motorDetail;
                 const name = motor?.name || `Motor #${motor?.id}`;
-                const bannerImg = motor?.images?.[0]?.imageUrl || motor?.images?.[0] || "";
+                const bannerImg =
+                  (hasStock && selectedDetail?.imageColor) ||
+                  motor?.images?.[0]?.imageUrl ||
+                  motor?.images?.[0] ||
+                  "";
                 const colorType = selectedDetail?.colorId
                   ? motor?.colors?.find((c) => String(c.color?.id) === String(selectedDetail.colorId))?.color?.colorType
                   : motor?.colors?.[0]?.color?.colorType;

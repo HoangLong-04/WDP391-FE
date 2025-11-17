@@ -6,12 +6,12 @@ const BASE_URL = import.meta.env.VITE_BASE_API_URL;
 
 const publicApi = axios.create({
   baseURL: BASE_URL,
-  headers: { "Content-Type": "application/json" },
-  // withCredentials: true,
+  withCredentials: true,
 });
 
 const privateApi = axios.create({
   baseURL: BASE_URL,
+  withCredentials: true,
 });
 
 privateApi.interceptors.request.use(
@@ -63,7 +63,7 @@ privateApi.interceptors.response.use(
       originalRequest._retry = true;
       try {
         const tokenResponse = await PublicApi.getNewToken();
-        const newAccessToken = tokenResponse.data.accessToken;
+        const newAccessToken = tokenResponse.data.data.accessToken;
 
         sessionStorage.setItem("accessToken", newAccessToken);
 
@@ -79,7 +79,7 @@ privateApi.interceptors.response.use(
         // Nếu refresh token hết hạn hoặc invalid
         sessionStorage.removeItem("user");
         sessionStorage.removeItem("accessToken");
-        // window.location.href = "/login";
+        window.location.href = "/login";
         console.error("Refresh token error:", refreshError);
         return Promise.reject(refreshError);
       }
