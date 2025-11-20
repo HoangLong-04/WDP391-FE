@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import useDealerStaffList from "../../../hooks/useDealerStaffList";
 import useCustomerList from "../../../hooks/useCustomerList";
@@ -44,14 +44,19 @@ function CustomerContract() {
   const [status, setStatus] = useState("");
   const [contractType, setContractType] = useState("");
   const [totalItem, setTotalItem] = useState(0);
+  const isFetchingRef = useRef(false);
+  const staffIdInitializedRef = useRef(false);
 
-  // Auto-set staffId for Dealer Staff
+  // Auto-set staffId for Dealer Staff (only once when user is available)
   useEffect(() => {
     const isDealerStaff = user?.roles?.includes("Dealer Staff");
-    if (isDealerStaff && user?.id) {
-      setStaffId(String(user.id));
+    if (isDealerStaff && user?.id && !staffIdInitializedRef.current) {
+      const userIdString = String(user.id);
+      setStaffId(userIdString);
+      staffIdInitializedRef.current = true;
     }
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.roles]);
 
   const [loading, setLoading] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
@@ -150,60 +155,52 @@ function CustomerContract() {
 
   const fetchCustomerContractList = useCallback(async () => {
     if (!user?.agencyId) return;
+
+    // Prevent multiple simultaneous calls
+    if (isFetchingRef.current) {
+      return;
+    }
+
+    isFetchingRef.current = true;
     setLoading(true);
     try {
       const isDealerStaff = user?.roles?.includes("Dealer Staff");
       const api = isDealerStaff
         ? PrivateDealerStaffApi
         : PrivateDealerManagerApi;
-      
-      // Fetch all contracts with pagination
-      let allContractsData = [];
-      let currentPage = 1;
-      const pageSize = 100;
-      let hasMore = true;
 
-      // Fetch all pages
-      while (hasMore) {
-        const response = await api.getCustomerContractList(user.agencyId, {
-          page: currentPage,
-          limit: pageSize,
-          staffId,
-          customerId,
-          status,
-          contractType,
-        });
-        const contracts = response.data.data || [];
-        allContractsData = [...allContractsData, ...contracts];
-        
-        const totalItems = response.data.paginationInfo?.total || 0;
-        hasMore = allContractsData.length < totalItems;
-        currentPage++;
-      }
-
-      // Sort by newest first (by id - higher id = newer, or by createdAt if available)
-      allContractsData.sort((a, b) => {
-        // Try createdAt first, then id (higher id = newer), then signDate
-        if (a.createdAt && b.createdAt) {
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        }
-        if (a.createAt && b.createAt) {
-          return new Date(b.createAt) - new Date(a.createAt);
-        }
-        if (a.id && b.id) {
-          return b.id - a.id; // Higher id = newer
-        }
-        const dateA = new Date(a.signDate || 0);
-        const dateB = new Date(b.signDate || 0);
-        return dateB - dateA;
+      // Fetch current page only with limit = 5
+      const response = await api.getCustomerContractList(user.agencyId, {
+        page: page,
+        limit: limit,
+        staffId,
+        customerId,
+        status,
+        contractType,
       });
 
-      setAllContracts(allContractsData);
-      setTotalItem(allContractsData.length);
+      const contracts = response.data.data || [];
+      const paginationInfo = response.data.paginationInfo || {};
+
+      // Update state with current page data
+      setAllContracts(contracts);
+
+      // Update totalItem from paginationInfo
+      // This MUST reflect the total number of items matching the current filters
+      // If API returns wrong total (unfiltered), that's a backend issue
+      const totalFromApi = paginationInfo.total;
+      if (totalFromApi !== undefined && totalFromApi !== null && !isNaN(totalFromApi)) {
+        const totalValue = Math.max(0, Number(totalFromApi));
+        setTotalItem(totalValue);
+      } else {
+        // If paginationInfo.total is missing or invalid, set to 0
+        // This will hide pagination until API returns correct value
+        setTotalItem(0);
+      }
 
       // Check for installment contracts for DEBT contracts (only check contracts not already in map)
       setInstallmentContractMap((prev) => {
-        const contractsToCheck = allContractsData.filter(
+        const contractsToCheck = contracts.filter(
           (contract) =>
             contract.contractPaidType === "DEBT" &&
             contract.status === "PENDING" &&
@@ -246,24 +243,27 @@ function CustomerContract() {
       toast.error(error.message);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [user?.agencyId, staffId, customerId, status, contractType]);
+  }, [user?.agencyId, staffId, customerId, status, contractType, page, limit]);
 
-  // Paginate the sorted list in frontend
-  const customerContractList = useMemo(() => {
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    return allContracts.slice(startIndex, endIndex);
-  }, [allContracts, page, limit]);
+  // Use contracts directly from API (already paginated)
+  const customerContractList = allContracts;
+
+  // Calculate total pages from totalItem
+  const totalPage = Math.ceil(totalItem / limit);
 
   // Reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
   }, [staffId, customerId, status, contractType]);
 
+  // Fetch data when filters, page, limit, or user changes
   useEffect(() => {
-    fetchCustomerContractList();
-  }, [fetchCustomerContractList]);
+    if (user?.agencyId) {
+      fetchCustomerContractList();
+    }
+  }, [user?.agencyId, staffId, customerId, status, contractType, page, limit]);
 
   const handleCreateCustomerContract = async (e) => {
     setSubmit(true);
