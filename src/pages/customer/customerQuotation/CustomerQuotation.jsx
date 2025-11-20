@@ -27,6 +27,7 @@ function CustomerQuotation() {
   const [agencyId, setAgencyId] = useState("");
   const [status, setStatus] = useState("");
   const [type, setType] = useState("");
+  const [sort, setSort] = useState("newest");
 
   useEffect(() => {
     const fetchAgencyList = async () => {
@@ -55,6 +56,7 @@ function CustomerQuotation() {
           status,
           quoteCode,
           agencyId,
+          sort,
         });
         setQuotationList(response.data.data);
         setTotalItems(response.data.paginationInfo.total);
@@ -64,7 +66,16 @@ function CustomerQuotation() {
     };
 
     fecthQuotation();
-  }, [page, limit, type, status, quoteCode, agencyId, initialCredentialId]);
+  }, [
+    page,
+    limit,
+    type,
+    status,
+    quoteCode,
+    agencyId,
+    initialCredentialId,
+    sort,
+  ]);
 
   const handleGetQuotationList = async () => {
     setLoading(true);
@@ -74,6 +85,7 @@ function CustomerQuotation() {
       return;
     }
     setSearchParams({ credentialId });
+    setPage(1);
     try {
       const response = await PublicApi.getQuotationList(credentialId, {
         page,
@@ -82,6 +94,7 @@ function CustomerQuotation() {
         status,
         quoteCode,
         agencyId,
+        sort
       });
       setQuotationList(response.data.data);
       setTotalItems(response.data.paginationInfo.total);
@@ -97,6 +110,9 @@ function CustomerQuotation() {
     try {
       const response = await PublicApi.getDeposit(id);
       setDeposit(response.data.data);
+      if (response.data.data === null) {
+        toast.warning("No deposit found!");
+      }
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -133,7 +149,7 @@ function CustomerQuotation() {
             {/* Credential ID */}
             <div className="flex flex-col">
               <label className="text-sm font-medium text-gray-700">
-                Credential ID
+                Credential ID <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -174,7 +190,7 @@ function CustomerQuotation() {
                 onChange={(e) => setStatus(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:ring-2 focus:ring-blue-400 focus:outline-none"
               >
-                <option value="">Select status</option>
+                <option value="">All</option>
                 {statusList.map((t) => (
                   <option value={t}>{t}</option>
                 ))}
@@ -187,7 +203,7 @@ function CustomerQuotation() {
                 onChange={(e) => setType(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:ring-2 focus:ring-blue-400 focus:outline-none"
               >
-                <option value="">Select type</option>
+                <option value="">All</option>
                 {typeList.map((t) => (
                   <option value={t}>{t}</option>
                 ))}
@@ -205,15 +221,33 @@ function CustomerQuotation() {
                 placeholder="Enter quote code..."
               />
             </div>
-            <div className="flex justify-end items-end">
-              <button
-                onClick={handleGetQuotationList}
-                disabled={loading}
-                className="flex items-center gap-2 cursor-pointer bg-blue-600 text-white px-5 py-2 h-fit rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                Search
-              </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-700">
+                  Sort
+                </label>
+                <select
+                  value={sort}
+                  onChange={(e) => {
+                    setSort(e.target.value);
+                    setPage(1);
+                  }}
+                  className="border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                </select>
+              </div>
+              <div className="flex justify-end items-end">
+                <button
+                  onClick={handleGetQuotationList}
+                  disabled={loading}
+                  className="flex items-center gap-2 cursor-pointer bg-blue-600 text-white px-5 py-2 h-fit rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
+                >
+                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Search
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ function InventoryForm({
   isEdit,
   setUpdateForm,
   updateForm,
+  colorList,
 }) {
   return (
     <div className="space-y-3">
@@ -76,6 +77,26 @@ function InventoryForm({
           {warehouseList.map((w) => (
             <option key={w.id} value={w.id}>
               {w.name} - {w.location} - {w.address}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="group">
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Color <span className="text-red-500">*</span>
+        </label>
+        <select
+          disabled={isEdit}
+          value={isEdit ? updateForm.colorId : form.colorId}
+          onChange={(e) => setForm({ ...form, colorId: e.target.value })}
+          className={`w-full ${
+            isEdit && "bg-gray-500"
+          } px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer appearance-none`}
+        >
+          <option disabled>Select color</option>
+          {colorList.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.colorType}
             </option>
           ))}
         </select>
