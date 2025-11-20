@@ -91,38 +91,50 @@ function QuotationManagement() {
       }
 
       try {
-        const checkResults = await Promise.all(
-          quotationList.map(async (quotation) => {
-            try {
-              const res = await PrivateDealerStaffApi.getCustomerContractList(
-                user.agencyId,
-                { page: 1, limit: 1, quotationId: quotation.id }
-              );
-              const contracts = res.data?.data || [];
-              return {
-                id: quotation.id,
-                hasContract: contracts.some(
-                  (contract) => contract.quotationId === quotation.id
-                ),
-              };
-            } catch (error) {
-              console.error(
-                `Failed to check contracts for quotation #${quotation.id}:`,
-                error
-              );
-              return { id: quotation.id, hasContract: false };
+        // Fetch all contracts for the agency (without showing anything)
+        // Use pagination to get all contracts if needed
+        let allContracts = [];
+        let currentPage = 1;
+        let hasMore = true;
+        const limitPerPage = 100; // Fetch in batches
+        
+        while (hasMore) {
+          try {
+            const res = await PrivateDealerStaffApi.getCustomerContractList(
+              user.agencyId,
+              { page: currentPage, limit: limitPerPage }
+            );
+            const contracts = res.data?.data || [];
+            const paginationInfo = res.data?.paginationInfo || {};
+            
+            allContracts = [...allContracts, ...contracts];
+            
+            // Check if there are more pages
+            hasMore = currentPage < (paginationInfo.totalPages || 1);
+            currentPage++;
+            
+            // Safety limit to prevent infinite loops
+            if (currentPage > 100) {
+              console.warn("Reached safety limit while fetching contracts");
+              break;
             }
-          })
+          } catch (error) {
+            console.error(`Failed to fetch contracts page ${currentPage}:`, error);
+            hasMore = false;
+          }
+        }
+
+        // Extract all quotationIds that have contracts
+        const quotationIdsWithContractsSet = new Set(
+          allContracts
+            .filter((contract) => contract.quotationId)
+            .map((contract) => contract.quotationId)
         );
 
-        const quotationIds = new Set(
-          checkResults
-            .filter((result) => result.hasContract)
-            .map((result) => result.id)
-        );
-        setQuotationIdsWithContracts(quotationIds);
+        setQuotationIdsWithContracts(quotationIdsWithContractsSet);
       } catch (error) {
         console.error("Failed to update quotation contract flags:", error);
+        setQuotationIdsWithContracts(new Set());
       }
     },
     [user?.agencyId]
@@ -174,11 +186,11 @@ function QuotationManagement() {
 
       setAllQuotations(list);
       setTotalItem(totalItems);
-      setQuotationDepositMap(new Map());
       setQuotationIdsWithContracts(new Set());
       await updateQuotationContractFlags(list);
       
       // Check if quotation list includes depositId or deposit info
+      // Don't reset deposit map, just update with new data
       const depositMap = new Map();
       list.forEach(quotation => {
         // If deposit info is directly in quotation list, use it immediately
@@ -218,9 +230,15 @@ function QuotationManagement() {
 
   useEffect(() => {
     if (quotations.length > 0) {
-      // Only fetch deposits for quotations that don't already have deposit info
+      // Fetch deposits for quotations that don't already have deposit info
+      // Check for AT_STORE, ORDER, and PRE_ORDER types (all can have deposits)
       const needsFetch = quotations.some(
-        (q) => !quotationDepositMap.has(q.id) && (q.depositId || q.type !== "AT_STORE")
+        (q) => {
+          const hasDepositInMap = quotationDepositMap.has(q.id);
+          const hasDepositId = q.depositId;
+          const isRelevantType = q.type === "AT_STORE" || q.type === "ORDER" || q.type === "PRE_ORDER";
+          return !hasDepositInMap && (hasDepositId || isRelevantType);
+        }
       );
       if (needsFetch) {
         fetchDepositsForQuotations();
@@ -238,10 +256,17 @@ function QuotationManagement() {
     const quotationIdsToFetch = [];
     
     // First, check if quotations already have depositId or deposit info
+    // Only fetch deposits for AT_STORE, ORDER, and PRE_ORDER types
     quotations.forEach(quotation => {
       // Check if already in map (from quotation list)
       if (quotationDepositMap.has(quotation.id)) {
         return; // Skip if already have deposit info
+      }
+      
+      // Only fetch deposits for relevant types
+      const isRelevantType = quotation.type === "AT_STORE" || quotation.type === "ORDER" || quotation.type === "PRE_ORDER";
+      if (!isRelevantType) {
+        return; // Skip if not a relevant type
       }
       
       // Check if quotation list response has depositId
@@ -398,37 +423,125 @@ function QuotationManagement() {
     }
   };
 
-  const handleOpenDepositModal = (quotation) => {
-    setSelectedQuotationForDeposit(quotation);
-    const depositAmount = Math.round((quotation.finalPrice * 20) / 100);
-    setDepositForm({
-      depositPercent: 20,
-      depositAmount: depositAmount,
-      holdDays: dayjs().add(7, 'days').format("YYYY-MM-DD"),
-    });
-    setDepositModal(true);
+  const handleOpenDepositModal = async (quotation) => {
+    // Check if deposit already exists
+    const existingDeposit = quotationDepositMap.get(quotation.id);
+    if (existingDeposit) {
+      toast.warning("Deposit already exists for this quotation");
+      return;
+    }
+    
+    // Also check in quotation detail
+    try {
+      const res = await PrivateDealerStaffApi.getQuotationDetail(quotation.id);
+      const detail = res.data?.data || quotation;
+      
+      // Check if quotation already has depositId
+      if (detail.depositId) {
+        toast.warning("Deposit already exists for this quotation");
+        // Fetch and update deposit map
+        try {
+          const depositRes = await PrivateDealerStaffApi.getDepositById(detail.depositId);
+          const deposit = depositRes.data?.data;
+          if (deposit) {
+            setQuotationDepositMap((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(quotation.id, deposit);
+              return newMap;
+            });
+          }
+        } catch (err) {
+          // Ignore error
+        }
+        return;
+      }
+      
+      setSelectedQuotationForDeposit(detail);
+      const finalPrice = detail.finalPrice || 0;
+      const depositAmount = Math.round((finalPrice * 20) / 100);
+      setDepositForm({
+        depositPercent: 20,
+        depositAmount: depositAmount,
+        holdDays: dayjs().add(7, 'days').format("YYYY-MM-DD"),
+      });
+      setDepositModal(true);
+    } catch (error) {
+      // Fallback to use quotation directly if fetch fails
+      setSelectedQuotationForDeposit(quotation);
+      const finalPrice = quotation.finalPrice || 0;
+      const depositAmount = Math.round((finalPrice * 20) / 100);
+      setDepositForm({
+        depositPercent: 20,
+        depositAmount: depositAmount,
+        holdDays: dayjs().add(7, 'days').format("YYYY-MM-DD"),
+      });
+      setDepositModal(true);
+    }
   };
 
   const handleCreateDeposit = async (e) => {
     e.preventDefault();
     if (!selectedQuotationForDeposit) return;
     
+    // Check if deposit already exists
+    const existingDeposit = quotationDepositMap.get(selectedQuotationForDeposit.id);
+    if (existingDeposit) {
+      toast.warning("Deposit already exists for this quotation");
+      setDepositModal(false);
+      return;
+    }
+    
+    // Also check in quotation detail
+    try {
+      const res = await PrivateDealerStaffApi.getQuotationDetail(selectedQuotationForDeposit.id);
+      const detail = res.data?.data || selectedQuotationForDeposit;
+      if (detail.depositId) {
+        toast.warning("Deposit already exists for this quotation");
+        setDepositModal(false);
+        // Fetch and update deposit map
+        try {
+          const depositRes = await PrivateDealerStaffApi.getDepositById(detail.depositId);
+          const deposit = depositRes.data?.data;
+          if (deposit) {
+            setQuotationDepositMap((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(selectedQuotationForDeposit.id, deposit);
+              return newMap;
+            });
+          }
+        } catch (err) {
+          // Ignore error
+        }
+        return;
+      }
+    } catch (err) {
+      // Continue if check fails
+    }
+    
     setDepositSubmitting(true);
     try {
+      // Recalculate depositAmount from finalPrice to ensure accuracy
+      const finalPrice = selectedQuotationForDeposit.finalPrice || 0;
+      const depositPercent = Number(depositForm.depositPercent) || 0;
+      const depositAmount = Math.round((finalPrice * depositPercent) / 100);
+      
       const payload = {
-        depositPercent: Number(depositForm.depositPercent),
-        depositAmount: Number(depositForm.depositAmount),
+        depositPercent: depositPercent,
+        depositAmount: depositAmount,
         holdDays: depositForm.holdDays ? new Date(depositForm.holdDays).toISOString() : new Date().toISOString(),
         quotationId: selectedQuotationForDeposit.id,
       };
       const response = await PrivateDealerStaffApi.createDeposit(payload);
       const deposit = response.data?.data || response.data;
       
+      // Save quotationId before clearing selectedQuotationForDeposit
+      const quotationId = selectedQuotationForDeposit.id;
+      
       toast.success("Deposit created successfully");
       setDepositModal(false);
       setSelectedQuotationForDeposit(null);
       
-      // Update deposit map with the created deposit
+      // Update deposit map with the created deposit immediately
       if (deposit && deposit.id) {
         // Fetch full deposit detail to get latest status
         try {
@@ -437,14 +550,14 @@ function QuotationManagement() {
           if (depositDetail) {
             setQuotationDepositMap((prev) => {
               const newMap = new Map(prev);
-              newMap.set(selectedQuotationForDeposit.id, depositDetail);
+              newMap.set(quotationId, depositDetail);
               return newMap;
             });
           } else {
             // Fallback to use deposit from response
             setQuotationDepositMap((prev) => {
               const newMap = new Map(prev);
-              newMap.set(selectedQuotationForDeposit.id, deposit);
+              newMap.set(quotationId, deposit);
               return newMap;
             });
           }
@@ -452,14 +565,15 @@ function QuotationManagement() {
           // If fetch fails, use deposit from response
           setQuotationDepositMap((prev) => {
             const newMap = new Map(prev);
-            newMap.set(selectedQuotationForDeposit.id, deposit);
+            newMap.set(quotationId, deposit);
             return newMap;
           });
         }
       }
       
-      // Refresh quotations list
-      fetchQuotations();
+      // Refresh quotations list to update UI (but don't reset deposit map)
+      // The deposit map is already updated above, so it will persist
+      await fetchQuotations();
     } catch (error) {
       toast.error(error.message || "Failed to create deposit");
     } finally {
@@ -534,6 +648,33 @@ function QuotationManagement() {
     e.preventDefault();
     if (!selectedQuotationForContract) return;
     
+    // Check if contract already exists for this quotation
+    const quotationId = selectedQuotationForContract.id;
+    if (quotationIdsWithContracts.has(quotationId)) {
+      toast.warning("Contract already exists for this quotation");
+      setIsContractModalOpen(false);
+      return;
+    }
+    
+    // Double check by calling API
+    try {
+      const contractsRes = await PrivateDealerStaffApi.getCustomerContractList(
+        user?.agencyId,
+        { page: 1, limit: 1, quotationId: quotationId }
+      );
+      const contracts = contractsRes.data?.data || [];
+      if (contracts.some(contract => contract.quotationId === quotationId)) {
+        toast.warning("Contract already exists for this quotation");
+        setIsContractModalOpen(false);
+        // Update the set
+        setQuotationIdsWithContracts((prev) => new Set([...prev, quotationId]));
+        return;
+      }
+    } catch (err) {
+      // Continue if check fails
+      console.error("Error checking existing contract:", err);
+    }
+    
     setContractSubmitting(true);
     try {
       const payload = {
@@ -547,13 +688,13 @@ function QuotationManagement() {
         agencyId: user?.agencyId,
         electricMotorbikeId: selectedQuotationForContract.motorbikeId,
         colorId: selectedQuotationForContract.colorId,
-        quotationId: selectedQuotationForContract.id,
+        quotationId: quotationId,
       };
       await PrivateDealerStaffApi.createCustomerContract(payload);
       toast.success("Contract created successfully");
       setIsContractModalOpen(false);
       // Update the set of quotationIds with contracts
-      setQuotationIdsWithContracts((prev) => new Set([...prev, selectedQuotationForContract.id]));
+      setQuotationIdsWithContracts((prev) => new Set([...prev, quotationId]));
       navigate("/agency/customer-contract");
     } catch (error) {
       toast.error(error.message || "Failed to create contract");
@@ -1041,21 +1182,51 @@ function QuotationManagement() {
             {/* If no contract - Additional actions for AT_STORE and ORDER/PRE_ORDER */}
             {!hasContract && (
               <>
-                {/* AT_STORE with deposit PENDING or quotation status PENDING: Show "Đã nhận cọc" button */}
-                {isATStore && row.status === "ACCEPTED" && depositStatus === "PENDING" && (
+                {/* AT_STORE with status ACCEPTED: Show "Trả góp" and "Trả full" buttons */}
+                {isATStore && row.status === "ACCEPTED" && (
                   <>
-                    <button
-                      onClick={() => handleReceivedDeposit(row.id)}
-                      disabled={isUpdating}
-                      className="p-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Đã nhận cọc"
-                    >
-                      {isUpdating ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <HandCoins size={18} />
-                      )}
-                    </button>
+                    {/* Trả góp button: Open deposit modal if no deposit, show "Đã nhận cọc" if PENDING, or create DEBT contract if APPLIED */}
+                    {!depositInfo ? (
+                      <button
+                        onClick={() => handleOpenDepositModal(row)}
+                        className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                        title="Trả góp (Tạo deposit)"
+                      >
+                        <CreditCard size={18} />
+                      </button>
+                    ) : depositStatus === "PENDING" ? (
+                      <button
+                        onClick={() => handleReceivedDeposit(row.id)}
+                        disabled={isUpdating}
+                        className="p-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Đã nhận cọc"
+                      >
+                        {isUpdating ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <HandCoins size={18} />
+                        )}
+                      </button>
+                    ) : depositStatus === "APPLIED" ? (
+                      <button
+                        onClick={() => handleOpenContractModal(row, "DEBT")}
+                        className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
+                        title="Tạo hợp đồng (DEBT)"
+                      >
+                        <FileText size={18} />
+                      </button>
+                    ) : null}
+                    
+                    {/* Trả full button: Create FULL contract immediately - Only show if deposit is not APPLIED */}
+                    {depositStatus !== "APPLIED" && (
+                      <button
+                        onClick={() => handleOpenContractModal(row, "FULL")}
+                        className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                        title="Trả full (Tạo hợp đồng FULL)"
+                      >
+                        <Wallet size={18} />
+                      </button>
+                    )}
                   </>
                 )}
                 
@@ -1073,19 +1244,6 @@ function QuotationManagement() {
                       ) : (
                         <HandCoins size={18} />
                       )}
-                    </button>
-                  </>
-                )}
-                
-                {/* AT_STORE with deposit APPLIED: Show "Tạo installment plan" button */}
-                {isATStore && depositStatus === "APPLIED" && (
-                  <>
-                    <button
-                      onClick={() => handleOpenInstallmentPlanModal(row)}
-                      className="p-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors"
-                      title="Tạo installment plan"
-                    >
-                      <FileText size={18} />
                     </button>
                   </>
                 )}
@@ -1150,17 +1308,6 @@ function QuotationManagement() {
                   </button>
                 )}
               </>
-            )}
-
-            {/* AT_STORE create contract button (unchanged) */}
-            {isATStore && row.status === "ACCEPTED" && !hasContract && (
-              <button
-                onClick={() => handleOpenContractModal(row, "FULL")}
-                className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
-                title="Tạo hợp đồng"
-              >
-                <FileText size={18} />
-              </button>
             )}
           </div>
         );
@@ -1510,9 +1657,15 @@ function QuotationManagement() {
               value={depositForm.depositPercent}
               onChange={(e) => {
                 const percent = Number(e.target.value);
-                const amount = selectedQuotationForDeposit 
-                  ? Math.round((selectedQuotationForDeposit.finalPrice * percent) / 100)
-                  : 0;
+                if (!selectedQuotationForDeposit) {
+                  setDepositForm((prev) => ({ 
+                    ...prev, 
+                    depositPercent: percent
+                  }));
+                  return;
+                }
+                const finalPrice = selectedQuotationForDeposit.finalPrice || 0;
+                const amount = Math.round((finalPrice * percent) / 100);
                 setDepositForm((prev) => ({ 
                   ...prev, 
                   depositPercent: percent,
