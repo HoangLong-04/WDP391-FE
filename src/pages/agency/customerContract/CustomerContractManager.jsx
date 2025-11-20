@@ -45,23 +45,39 @@ function CustomerContractManager() {
       let currentPage = 1;
       const pageSize = 100;
       let hasMore = true;
+      const maxPages = 100;
 
       // Fetch all pages
-      while (hasMore) {
-        const response = await PrivateDealerManagerApi.getCustomerContractList(user.agencyId, {
-          page: currentPage,
-          limit: pageSize,
-          staffId,
-          customerId,
-          status,
-          contractType,
-        });
+      while (hasMore && currentPage <= maxPages) {
+        const response = await PrivateDealerManagerApi.getCustomerContractList(
+          user.agencyId,
+          {
+            page: currentPage,
+            limit: pageSize,
+            staffId,
+            customerId,
+            status,
+            contractType,
+          }
+        );
         const contracts = response.data.data || [];
+        if (contracts.length === 0) {
+          break;
+        }
         allContractsData = [...allContractsData, ...contracts];
         
         const totalItems = response.data.paginationInfo?.total || 0;
-        hasMore = allContractsData.length < totalItems;
+        const totalPages =
+          response.data.paginationInfo?.totalPages ||
+          (pageSize > 0 ? Math.ceil(totalItems / pageSize) : 1);
+        hasMore =
+          allContractsData.length < totalItems && currentPage < totalPages;
         currentPage++;
+      }
+      if (currentPage > maxPages) {
+        console.warn(
+          "Reached maximum page limit while fetching customer contracts. There might be inconsistent pagination data from API."
+        );
       }
 
       // Sort by newest first (by id - higher id = newer, or by createdAt if available)
