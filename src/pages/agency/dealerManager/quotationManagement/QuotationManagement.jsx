@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerStaffApi from "../../../../services/PrivateDealerStaffApi";
@@ -40,64 +40,98 @@ function QuotationManagement() {
   const [selectedQuotationForRestock, setSelectedQuotationForRestock] = useState(null);
   const [restockForm, setRestockForm] = useState({ warehouseId: 0 });
   const [creatingRestock, setCreatingRestock] = useState(false);
+  const isFetchingRef = useRef(false);
+  const lastFetchKeyRef = useRef("");
+
+  const updateQuotationContractFlags = useCallback(
+    async (quotationList) => {
+      if (!user?.agencyId || quotationList.length === 0) {
+        setQuotationIdsWithContracts(new Set());
+        return;
+      }
+
+      try {
+        const checkResults = await Promise.all(
+          quotationList.map(async (quotation) => {
+            try {
+              const res = await PrivateDealerStaffApi.getCustomerContractList(
+                user.agencyId,
+                { page: 1, limit: 1, quotationId: quotation.id }
+              );
+              const contracts = res.data?.data || [];
+              return {
+                id: quotation.id,
+                hasContract: contracts.some(
+                  (contract) => contract.quotationId === quotation.id
+                ),
+              };
+            } catch (error) {
+              console.error(
+                `Failed to check contracts for quotation #${quotation.id}:`,
+                error
+              );
+              return { id: quotation.id, hasContract: false };
+            }
+          })
+        );
+
+        const quotationIds = new Set(
+          checkResults
+            .filter((result) => result.hasContract)
+            .map((result) => result.id)
+        );
+        setQuotationIdsWithContracts(quotationIds);
+      } catch (error) {
+        console.error(
+          "Failed to update quotation contract flags for dealer manager:",
+          error
+        );
+      }
+    },
+    [user?.agencyId]
+  );
 
   const fetchQuotations = useCallback(async () => {
     if (!user?.agencyId) return;
+
+    const fetchKey = `${user.agencyId}-${page}-${limit}-${type}-${status}-${quoteCode}`;
+    if (isFetchingRef.current && lastFetchKeyRef.current === fetchKey) {
+      return;
+    }
+    isFetchingRef.current = true;
+    lastFetchKeyRef.current = fetchKey;
+
     setLoading(true);
     try {
-      // Fetch all quotations with pagination
-      let allQuotationsData = [];
-      let currentPage = 1;
-      const pageSize = 100;
-      let hasMore = true;
-
-      // Fetch all pages
-      while (hasMore) {
       const params = {
-          page: currentPage,
-          limit: pageSize,
+        page,
+        limit,
         ...(type && { type }),
         ...(status && { status }),
         ...(quoteCode && { quoteCode }),
       };
-      const res = await PrivateDealerStaffApi.getQuotationList(user.agencyId, params);
+      const res = await PrivateDealerStaffApi.getQuotationList(
+        user.agencyId,
+        params
+      );
       const list = res.data?.data || [];
-        allQuotationsData = [...allQuotationsData, ...list];
-        
-        const totalItems = res.data?.paginationInfo?.total || 0;
-        hasMore = allQuotationsData.length < totalItems;
-        currentPage++;
-      }
+      const totalItems = res.data?.paginationInfo?.total || list.length || 0;
 
-      // Apply filters in frontend if needed (for consistency)
-      let filteredQuotations = allQuotationsData;
-      if (type) {
-        filteredQuotations = filteredQuotations.filter(q => q.type === type);
-      }
-      if (status) {
-        filteredQuotations = filteredQuotations.filter(q => q.status === status);
-      }
-      if (quoteCode) {
-        filteredQuotations = filteredQuotations.filter(q => 
-          q.quoteCode?.toLowerCase().includes(quoteCode.toLowerCase())
-        );
-      }
+      setAllQuotations(list);
+      setTotalItem(totalItems);
+      setQuotationDepositMap(new Map());
+      setQuotationIdsWithContracts(new Set());
 
-      // Sort will be done in useMemo after contracts are fetched
+      await updateQuotationContractFlags(list);
 
-      setAllQuotations(filteredQuotations);
-      setTotalItem(filteredQuotations.length);
-      
-      // Check if quotation list includes depositId or deposit info
       const depositMap = new Map();
-      filteredQuotations.forEach(quotation => {
-        // If deposit info is directly in quotation list, use it immediately
+      list.forEach((quotation) => {
         if (quotation.deposit) {
           depositMap.set(quotation.id, quotation.deposit);
         }
       });
       if (depositMap.size > 0) {
-        setQuotationDepositMap(prev => {
+        setQuotationDepositMap((prev) => {
           const newMap = new Map(prev);
           depositMap.forEach((value, key) => newMap.set(key, value));
           return newMap;
@@ -107,80 +141,30 @@ function QuotationManagement() {
       toast.error(error.message);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [user?.agencyId, type, status, quoteCode]);
+  }, [user?.agencyId, page, limit, type, status, quoteCode, updateQuotationContractFlags]);
 
-  const fetchQuotationIdsWithContracts = useCallback(async () => {
-    if (!user?.agencyId) return;
-    try {
-      let allContracts = [];
-      let currentPage = 1;
-      const pageSize = 100;
-      let hasMore = true;
-
-      // Fetch all contracts with pagination
-      while (hasMore) {
-        const response = await PrivateDealerStaffApi.getCustomerContractList(
-          user.agencyId,
-          { page: currentPage, limit: pageSize }
-        );
-        const contracts = response.data?.data || [];
-        allContracts = [...allContracts, ...contracts];
-        
-        const totalItems = response.data?.paginationInfo?.total || 0;
-        hasMore = allContracts.length < totalItems;
-        currentPage++;
-      }
-
-      // Extract quotationIds that have contracts (filter out null/undefined)
-      const quotationIds = new Set(
-        allContracts
-          .map((contract) => contract.quotationId)
-          .filter((id) => id != null && id !== undefined)
-      );
-      setQuotationIdsWithContracts(quotationIds);
-    } catch (error) {
-      // Silently fail - don't show error if contract list fetch fails
-      console.error("Failed to fetch contracts:", error);
-    }
-  }, [user?.agencyId]);
 
   // Paginate the sorted list in frontend
   const quotations = useMemo(() => {
-    // Re-sort allQuotations with current contract data
     const sortedQuotations = [...allQuotations].sort((a, b) => {
-      // Check if quotation is completed (has contract)
       const aHasContract = quotationIdsWithContracts.has(a.id);
       const bHasContract = quotationIdsWithContracts.has(b.id);
-      
-      // Check if PRE_ORDER and not completed
       const aIsPreOrderNotCompleted = a.type === "PRE_ORDER" && !aHasContract;
       const bIsPreOrderNotCompleted = b.type === "PRE_ORDER" && !bHasContract;
-      
-      // Priority 1: PRE_ORDER chưa completed lên đầu tiên
       if (aIsPreOrderNotCompleted && !bIsPreOrderNotCompleted) return -1;
       if (!aIsPreOrderNotCompleted && bIsPreOrderNotCompleted) return 1;
-      
-      // Priority 2: Trong cùng nhóm (PRE_ORDER chưa completed hoặc không), sort theo createDate mới nhất lên trước
       const getDateValue = (quotation) => {
         if (quotation.createDate) {
           return new Date(quotation.createDate).getTime();
         }
-        // Fallback to id if no date (higher id = newer)
         return quotation.id || 0;
       };
-      
-      const aDateValue = getDateValue(a);
-      const bDateValue = getDateValue(b);
-      
-      // Sort mới nhất lên trước (descending)
-      return bDateValue - aDateValue;
+      return getDateValue(b) - getDateValue(a);
     });
-    
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    return sortedQuotations.slice(startIndex, endIndex);
-  }, [allQuotations, page, limit, quotationIdsWithContracts]);
+    return sortedQuotations;
+  }, [allQuotations, quotationIdsWithContracts]);
 
   // Reset page to 1 when filters change
   useEffect(() => {
@@ -190,9 +174,8 @@ function QuotationManagement() {
   useEffect(() => {
     if (user?.agencyId) {
       fetchQuotations();
-      fetchQuotationIdsWithContracts();
     }
-  }, [fetchQuotations, fetchQuotationIdsWithContracts, user?.agencyId]);
+  }, [user?.agencyId, fetchQuotations]);
 
   useEffect(() => {
     if (quotations.length > 0) {
