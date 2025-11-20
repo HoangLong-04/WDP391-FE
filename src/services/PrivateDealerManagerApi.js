@@ -37,6 +37,8 @@ const PrivateDealerManagerApi = {
 
   getStockPromotionList: (agencyId, params) =>
     apiConfig.privateApi.get(`stock-promotion/list/${agencyId}`, { params }),
+  getStockPromotionDetail: (stockPromotionId) =>
+    apiConfig.privateApi.get(`stock-promotion/detail/${stockPromotionId}`),
   createStockPromotion: (data) =>
     apiConfig.privateApi.post("stock-promotion", data),
   updateStockPromotion: (id, data) =>
