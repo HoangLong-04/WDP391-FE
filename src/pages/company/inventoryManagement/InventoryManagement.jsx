@@ -478,7 +478,6 @@ function InventoryManagement() {
           setForm={setForm}
           setUpdateForm={setUpdateForm}
           isEdit={isEdit}
-          colorList={colorList}
         />
       </FormModal>
 
