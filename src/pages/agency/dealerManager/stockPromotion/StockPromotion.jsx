@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
 import { toast } from "react-toastify";
@@ -18,6 +18,8 @@ function StockPromotion() {
   const { stockList } = useStockListAgency();
   const [stockPromoList, setStockPromoList] = useState([]);
   const [listStockId, setListStockId] = useState([]);
+  const [assignedStocks, setAssignedStocks] = useState([]);
+  const [loadingAssignDetail, setLoadingAssignDetail] = useState(false);
 
   const [page, setPage] = useState(1);
   const [limit] = useState(5);
@@ -128,12 +130,46 @@ function StockPromotion() {
       });
       setAssignModal(false);
       toast.success("Assign successfully");
+      fetchStockPromoList();
+      await fetchPromotionDetail(selectedId);
     } catch (error) {
       toast.error(error.message);
     } finally {
       setSubmit(false);
     }
   };
+  const fetchPromotionDetail = async (promotionId) => {
+    if (!promotionId) return;
+    setLoadingAssignDetail(true);
+    try {
+      const res = await PrivateDealerManagerApi.getStockPromotionDetail(
+        promotionId
+      );
+      const assignedList =
+        res.data?.data?.agencyStockPromotion
+          ?.map((item) => item?.agencyStock)
+          .filter(Boolean) || [];
+      setAssignedStocks(assignedList);
+    } catch (error) {
+      console.error(error);
+      setAssignedStocks([]);
+      toast.error(error.message || "Failed to load promotion detail");
+    } finally {
+      setLoadingAssignDetail(false);
+    }
+  };
+
+  const assignedStockIdSet = useMemo(
+    () => new Set(assignedStocks.map((stock) => stock.id)),
+    [assignedStocks]
+  );
+
+  const availableStocks = useMemo(
+    () =>
+      (stockList || []).filter((stock) => !assignedStockIdSet.has(stock.id)),
+    [stockList, assignedStockIdSet]
+  );
+
 
   const handleDeleteStockPromotion = async (e) => {
     e.preventDefault();
@@ -159,7 +195,15 @@ function StockPromotion() {
     { key: "name", title: "Name" },
     { key: "description", title: "Description" },
     { key: "valueType", title: "Value type" },
-    { key: "value", title: "Value", render: (value) => `${Number(value).toLocaleString('vi-VN')} đ` },
+    { 
+      key: "value", 
+      title: "Value", 
+      render: (value, row) => {
+        const formattedValue = Number(value).toLocaleString('vi-VN');
+        const valueType = row.valueType || row.value_type;
+        return valueType === "PERCENT" ? `${formattedValue}%` : `${formattedValue} đ`;
+      }
+    },
     {
       key: "startAt",
       title: "Start date",
@@ -210,6 +254,8 @@ function StockPromotion() {
       onClick: (item) => {
         setAssignModal(true);
         setSelectedId(item.id);
+        setListStockId([]);
+        fetchPromotionDetail(item.id);
       },
     },
   ];
@@ -218,7 +264,11 @@ function StockPromotion() {
     const value = e.target.value;
     const selectedId = Number(value);
 
-    if (selectedId && !listStockId.includes(selectedId)) {
+    if (
+      selectedId &&
+      !listStockId.includes(selectedId) &&
+      !assignedStockIdSet.has(selectedId)
+    ) {
       setListStockId((prevIds) => [...prevIds, selectedId]);
 
       e.target.value = "";
@@ -342,9 +392,17 @@ function StockPromotion() {
               required={listStockId.length === 0}
             >
               <option value="">-- Select stock id --</option>
-              {stockList.map((s) => (
-                <option value={s.id}>Stock: {s.id}</option>
-              ))}
+              {availableStocks.length > 0 ? (
+                availableStocks.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    Stock: {s.id}
+                  </option>
+                ))
+              ) : (
+                <option value="" disabled>
+                  All stocks already assigned
+                </option>
+              )}
             </select>
             {listStockId.length > 0 && (
               <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 flex flex-wrap gap-2">
@@ -369,6 +427,32 @@ function StockPromotion() {
                 ))}
               </div>
             )}
+            <div className="mt-4 space-y-2">
+              <p className="text-sm font-semibold text-gray-700">
+                Stocks already applied
+              </p>
+              {loadingAssignDetail ? (
+                <p className="text-sm text-gray-500">Loading...</p>
+              ) : assignedStocks.length > 0 ? (
+                <ul className="space-y-1 text-sm text-gray-600 max-h-40 overflow-y-auto">
+                  {assignedStocks.map((stock) => (
+                    <li
+                      key={stock.id}
+                      className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-1"
+                    >
+                      <span>
+                        ID: {stock.id} • Qty: {stock.quantity} • Price:{" "}
+                        {Number(stock.price || 0).toLocaleString("vi-VN")} đ
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  This promotion has not been applied to any stock.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </FormModal>
