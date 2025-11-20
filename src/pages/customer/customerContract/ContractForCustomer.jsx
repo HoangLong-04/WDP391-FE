@@ -80,7 +80,7 @@ function ContractForCustomer() {
       const response = await PublicApi.getCustomerContract(
         credentialId,
         agencyId,
-        { page, limit }
+        { page, limit, sort }
       );
       setContractList(response.data.data);
       setTotalItems(response.data.paginationInfo.total);
@@ -107,6 +107,9 @@ function ContractForCustomer() {
     try {
       const response = await PublicApi.getContractFullPayment(id);
       setPeriodFull(response.data.data);
+      if(response.data.data.length === 0) {
+        toast.warning('No period found!')
+      }
     } catch (error) {
       toast.error(error.response.data.message);
     }
@@ -142,7 +145,7 @@ function ContractForCustomer() {
             {/* Credential ID */}
             <div className="flex flex-col">
               <label className="text-sm font-medium text-gray-700">
-                Credential ID
+                Credential ID <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -156,7 +159,7 @@ function ContractForCustomer() {
             {/* Agency */}
             <div className="flex flex-col">
               <label className="text-sm font-medium text-gray-700">
-                Agency
+                Agency <span className="text-red-500">*</span>
               </label>
               <select
                 value={agencyId || initialAgencyId}
