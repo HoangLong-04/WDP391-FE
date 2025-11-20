@@ -276,7 +276,7 @@ function ApBatchManagement() {
             </div>
 
             {/* Payment Summary */}
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            {/* <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
               <h3 className="font-bold text-lg mb-3 text-gray-800">Payment Summary</h3>
               <div className="space-y-2">
                 <div className="flex justify-between">
@@ -301,7 +301,7 @@ function ApBatchManagement() {
                   </span>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* AP Payments */}
             {batchDetail.apPayment && batchDetail.apPayment.length > 0 ? (
@@ -341,7 +341,7 @@ function ApBatchManagement() {
             )}
 
             {/* Pay Button */}
-            {(() => {
+            {/* {(() => {
               const paidAmount = batchDetail.apPayment?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
               const batchAmount = Number(batchDetail.amount || 0);
               const remainingAmount = batchAmount - paidAmount;
@@ -361,7 +361,7 @@ function ApBatchManagement() {
                 );
               }
               return null;
-            })()}
+            })()} */}
           </div>
         ) : (
           <div className="text-gray-500">No data available</div>

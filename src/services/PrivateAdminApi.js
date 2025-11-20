@@ -40,17 +40,28 @@ const PrivateAdminApi = {
   updatePromotion: (id, data) =>
     apiConfig.privateApi.patch(`promotion/${id}`, data),
   deletePromotion: (id) => apiConfig.privateApi.delete(`promotion/${id}`),
+  getMotorDetail: (id) => apiConfig.privateApi.get(`motorbike/${id}`),
 
   getInventory: (params) =>
     apiConfig.privateApi.get("inventory/list", { params }),
   getInventoryDetail: (motorId, warehouseId, colorId) =>
-    apiConfig.privateApi.get(`inventory/detail/${motorId}/${warehouseId}/${colorId}`),
+    apiConfig.privateApi.get(
+      `inventory/detail/${motorId}/${warehouseId}/${colorId}`
+    ),
   createInventory: (motorId, warehouseId, colorId, data) =>
-    apiConfig.privateApi.post(`inventory/${motorId}/${warehouseId}/${colorId}`, data),
+    apiConfig.privateApi.post(
+      `inventory/${motorId}/${warehouseId}/${colorId}`,
+      data
+    ),
   updateInventory: (motorId, warehouseId, colorId, data) =>
-    apiConfig.privateApi.patch(`inventory/${motorId}/${warehouseId}/${colorId}`, data),
+    apiConfig.privateApi.patch(
+      `inventory/${motorId}/${warehouseId}/${colorId}`,
+      data
+    ),
   deleteInventory: (motorId, warehouseId, colorId) =>
-    apiConfig.privateApi.delete(`inventory/${motorId}/${warehouseId}/${colorId}`),
+    apiConfig.privateApi.delete(
+      `inventory/${motorId}/${warehouseId}/${colorId}`
+    ),
 
   getMotorbikeById: (id) => apiConfig.privateApi.get(`motorbike/${id}`),
   getMotorList: (params) =>

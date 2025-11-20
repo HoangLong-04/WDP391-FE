@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import PrivateAdminApi from "../../../../services/PrivateAdminApi";
 
 function InventoryForm({
   form,
@@ -8,8 +9,28 @@ function InventoryForm({
   isEdit,
   setUpdateForm,
   updateForm,
-  colorList,
 }) {
+  const [color, setColor] = useState([]);
+  const fetchMotorById = async () => {
+    try {
+      const res = await PrivateAdminApi.getMotorDetail(form.motorId || updateForm.motorId);
+      setColor(
+        res.data.data.colors.map((item) => ({
+          id: item.color.id,
+          colorType: item.color.colorType,
+          imageUrl: item.imageUrl,
+        }))
+      );
+    } catch (error) {
+      console.log(error);
+    }
+  };
+  useEffect(() => {
+    if (form.motorId || updateForm.motorId) {
+      fetchMotorById();
+    }
+  }, [form.motorId, updateForm.motorId]);
+
   return (
     <div className="space-y-3">
       <div className="group">
@@ -81,26 +102,29 @@ function InventoryForm({
           ))}
         </select>
       </div>
-      <div className="group">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Color <span className="text-red-500">*</span>
-        </label>
-        <select
-          disabled={isEdit}
-          value={isEdit ? updateForm.colorId : form.colorId}
-          onChange={(e) => setForm({ ...form, colorId: e.target.value })}
-          className={`w-full ${
-            isEdit && "bg-gray-500"
-          } px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer appearance-none`}
-        >
-          <option disabled>Select color</option>
-          {colorList.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.colorType}
-            </option>
-          ))}
-        </select>
-      </div>
+      {color.length !== 0 && (
+        <div className="group">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Color <span className="text-red-500">*</span>
+          </label>
+          <select
+            disabled={isEdit}
+            value={isEdit ? Number(updateForm.colorId) : Number(form.colorId)}
+            onChange={(e) => setForm({ ...form, colorId: e.target.value })}
+            className={`w-full ${
+              isEdit && "bg-gray-500"
+            } px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400 bg-white cursor-pointer appearance-none`}
+          >
+            <option disabled>Select color</option>
+            {color.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.colorType}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
     </div>
   );
 }
