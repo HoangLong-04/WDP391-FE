@@ -17,6 +17,7 @@ import {
 } from "../../../components/viewModel/inventoryModel/InventoryModel";
 import { warehouseFields } from "../../../components/viewModel/warehouseModel/WarehouseModel";
 import { Eye, Pencil, Trash2 } from "lucide-react";
+import useColorList from "../../../hooks/useColorList";
 
 function InventoryManagement() {
   const [inventoryList, setInventoryList] = useState([]);
@@ -26,9 +27,10 @@ function InventoryManagement() {
   const [motor, setMotor] = useState({});
   const [warehouse, setWarehouse] = useState({});
   const [inventory, setInventory] = useState({});
+  const { colorList } = useColorList();
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -46,6 +48,7 @@ function InventoryManagement() {
     stockDate: dayjs().format("YYYY-MM-DD"),
     motorId: "",
     warehouseId: "",
+    colorId: "",
   });
 
   const [updateForm, setUpdateForm] = useState({
@@ -53,6 +56,7 @@ function InventoryManagement() {
     stockDate: "",
     motorId: "",
     warehouseId: "",
+    colorId: "",
   });
 
   const [isEdit, setIsedit] = useState(false);
@@ -77,7 +81,7 @@ function InventoryManagement() {
   const fetchAllMotorbikes = async () => {
     // Prevent duplicate fetches
     if (isFetchingAllMotorsRef.current || allMotorList.length > 0) return;
-    
+
     isFetchingAllMotorsRef.current = true;
     try {
       let allMotors = [];
@@ -93,26 +97,26 @@ function InventoryManagement() {
           limit: pageSize,
         });
         const motors = response.data?.data || [];
-        
+
         // If no motors returned, stop fetching
         if (motors.length === 0) {
           hasMore = false;
           break;
         }
-        
+
         // Filter out deleted motorbikes
-        const activeMotors = motors.filter(motor => !motor.isDeleted);
+        const activeMotors = motors.filter((motor) => !motor.isDeleted);
         allMotors = [...allMotors, ...activeMotors];
-        
+
         // Get total items from first response
         if (currentPage === 1) {
           totalItems = response.data?.paginationInfo?.total || 0;
         }
-        
+
         // Check if we've fetched all items
         hasMore = allMotors.length < totalItems && motors.length === pageSize;
         currentPage++;
-        
+
         // Safety check: prevent infinite loop
         if (currentPage > 100) {
           console.warn("Reached maximum page limit for fetching motorbikes");
@@ -133,7 +137,7 @@ function InventoryManagement() {
     const fetchMotorList = async () => {
       try {
         const response = await PrivateAdminApi.getMotorList({
-          page,
+          page: 1,
           limit: 30,
         });
         setMototList(response.data.data);
@@ -145,7 +149,7 @@ function InventoryManagement() {
     const fetchWarehouseList = async () => {
       try {
         const response = await PrivateAdminApi.getWarehouseList({
-          page,
+          page: 1,
           limit: 30,
         });
         setWarehouseList(response.data.data);
@@ -215,12 +219,13 @@ function InventoryManagement() {
     }
   };
 
-  const fetchInventoryDetail = async (motorId, warehouseId) => {
+  const fetchInventoryDetail = async (motorId, warehouseId, colorId) => {
     setViewModalLoading(true);
     try {
       const response = await PrivateAdminApi.getInventoryDetail(
         motorId,
-        warehouseId
+        warehouseId,
+        colorId
       );
       const data = response.data.data;
       setInventory(data);
@@ -234,12 +239,12 @@ function InventoryManagement() {
   const handleCreateInventory = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     // Convert stockDate to ISO string format
-    const stockDateISO = form.stockDate 
+    const stockDateISO = form.stockDate
       ? new Date(form.stockDate).toISOString()
       : new Date().toISOString();
-    
+
     const sendData = {
       quantity: Number(form.quantity),
       stockDate: stockDateISO,
@@ -249,6 +254,7 @@ function InventoryManagement() {
       await PrivateAdminApi.createInventory(
         form.motorId,
         form.warehouseId,
+        form.colorId,
         sendData
       );
       setForm({
@@ -270,23 +276,24 @@ function InventoryManagement() {
   const handleUpdateInventory = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     // Convert stockDate to ISO string format
-    const stockDateISO = updateForm.stockDate 
-      ? (typeof updateForm.stockDate === 'string' 
-          ? new Date(updateForm.stockDate).toISOString()
-          : new Date(updateForm.stockDate).toISOString())
+    const stockDateISO = updateForm.stockDate
+      ? typeof updateForm.stockDate === "string"
+        ? new Date(updateForm.stockDate).toISOString()
+        : new Date(updateForm.stockDate).toISOString()
       : new Date().toISOString();
-    
+
     const sendData = {
       quantity: Number(updateForm.quantity),
       stockDate: stockDateISO,
     };
-    
+
     try {
       await PrivateAdminApi.updateInventory(
         updateForm.motorId,
         updateForm.warehouseId,
+        updateForm.colorId,
         sendData
       );
       fetchInventory();
@@ -306,7 +313,8 @@ function InventoryManagement() {
     try {
       await PrivateAdminApi.deleteInventory(
         updateForm.motorId,
-        updateForm.warehouseId
+        updateForm.warehouseId,
+        updateForm.colorId
       );
       fetchInventory();
       setDeleteForm(false);
@@ -319,6 +327,68 @@ function InventoryManagement() {
   };
 
   const columns = [
+    { key: "quantity", title: "Quantity" },
+    {
+      key: "stockDate",
+      title: "Stock date",
+      render: (stockDate) => dayjs(stockDate).format("DD/MM/YYYY"),
+    },
+    {
+      key: "lastUpdate",
+      title: "Last update",
+      render: (lastUpdate) => dayjs(lastUpdate).format("DD/MM/YYYY"),
+    },
+    {
+      key: "action1",
+      title: "Action",
+      render: (_, item) => (
+        <div className="flex gap-2">
+          <span
+            onClick={() => {
+              setInventoryModal(true);
+              fetchInventoryDetail(
+                item.electricMotorbikeId,
+                item.warehouseId,
+                item.colorId
+              );
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
+          >
+            <Eye className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={() => {
+              setUpdateForm({
+                colorId: item.colorId,
+                motorId: item.electricMotorbikeId,
+                warehouseId: item.warehouseId,
+                quantity: item.quantity,
+                stockDate: dayjs(item.stockDate).format("DD/MM/YYYY"),
+              });
+              setIsedit(true);
+              setFormModal(true);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
+          >
+            <Pencil className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={() => {
+              setUpdateForm({
+                motorId: item.electricMotorbikeId,
+                warehouseId: item.warehouseId,
+                colorId: item.colorId,
+              });
+              setIsDelete(true);
+              setDeleteForm(true);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
+          >
+            <Trash2 className="w-5 h-5 text-white" />
+          </span>
+        </div>
+      ),
+    },
     {
       key: "electricMotorbikeId",
       title: "Motorbike",
@@ -349,71 +419,22 @@ function InventoryManagement() {
         </span>
       ),
     },
-    { key: "quantity", title: "Quantity" },
     {
-      key: "stockDate",
-      title: "Stock date",
-      render: (stockDate) => dayjs(stockDate).format("DD/MM/YYYY"),
-    },
-    {
-      key: "lastUpdate",
-      title: "Last update",
-      render: (lastUpdate) => dayjs(lastUpdate).format("DD/MM/YYYY"),
-    },
-    {
-      key: "action1",
-      title: "Action",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setInventoryModal(true);
-            fetchInventoryDetail(item.electricMotorbikeId, item.warehouseId);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Eye className="w-5 h-5 text-white" />
-        </span>
-      ),
-    },
-    {
-      key: "action2",
-      title: "Action",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setUpdateForm({
-              motorId: item.electricMotorbikeId,
-              warehouseId: item.warehouseId,
-              quantity: item.quantity,
-              stockDate: new Date(item.stockDate),
-            });
-            setIsedit(true);
-            setFormModal(true);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Pencil className="w-5 h-5 text-white" />
-        </span>
-      ),
-    },
-    {
-      key: "action3",
-      title: "Action",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setUpdateForm({
-              motorId: item.electricMotorbikeId,
-              warehouseId: item.warehouseId,
-            });
-            setIsDelete(true);
-            setDeleteForm(true);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
-        >
-          <Trash2 className="w-5 h-5 text-white" />
-        </span>
-      ),
+      key: "colorId",
+      title: "Color",
+      render: (colorId) => {
+        const color = colorList.find((c) => c.id === colorId);
+        const colorName = color?.colorType || "unknown";
+
+        return (
+          <div
+            className="px-3 py-1 rounded-md text-white font-semibold flex justify-center items-center"
+            style={{ backgroundColor: colorName }}
+          >
+            {colorName}
+          </div>
+        );
+      },
     },
   ];
 
@@ -457,6 +478,7 @@ function InventoryManagement() {
           setForm={setForm}
           setUpdateForm={setUpdateForm}
           isEdit={isEdit}
+          colorList={colorList}
         />
       </FormModal>
 
@@ -496,8 +518,8 @@ function InventoryManagement() {
         isDelete={isDelete}
       >
         <p className="text-gray-700">
-          Are you sure you want to delete this inventory? This action cannot
-          be undone.
+          Are you sure you want to delete this inventory? This action cannot be
+          undone.
         </p>
       </FormModal>
     </div>
