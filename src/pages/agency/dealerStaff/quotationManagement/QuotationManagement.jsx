@@ -990,6 +990,8 @@ function QuotationManagement() {
         const depositInfo = quotationDepositMap.get(row.id);
         const isATStore = row.type === "AT_STORE";
         const isOrderOrPreOrder = row.type === "ORDER" || row.type === "PRE_ORDER";
+        const depositStatus = depositInfo?.status;
+        const isPreOrderFlow = isOrderOrPreOrder;
         
         return (
           <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
@@ -1018,19 +1020,8 @@ function QuotationManagement() {
               </button>
             )}
             
-            {/* ACCEPTED status: Show create contract button */}
-            {row.status === "ACCEPTED" && !hasContract && (
-              <button
-                onClick={() => handleOpenContractModal(row, "FULL")}
-                className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
-                title="Tạo hợp đồng"
-              >
-                <FileText size={18} />
-              </button>
-            )}
-            
-            {/* ORDER or PRE_ORDER with ACCEPTED status: can change to REVERSED when bike arrives */}
-            {isOrderOrPreOrder && row.status === "ACCEPTED" && (
+            {/* ORDER or PRE_ORDER: change to REVERSED only after deposit applied */}
+            {isPreOrderFlow && row.status === "ACCEPTED" && depositStatus === "APPLIED" && (
               <button
                 onClick={() => handleUpdateStatus(row.id, "REVERSED")}
                 disabled={isUpdating}
@@ -1051,7 +1042,7 @@ function QuotationManagement() {
             {!hasContract && (
               <>
                 {/* AT_STORE with deposit PENDING or quotation status PENDING: Show "Đã nhận cọc" button */}
-                {isATStore && row.status === "ACCEPTED" && depositInfo && depositInfo.status === "PENDING" && (
+                {isATStore && row.status === "ACCEPTED" && depositStatus === "PENDING" && (
                   <>
                     <button
                       onClick={() => handleReceivedDeposit(row.id)}
@@ -1087,7 +1078,7 @@ function QuotationManagement() {
                 )}
                 
                 {/* AT_STORE with deposit APPLIED: Show "Tạo installment plan" button */}
-                {isATStore && depositInfo && depositInfo.status === "APPLIED" && (
+                {isATStore && depositStatus === "APPLIED" && (
                   <>
                     <button
                       onClick={() => handleOpenInstallmentPlanModal(row)}
@@ -1100,7 +1091,7 @@ function QuotationManagement() {
                 )}
                 
                 {/* ORDER or PRE_ORDER: Show Đặt cọc */}
-                {isOrderOrPreOrder && row.status === "ACCEPTED" && !depositInfo && (
+                {isPreOrderFlow && row.status === "ACCEPTED" && !depositInfo && (
                   <>
                     <button
                       onClick={() => handleOpenDepositModal(row)}
@@ -1113,7 +1104,7 @@ function QuotationManagement() {
                 )}
                 
                 {/* ORDER or PRE_ORDER with deposit PENDING: Show "Đã nhận cọc" button */}
-                {isOrderOrPreOrder && row.status === "ACCEPTED" && depositInfo && depositInfo.status === "PENDING" && (
+                {isPreOrderFlow && row.status === "ACCEPTED" && depositStatus === "PENDING" && (
                   <>
                     <button
                       onClick={() => handleReceivedDeposit(row.id)}
@@ -1131,7 +1122,7 @@ function QuotationManagement() {
                 )}
                 
                 {/* ORDER or PRE_ORDER with quotation status PENDING: Show "Đã nhận cọc" button */}
-                {isOrderOrPreOrder && row.status === "PENDING" && (
+                {isPreOrderFlow && row.status === "PENDING" && (
                   <>
                     <button
                       onClick={() => handleReceivedDeposit(row.id)}
@@ -1148,19 +1139,28 @@ function QuotationManagement() {
                   </>
                 )}
                 
-                {/* ORDER or PRE_ORDER with deposit APPLIED: Show "Tạo hợp đồng" button */}
-                {isOrderOrPreOrder && depositInfo && depositInfo.status === "APPLIED" && (
-                  <>
-                    <button
-                      onClick={() => handleOpenContractModal(row, "DEBT")}
-                      className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
-                      title="Tạo hợp đồng khách hàng"
-                    >
-                      <FileText size={18} />
-                    </button>
-                  </>
+                {/* ORDER or PRE_ORDER: show create contract only after REVERSED */}
+                {isPreOrderFlow && row.status === "REVERSED" && (
+                  <button
+                    onClick={() => handleOpenContractModal(row, row.contractPaidType || "FULL")}
+                    className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
+                    title="Tạo hợp đồng khách hàng"
+                  >
+                    <FileText size={18} />
+                  </button>
                 )}
               </>
+            )}
+
+            {/* AT_STORE create contract button (unchanged) */}
+            {isATStore && row.status === "ACCEPTED" && !hasContract && (
+              <button
+                onClick={() => handleOpenContractModal(row, "FULL")}
+                className="p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
+                title="Tạo hợp đồng"
+              >
+                <FileText size={18} />
+              </button>
             )}
           </div>
         );
