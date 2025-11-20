@@ -20,10 +20,12 @@ function Login() {
       const response = await PublicApi.login(form);
       const role = response.data.data.role;
 
-      if (role[0] === "Admin" || role[0] === "Evm Staff") {
+      if (role[0] === "Admin") {
         navigate("/company/dashboard");
       } else if (role[0] === "Dealer Staff") {
         navigate("/agency/catalogue");
+      } else if (role[0] === "Evm Staff") {
+        navigate("/company/evm-staff/warehouse");
       } else {
         navigate("/agency/dashboard");
       }
