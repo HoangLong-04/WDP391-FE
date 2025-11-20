@@ -49,11 +49,14 @@ function Catalogue() {
   const [customerList, setCustomerList] = useState([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [activeTab, setActiveTab] = useState("inStock"); // "inStock" or "outOfStock"
+  const [activeTab, setActiveTab] = useState("inStock"); // "inStock" | "outOfStock" | "notAvailable"
   const [loadedTabs, setLoadedTabs] = useState(new Set()); // Track which tabs have been loaded
   const [loadingInStock, setLoadingInStock] = useState(false);
-  const [loadingOutOfStock, setLoadingOutOfStock] = useState(false);
+  const [loadingNotAvailable, setLoadingNotAvailable] = useState(false);
+  const [loadingAgencyOutOfStock, setLoadingAgencyOutOfStock] = useState(false);
   const [notAvailableMotors, setNotAvailableMotors] = useState([]);
+  const [outOfStockStocks, setOutOfStockStocks] = useState([]);
+  const [zeroStockColorsByMotor, setZeroStockColorsByMotor] = useState(new Map());
 
   const updateMotorList = useCallback((incomingMotors = []) => {
     if (!incomingMotors.length) return;
@@ -146,9 +149,10 @@ function Catalogue() {
         };
       });
 
-      const stocksWithQuantity = normalizedStocks.filter(
-        (s) => s.price != null && s.price > 0 && (s.quantity || 0) > 0
-      );
+      const hasQuantity = (stock) =>
+        stock.price != null && stock.price > 0 && (stock.quantity || 0) > 0;
+
+      const stocksWithQuantity = normalizedStocks.filter(hasQuantity);
       setStocks(stocksWithQuantity);
 
       const motorsFromStocks = normalizedStocks
@@ -179,6 +183,42 @@ function Catalogue() {
       await Promise.all(stockFetchPromises);
       setMotorDetailsMap(detailsMap);
       setLoadedTabs((prev) => new Set([...prev, "inStock"]));
+
+      // Track motors/colors whose stock exists but quantity is zero or unavailable
+      const zeroQuantityColorMap = new Map();
+      normalizedStocks
+        .filter((stock) => !hasQuantity(stock))
+        .forEach((stock) => {
+          const motorId = stock.motorbikeId || stock.motor?.id;
+          if (!motorId) return;
+          const colorObj =
+            stock.color ||
+            (stock.colorId
+              ? {
+                  id: stock.colorId,
+                  colorType:
+                    stock.color?.colorType ||
+                    stock.colorType ||
+                    stock.colorName ||
+                    "",
+                }
+              : null);
+          const colorId = colorObj?.id || stock.colorId;
+          const entry = {
+            colorId: colorId ? String(colorId) : null,
+            color: colorObj,
+          };
+          const list = zeroQuantityColorMap.get(motorId) || [];
+          if (
+            entry.colorId &&
+            list.some((c) => c.colorId === entry.colorId)
+          ) {
+            return;
+          }
+          list.push(entry);
+          zeroQuantityColorMap.set(motorId, list);
+        });
+      setZeroStockColorsByMotor(new Map(zeroQuantityColorMap));
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -186,11 +226,11 @@ function Catalogue() {
     }
   }, [user?.agencyId, loadedTabs, motorDetailsMap, updateMotorList]);
 
-  // Fetch data for "Out of Stock" tab - only load motorList
-  const fetchOutOfStockData = useCallback(async () => {
-    if (!user?.agencyId || loadedTabs.has("outOfStock")) return;
+  // Fetch data for "Not Available" tab - only load motorList
+  const fetchNotAvailableData = useCallback(async () => {
+    if (!user?.agencyId || loadedTabs.has("notAvailable")) return;
 
-    setLoadingOutOfStock(true);
+    setLoadingNotAvailable(true);
     try {
       const res = await PrivateDealerStaffApi.getNotAvailableStockList(
         user.agencyId,
@@ -231,13 +271,71 @@ function Catalogue() {
 
       await Promise.all(outOfStockFetchPromises);
       setMotorDetailsMap(detailsMap);
+      setLoadedTabs((prev) => new Set([...prev, "notAvailable"]));
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoadingNotAvailable(false);
+    }
+  }, [loadedTabs, motorDetailsMap, user?.agencyId, updateMotorList]);
+
+  // Fetch data for "Out of Stock" tab - stocks that exist but currently unavailable
+  const fetchOutOfStockData = useCallback(async () => {
+    if (!user?.agencyId || loadedTabs.has("outOfStock")) return;
+
+    setLoadingAgencyOutOfStock(true);
+    try {
+      const res = await PrivateDealerStaffApi.getOutOfStockListInfo(
+        user.agencyId,
+        { page: 1, limit: 200 }
+      );
+      const stocksData = res.data?.data || [];
+
+      const normalized = stocksData.map((stock) => {
+        const color =
+          stock.colorId != null
+            ? { id: stock.colorId, colorType: stock.colorType }
+            : null;
+        const motor = {
+          id: stock.motorbikeId,
+          name: stock.name,
+          description: stock.description,
+          model: stock.model,
+          makeFrom: stock.makeFrom,
+          version: stock.version,
+          price: stock.price,
+          images: stock.imageUrl ? [{ imageUrl: stock.imageUrl }] : [],
+          colors: color
+            ? [
+                {
+                  colorId: color.id,
+                  color,
+                },
+              ]
+            : [],
+        };
+
+        return {
+          ...stock,
+          stockId: stock.id,
+          motorbikeId: stock.motorbikeId,
+          motor,
+          color,
+        };
+      });
+
+      setOutOfStockStocks(normalized);
+      const motorsFromStocks = normalized
+        .map((stock) => stock.motor)
+        .filter((motor) => motor && motor.id);
+      updateMotorList(motorsFromStocks);
       setLoadedTabs((prev) => new Set([...prev, "outOfStock"]));
     } catch (error) {
       toast.error(error.message);
     } finally {
-      setLoadingOutOfStock(false);
+      setLoadingAgencyOutOfStock(false);
     }
-  }, [loadedTabs, motorDetailsMap, user?.agencyId, updateMotorList]);
+  }, [loadedTabs, updateMotorList, user?.agencyId]);
 
   // Load data when tab changes
   useEffect(() => {
@@ -245,8 +343,16 @@ function Catalogue() {
       fetchInStockData();
     } else if (activeTab === "outOfStock" && !loadedTabs.has("outOfStock")) {
       fetchOutOfStockData();
+    } else if (activeTab === "notAvailable" && !loadedTabs.has("notAvailable")) {
+      fetchNotAvailableData();
     }
-  }, [activeTab, loadedTabs, fetchInStockData, fetchOutOfStockData]);
+  }, [
+    activeTab,
+    loadedTabs,
+    fetchInStockData,
+    fetchOutOfStockData,
+    fetchNotAvailableData,
+  ]);
 
   const motorIdToMotor = useMemo(() => {
     const map = new Map();
@@ -373,12 +479,27 @@ function Catalogue() {
   const hasStock = selectedDetail !== null;
 
   // Separate motors into in-stock and out-of-stock
+  const inStockMotorIds = useMemo(() => {
+    const ids = new Set();
+    stocks.forEach((stock) => {
+      if (
+        stock.motorbikeId &&
+        stock.price != null &&
+        stock.price > 0 &&
+        (stock.quantity || 0) > 0
+      ) {
+        ids.add(stock.motorbikeId);
+      }
+    });
+    return ids;
+  }, [stocks]);
+
   // Tab "In Stock": get directly from stocks (only quantity > 0)
   const motorsWithStock = useMemo(() => {
-    // Only show stocks with quantity > 0
-    const stocksWithQuantity = stocks.filter(s => s.price != null && s.price > 0 && (s.quantity || 0) > 0);
-    
-    return stocksWithQuantity
+    return stocks
+      .filter(
+        (s) => s.price != null && s.price > 0 && (s.quantity || 0) > 0
+      )
       .map((stock) => {
         const motorId = stock.motorbikeId;
         if (!motorId) return null;
@@ -386,25 +507,121 @@ function Catalogue() {
         if (!motor || motor.isDeleted) return null;
         return { motor, stockInfo: stock, hasStock: true };
       })
-      .filter(Boolean); // Remove null entries
+      .filter(Boolean);
   }, [stocks, motorIdToMotor]);
 
-  // Tab "Out of Stock": use API data
-  const motorsWithoutStock = useMemo(() => {
-    if (!notAvailableMotors || notAvailableMotors.length === 0) return [];
-    const seen = new Set();
-    return notAvailableMotors
-      .filter((motor) => motor && !motor.isDeleted)
-      .map((motor) => ({ motor, stockInfo: null, hasStock: false }))
-      .filter(({ motor }) => {
-        if (!motor?.id) return false;
-        if (seen.has(motor.id)) return false;
-        seen.add(motor.id);
-        return true;
-      });
-  }, [notAvailableMotors]);
+  const outOfStockCards = useMemo(() => {
+    return outOfStockStocks
+      .map((stock) => {
+        const motor =
+          motorIdToMotor.get(stock.motorbikeId) || stock.motor;
+        if (!motor || motor.isDeleted) return null;
+        return { motor, stockInfo: stock, hasStock: true };
+      })
+      .filter(Boolean);
+  }, [outOfStockStocks, motorIdToMotor]);
 
-  const renderMotorCard = ({ motor, stockInfo, hasStock }) => {
+  // Tab "Not Available": include colors with zero quantity and motors without stock
+  const notAvailableCards = useMemo(() => {
+    const results = [];
+    const seen = new Set();
+
+    const normalizeColorId = (color) => {
+      if (!color) return null;
+      if (color.id !== undefined && color.id !== null) return String(color.id);
+      if (color.colorId !== undefined && color.colorId !== null)
+        return String(color.colorId);
+      return color.colorType || null;
+    };
+
+    const availableColorMap = new Map();
+    motorbikeIdToStockColors.forEach((colors, motorId) => {
+      const set = new Set(
+        colors
+          .map((c) => c.colorId)
+          .filter((id) => id !== undefined && id !== null)
+          .map((id) => String(id))
+      );
+      availableColorMap.set(String(motorId), set);
+    });
+
+    const zeroColorIdMap = new Map();
+    zeroStockColorsByMotor.forEach((entries, motorId) => {
+      zeroColorIdMap.set(
+        String(motorId),
+        new Set(
+          entries
+            .map((entry) => entry.colorId)
+            .filter((id) => id !== undefined && id !== null)
+        )
+      );
+      const motor =
+        motorIdToMotor.get(Number(motorId)) ||
+        motorList.find((m) => String(m.id) === String(motorId)) ||
+        notAvailableMotors.find((m) => String(m.id) === String(motorId));
+      if (!motor || motor.isDeleted) return;
+      entries.forEach((entry, index) => {
+        const key = `${motorId}-${entry.colorId || `zero-${index}`}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        results.push({
+          motor,
+          stockInfo: null,
+          hasStock: false,
+          colorInfo: entry.color || null,
+        });
+      });
+    });
+
+    const addColorEntry = (motor, color) => {
+      if (!motor || motor.isDeleted || !motor.id) return;
+      const colorKey = normalizeColorId(color) || "no-color";
+      const key = `${motor.id}-${colorKey}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      results.push({
+        motor,
+        stockInfo: null,
+        hasStock: false,
+        colorInfo: color || null,
+      });
+    };
+
+    motorList.forEach((motor) => {
+      if (!motor || motor.isDeleted || !motor.id) return;
+      const colors = motor.colors || [];
+      const availableSet =
+        availableColorMap.get(String(motor.id)) || new Set();
+      const zeroSet = zeroColorIdMap.get(String(motor.id)) || new Set();
+
+      colors.forEach((colorWrapper) => {
+        const color = colorWrapper.color || null;
+        const colorId = normalizeColorId(color);
+        if (colorId && availableSet.has(colorId)) return;
+        if (colorId && zeroSet.has(colorId)) return;
+        addColorEntry(motor, color);
+      });
+    });
+
+    notAvailableMotors.forEach((motor) => {
+      if (!motor || motor.isDeleted || !motor.id) return;
+      const colors =
+        motor.colors && motor.colors.length > 0
+          ? motor.colors.map((c) => c.color || c)
+          : [null];
+      colors.forEach((color) => addColorEntry(motor, color));
+    });
+
+    return results;
+  }, [
+    zeroStockColorsByMotor,
+    motorList,
+    motorbikeIdToStockColors,
+    notAvailableMotors,
+    motorIdToMotor,
+  ]);
+
+  const renderMotorCard = ({ motor, stockInfo, hasStock, colorInfo }) => {
     const name = motor?.name || `Motor #${motor.id}`;
     const image = motor?.images?.[0]?.imageUrl || motor?.images?.[0] || "";
     
@@ -431,6 +648,8 @@ function Catalogue() {
       if (!colorType && motorDetail?.colors?.[0]?.color?.colorType) {
         colorType = motorDetail.colors[0].color.colorType;
       }
+    } else if (colorInfo?.colorType) {
+      colorType = colorInfo.colorType;
     } else {
       // For out-of-stock items, get all available colors
       if (motorDetail?.colors && motorDetail.colors.length > 0) {
@@ -556,7 +775,10 @@ function Catalogue() {
   return (
     <div className="p-4">
       <TitleBreadcrumb />
-      {(loading || (activeTab === "inStock" && loadingInStock) || (activeTab === "outOfStock" && loadingOutOfStock)) ? (
+      {(loading ||
+        (activeTab === "inStock" && loadingInStock) ||
+        (activeTab === "outOfStock" && loadingAgencyOutOfStock) ||
+        (activeTab === "notAvailable" && loadingNotAvailable)) ? (
         <div className="text-gray-500">Loading...</div>
       ) : selectedId ? (
         <div className="bg-white/95 rounded-2xl shadow p-4 md:p-6 border border-gray-100">
@@ -907,7 +1129,7 @@ function Catalogue() {
         <div>
           {/* Tab Navigation */}
           <div className="flex gap-2 mb-6 border-b border-gray-200">
-                  <button
+            <button
               onClick={() => setActiveTab("inStock")}
               className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
                 activeTab === "inStock"
@@ -925,42 +1147,104 @@ function Catalogue() {
                   : "text-gray-500 border-transparent hover:text-gray-700"
               }`}
             >
-              Out of Stock ({motorsWithoutStock.length})
+              Out of Stock ({outOfStockCards.length})
             </button>
-                    </div>
+            <button
+              onClick={() => setActiveTab("notAvailable")}
+              className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
+                activeTab === "notAvailable"
+                  ? "text-indigo-600 border-indigo-600"
+                  : "text-gray-500 border-transparent hover:text-gray-700"
+              }`}
+            >
+              Not Available ({notAvailableCards.length})
+            </button>
+          </div>
 
           {/* Tab Content */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {activeTab === "inStock" ? (
-              loadingInStock ? (
-                <div className="col-span-full text-center py-12 text-gray-500">Loading...</div>
-              ) : motorsWithStock.length > 0 ? (
-                motorsWithStock.map(({ motor, stockInfo, hasStock }) => (
-                  <div key={`inStock-${motor.id}-${stockInfo?.stockId || stockInfo?.id || motor.id}`}>
-                    {renderMotorCard({ motor, stockInfo, hasStock })}
+            {activeTab === "inStock" && (
+              <>
+                {loadingInStock ? (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    Loading...
                   </div>
-                ))
-              ) : (
-                <div className="col-span-full text-center py-12 text-gray-500">
-                  No vehicles in stock
+                ) : motorsWithStock.length > 0 ? (
+                  motorsWithStock.map(({ motor, stockInfo, hasStock }) => (
+                    <div
+                      key={`inStock-${motor.id}-${
+                        stockInfo?.stockId || stockInfo?.id || motor.id
+                      }`}
+                    >
+                      {renderMotorCard({ motor, stockInfo, hasStock })}
                     </div>
-              )
-            ) : (
-              loadingOutOfStock ? (
-                <div className="col-span-full text-center py-12 text-gray-500">Loading...</div>
-              ) : motorsWithoutStock.length > 0 ? (
-                motorsWithoutStock.map(({ motor, stockInfo, hasStock }) => (
-                  <div key={`outOfStock-${motor.id}-${stockInfo?.stockId || stockInfo?.id || motor.id}`}>
-                    {renderMotorCard({ motor, stockInfo, hasStock })}
+                  ))
+                ) : (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    No vehicles in stock
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeTab === "outOfStock" && (
+              <>
+                {loadingAgencyOutOfStock ? (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    Loading...
+                  </div>
+                ) : outOfStockCards.length > 0 ? (
+                  outOfStockCards.map(({ motor, stockInfo, hasStock }) => (
+                    <div
+                      key={`agencyOut-${motor.id}-${
+                        stockInfo?.stockId || stockInfo?.id || motor.id
+                      }`}
+                    >
+                      {renderMotorCard({ motor, stockInfo, hasStock })}
+                    </div>
+                  ))
+                ) : (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    No out-of-stock vehicles
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeTab === "notAvailable" && (
+              <>
+                {loadingNotAvailable ? (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    Loading...
+                  </div>
+                ) : notAvailableCards.length > 0 ? (
+                  notAvailableCards.map(
+                    ({ motor, stockInfo, hasStock, colorInfo }) => (
+                      <div
+                        key={`notAvailable-${motor.id}-${
+                          colorInfo?.id ||
+                          colorInfo?.colorId ||
+                          stockInfo?.stockId ||
+                          motor.id
+                        }`}
+                      >
+                        {renderMotorCard({
+                          motor,
+                          stockInfo,
+                          hasStock,
+                          colorInfo,
+                        })}
                       </div>
-                ))
-                    ) : (
-                <div className="col-span-full text-center py-12 text-gray-500">
-                  All vehicles are in stock
-                </div>
-              )
-                    )}
-                </div>
+                    )
+                  )
+                ) : (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    All vehicles are in stock
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
