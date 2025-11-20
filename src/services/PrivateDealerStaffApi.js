@@ -9,6 +9,11 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.get(`agency-stock/list/${agencyId}`, { params }),
   getStockListInfo: (agencyId, params) =>
     apiConfig.privateApi.get(`agency-stock/list/info/${agencyId}`, { params }),
+  getOutOfStockListInfo: (agencyId, params) =>
+    apiConfig.privateApi.get(
+      `agency-stock/list/info/out-of-stock/${agencyId}`,
+      { params }
+    ),
   getNotAvailableStockList: (agencyId, params) =>
     apiConfig.privateApi.get(`agency-stock/not-available/${agencyId}`, {
       params,
