@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerStaffApi from "../../../../services/PrivateDealerStaffApi";
@@ -79,9 +79,65 @@ function QuotationManagement() {
   const [stockPromotions, setStockPromotions] = useState([]);
   const [loadingPromotions, setLoadingPromotions] = useState(false);
   const [selectedPromotion, setSelectedPromotion] = useState(null);
+  const isFetchingRef = useRef(false);
+  const lastFetchKeyRef = useRef("");
+
+
+  const updateQuotationContractFlags = useCallback(
+    async (quotationList) => {
+      if (!user?.agencyId || quotationList.length === 0) {
+        setQuotationIdsWithContracts(new Set());
+        return;
+      }
+
+      try {
+        const checkResults = await Promise.all(
+          quotationList.map(async (quotation) => {
+            try {
+              const res = await PrivateDealerStaffApi.getCustomerContractList(
+                user.agencyId,
+                { page: 1, limit: 1, quotationId: quotation.id }
+              );
+              const contracts = res.data?.data || [];
+              return {
+                id: quotation.id,
+                hasContract: contracts.some(
+                  (contract) => contract.quotationId === quotation.id
+                ),
+              };
+            } catch (error) {
+              console.error(
+                `Failed to check contracts for quotation #${quotation.id}:`,
+                error
+              );
+              return { id: quotation.id, hasContract: false };
+            }
+          })
+        );
+
+        const quotationIds = new Set(
+          checkResults
+            .filter((result) => result.hasContract)
+            .map((result) => result.id)
+        );
+        setQuotationIdsWithContracts(quotationIds);
+      } catch (error) {
+        console.error("Failed to update quotation contract flags:", error);
+      }
+    },
+    [user?.agencyId]
+  );
 
   const fetchQuotations = useCallback(async () => {
     if (!user?.agencyId) return;
+
+    const fetchKey = `${user.agencyId}-${page}-${limit}-${type}-${status}-${quoteCode}`;
+    if (isFetchingRef.current && lastFetchKeyRef.current === fetchKey) {
+      return;
+    }
+    isFetchingRef.current = true;
+    lastFetchKeyRef.current = fetchKey;
+
     setLoading(true);
     try {
       // Fetch only current page with limit = 5
@@ -118,6 +174,9 @@ function QuotationManagement() {
 
       setAllQuotations(list);
       setTotalItem(totalItems);
+      setQuotationDepositMap(new Map());
+      setQuotationIdsWithContracts(new Set());
+      await updateQuotationContractFlags(list);
       
       // Check if quotation list includes depositId or deposit info
       const depositMap = new Map();
@@ -138,48 +197,13 @@ function QuotationManagement() {
       toast.error(error.message);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [user?.agencyId, page, limit, type, status, quoteCode]);
+  }, [user?.agencyId, page, limit, type, status, quoteCode, updateQuotationContractFlags]);
 
   // Use quotations directly from API (no frontend pagination needed)
   const quotations = allQuotations;
 
-  const fetchQuotationIdsWithContracts = useCallback(async () => {
-    if (!user?.agencyId) return;
-    try {
-      // Fetch contracts with pagination - fetch first few pages to get quotationIds
-      // Since we only need quotationIds, we can limit to first 5 pages (25 contracts)
-      let allContracts = [];
-      let currentPage = 1;
-      const pageSize = 20;
-      const maxPages = 5; // Limit to first 5 pages to avoid loading too much
-      let hasMore = true;
-
-      while (hasMore && currentPage <= maxPages) {
-        const response = await PrivateDealerStaffApi.getCustomerContractList(
-          user.agencyId,
-          { page: currentPage, limit: pageSize }
-        );
-        const contracts = response.data?.data || [];
-        allContracts = [...allContracts, ...contracts];
-        
-        const totalItems = response.data?.paginationInfo?.total || 0;
-        hasMore = allContracts.length < totalItems;
-        currentPage++;
-      }
-
-      // Extract quotationIds that have contracts (filter out null/undefined)
-      const quotationIds = new Set(
-        allContracts
-          .map((contract) => contract.quotationId)
-          .filter((id) => id != null && id !== undefined)
-      );
-      setQuotationIdsWithContracts(quotationIds);
-    } catch (error) {
-      // Silently fail - don't show error if contract list fetch fails
-      console.error("Failed to fetch contracts:", error);
-    }
-  }, [user?.agencyId]);
 
   // Reset page to 1 when filters change
   useEffect(() => {
@@ -189,22 +213,21 @@ function QuotationManagement() {
   useEffect(() => {
     if (user?.agencyId) {
       fetchQuotations();
-      fetchQuotationIdsWithContracts();
     }
-  }, [fetchQuotations, fetchQuotationIdsWithContracts, user?.agencyId]);
+  }, [user?.agencyId, fetchQuotations]);
 
   useEffect(() => {
     if (quotations.length > 0) {
       // Only fetch deposits for quotations that don't already have deposit info
-      const needsFetch = quotations.some(q => 
-        !quotationDepositMap.has(q.id) && (q.depositId || q.type !== "AT_STORE")
+      const needsFetch = quotations.some(
+        (q) => !quotationDepositMap.has(q.id) && (q.depositId || q.type !== "AT_STORE")
       );
       if (needsFetch) {
         fetchDepositsForQuotations();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quotations.length]); // Only depend on length, not the full array
+  }, [quotations]); // Depend on quotations reference so each page triggers a fetch
 
   const fetchDepositsForQuotations = async () => {
     if (quotations.length === 0) return;
