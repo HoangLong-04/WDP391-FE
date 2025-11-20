@@ -36,6 +36,7 @@ export const inventoryGroupFields = [
       {
         key: "motorbike.price",
         label: "Price",
+        render: (price) => price.toLocaleString() + ' đ'
       },
       { key: "motorbike.description", label: "Description" },
       { key: "motorbike.model", label: "Model" },
@@ -57,4 +58,5 @@ export const inventoryGeneralFields = [
     label: "Last update",
     render: (lastUpdate) => dayjs(lastUpdate).format("DD/MM/YYYY"),
   },
+  { key: "color", label: "Color" },
 ];
