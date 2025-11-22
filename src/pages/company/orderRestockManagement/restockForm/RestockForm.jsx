@@ -16,7 +16,7 @@ function RestockForm({form, setForm}) {
     }));
   };
   return (
-    <div>
+    <div className="space-y-4">
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
           Status <span className="text-red-500">*</span>
@@ -36,6 +36,22 @@ function RestockForm({form, setForm}) {
           <option value="CANCELED">CANCELED</option>
         </select>
       </div>
+      {(form.status === "CANCELED" || form.note) && (
+        <div className="group">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Note {form.status === "CANCELED" && <span className="text-red-500">*</span>}
+          </label>
+          <textarea
+            name="note"
+            value={form.note || ""}
+            onChange={handleChange}
+            className={inputClasses}
+            rows={3}
+            placeholder={form.status === "CANCELED" ? "Please provide a reason for cancellation" : "Optional note"}
+            required={form.status === "CANCELED"}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -3,22 +3,21 @@ import useAgencyList from "../../../../hooks/useAgencyList";
 import PrivateAdminApi from "../../../../services/PrivateAdminApi";
 import { toast } from "react-toastify";
 import PaginationTable from "../../../../components/paginationTable/PaginationTable";
-import GroupModal from "../../../../components/modal/groupModal/GroupModal";
-import {
-  generalFields,
-  groupedFields,
-} from "../../../../components/viewModel/restockModel/RestockModel";
+import BaseModal from "../../../../components/modal/baseModal/BaseModal";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import RestockForm from "../../orderRestockManagement/restockForm/RestockForm";
 import dayjs from "dayjs";
-import { Eye, Pencil, CheckCircle, Truck, Check, XCircle } from "lucide-react";
+import { Pencil, CheckCircle, Truck, Check, XCircle, Save } from "lucide-react";
 import { renderStatusTag } from "../../../../utils/statusTag";
 import { formatCurrency } from "../../../../utils/currency";
+import CircularProgress from "@mui/material/CircularProgress";
 
 function OrderRestockManagementEVMStaff() {
   const { agencyList } = useAgencyList();
   const [orderList, setOrderList] = useState([]);
-  const [orderRestock, setOrderRestock] = useState({});
+  const [orderDetail, setOrderDetail] = useState(null);
+  const [orderItems, setOrderItems] = useState([]);
+  const [warehouseList, setWarehouseList] = useState([]);
   // Lưu kết quả check credit để biết approve hay cancel
   const [creditCheckResults, setCreditCheckResults] = useState({});
 
@@ -31,12 +30,15 @@ function OrderRestockManagementEVMStaff() {
   const [loading, setLoading] = useState(false);
   const [viewModalLoading, setViewModalLoading] = useState(false);
   const [submit, setSubmit] = useState(false);
+  const [updatingWarehouse, setUpdatingWarehouse] = useState({}); // Map orderItemId -> boolean
+  const [selectedWarehouses, setSelectedWarehouses] = useState({}); // Map orderItemId -> warehouseId
 
   const [orderModal, setOrderModal] = useState(false);
   const [formModal, setFormModal] = useState(false);
 
   const [form, setForm] = useState({
     status: "",
+    note: "",
   });
 
   const [selectedId, setSelectedId] = useState("");
@@ -112,50 +114,69 @@ function OrderRestockManagementEVMStaff() {
     }
   };
 
+  const fetchWarehouseList = async () => {
+    try {
+      const response = await PrivateAdminApi.getWarehouseList({
+        page: 1,
+        limit: 100,
+      });
+      setWarehouseList(response.data.data || []);
+    } catch (error) {
+      console.error("Error fetching warehouse list:", error);
+    }
+  };
+
   const fetchOrderRestockDetail = async (item) => {
     setViewModalLoading(true);
     try {
       const orderId = item.id;
       
-      // Gọi API đầu tiên để lấy order detail
+      // Gọi API để lấy order detail
       const orderDetailResponse = await PrivateAdminApi.getOrderRestockDetail(orderId);
-      const orderDetail = orderDetailResponse.data.data;
+      const orderDetailData = orderDetailResponse.data.data;
+      setOrderDetail(orderDetailData);
       
-      // Kiểm tra nếu order có orderItems và lấy orderItemId đầu tiên
-      const orderItems = orderDetail?.orderItems || [];
-      if (orderItems.length === 0) {
+      // Lấy tất cả order items từ API response
+      const items = orderDetailData?.orderItems || [];
+      if (items.length === 0) {
         toast.error("This order has no items to display");
         setViewModalLoading(false);
         return;
       }
       
-      // Lấy orderItemId đầu tiên từ orderItems
-      const orderItemId = orderItems[0]?.id;
-      if (!orderItemId) {
-        toast.error("Cannot find order item ID");
-        setViewModalLoading(false);
-        return;
+      // Fetch detail cho từng order item để có thông tin warehouse và motorbike/color
+      const itemDetailsPromises = items.map(async (orderItem) => {
+        try {
+          const itemDetailResponse = await PrivateAdminApi.getOrderRestockOrderItemDetail(orderItem.id);
+          return {
+            ...orderItem,
+            detail: itemDetailResponse.data.data,
+          };
+        } catch (error) {
+          console.error(`Error fetching detail for order item ${orderItem.id}:`, error);
+          return {
+            ...orderItem,
+            detail: null,
+          };
+        }
+      });
+      
+      const itemsWithDetails = await Promise.all(itemDetailsPromises);
+      setOrderItems(itemsWithDetails);
+      
+      // Initialize selected warehouses from current warehouse assignments
+      const initialWarehouses = {};
+      itemsWithDetails.forEach((item) => {
+        if (item.detail?.warehouse?.id) {
+          initialWarehouses[item.id] = item.detail.warehouse.id;
+        }
+      });
+      setSelectedWarehouses(initialWarehouses);
+      
+      // Fetch warehouse list nếu chưa có
+      if (warehouseList.length === 0) {
+        await fetchWarehouseList();
       }
-      
-      // Gọi API thứ hai để lấy order item detail
-      const orderItemResponse = await PrivateAdminApi.getOrderRestockOrderItemDetail(orderItemId);
-      const orderItemDetail = orderItemResponse.data.data;
-      
-      // Merge dữ liệu từ cả 2 API: order detail + order item detail
-      const mergedData = {
-        ...orderItemDetail, // Order item detail (có nested objects)
-        // Thêm thông tin order vào root level để dễ truy cập
-        orderId: orderDetail.id,
-        orderSubtotal: orderDetail.subtotal,
-        orderItemQuantity: orderDetail.itemQuantity,
-        orderAt: orderDetail.orderAt,
-        orderType: orderDetail.orderType,
-        orderStatus: orderDetail.status,
-        creditChecked: orderDetail.creditChecked,
-        agencyId: orderDetail.agencyId,
-      };
-      
-      setOrderRestock(mergedData);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -163,17 +184,46 @@ function OrderRestockManagementEVMStaff() {
     }
   };
 
+  const handleUpdateWarehouseItem = async (orderItemId, motorbikeId, warehouseId, colorId) => {
+    if (!warehouseId) {
+      toast.error("Please select a warehouse");
+      return;
+    }
+    
+    setUpdatingWarehouse(prev => ({ ...prev, [orderItemId]: true }));
+    try {
+      await PrivateAdminApi.updateWarehouseItem(orderItemId, motorbikeId, warehouseId, colorId);
+      toast.success("Warehouse updated successfully");
+      // Update selected warehouse in state
+      setSelectedWarehouses(prev => ({ ...prev, [orderItemId]: warehouseId }));
+      // Refresh order detail
+      if (orderDetail?.id) {
+        await fetchOrderRestockDetail({ id: orderDetail.id });
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to update warehouse");
+    } finally {
+      setUpdatingWarehouse(prev => ({ ...prev, [orderItemId]: false }));
+    }
+  };
+
   const handleUpdateOrder = async (e) => {
     e.preventDefault();
     setSubmit(true);
     try {
-      await PrivateAdminApi.updateOrder(selectedId, form);
+      const updateData = {
+        status: form.status,
+      };
+      if (form.note) {
+        updateData.note = form.note;
+      }
+      await PrivateAdminApi.updateOrder(selectedId, updateData);
       setFormModal(false);
       fetchOrderRestock();
       toast.success("Update successfully");
-      setForm({ status: "" });
+      setForm({ status: "", note: "" });
     } catch (error) {
-      setForm({ status: "" });
+      setForm({ status: "", note: "" });
       toast.error(error.message);
     } finally {
       setSubmit(false);
@@ -200,22 +250,10 @@ function OrderRestockManagementEVMStaff() {
   };
 
   const handleCancel = async (orderId) => {
-    setSubmit(true);
-    try {
-      await PrivateAdminApi.updateOrder(orderId, { status: "CANCELED" });
-      // Xóa kết quả check sau khi cancel
-      setCreditCheckResults(prev => {
-        const newResults = { ...prev };
-        delete newResults[orderId];
-        return newResults;
-      });
-      fetchOrderRestock();
-      toast.success("Order canceled successfully");
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setSubmit(false);
-    }
+    // Mở modal để nhập note khi cancel
+    setSelectedId(orderId);
+    setForm({ status: "CANCELED", note: "" });
+    setFormModal(true);
   };
 
   const handleDeliver = async (orderId) => {
@@ -315,14 +353,32 @@ function OrderRestockManagementEVMStaff() {
 
   const column = [
     { key: "id", title: "Id" },
+    {
+      key: "agency",
+      title: "Agency",
+      render: (agency) => agency?.name || "-",
+    },
     { key: "itemQuantity", title: "Quantity" },
-    { key: "subtotal", title: "Sub total" },
+    {
+      key: "total",
+      title: "Total",
+      render: (total) => formatCurrency(total || 0),
+    },
+    {
+      key: "paidAmount",
+      title: "Paid Amount",
+      render: (paidAmount) => formatCurrency(paidAmount || 0),
+    },
     {
       key: "orderAt",
       title: "Order date",
       render: (date) => dayjs(date).format("DD-MM-YYYY"),
     },
-    { key: "orderType", title: "Order type" },
+    {
+      key: "note",
+      title: "Note",
+      render: (note) => note || "-",
+    },
     {
       key: "status",
       title: "Status",
@@ -362,16 +418,6 @@ function OrderRestockManagementEVMStaff() {
       title: <span className="block text-center">Action</span>,
       render: (_, item) => (
         <div className="flex gap-2 justify-center">
-          <span
-            onClick={() => {
-              setOrderModal(true);
-              fetchOrderRestockDetail(item);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
-            title="View detail"
-          >
-            <Eye className="w-5 h-5 text-white" />
-          </span>
           {item.status === "PENDING" && creditCheckResults[item.id]?.checked && (
             <>
               {creditCheckResults[item.id].canApprove ? (
@@ -474,16 +520,254 @@ function OrderRestockManagementEVMStaff() {
         setPage={setPage}
         title={"Order restock management"}
         totalItem={totalItem}
+        onRowClick={(item) => {
+          setOrderModal(true);
+          fetchOrderRestockDetail(item);
+        }}
       />
-      <GroupModal
-        data={orderRestock}
-        groupedFields={groupedFields}
+      <BaseModal
         isOpen={orderModal}
-        loading={viewModalLoading}
-        onClose={() => setOrderModal(false)}
-        title={"Order info"}
-        generalFields={generalFields}
-      />
+        onClose={() => {
+          setOrderModal(false);
+          setOrderDetail(null);
+          setOrderItems([]);
+          setSelectedWarehouses({});
+        }}
+        title="Order Detail"
+        size="lg"
+      >
+        {viewModalLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : orderDetail ? (
+          <div className="space-y-6">
+            {/* Order Information */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Order ID</p>
+                  <p className="font-medium text-gray-800">{orderDetail.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Status</p>
+                  <div>{renderStatusTag(orderDetail.status)}</div>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Total</p>
+                  <p className="font-medium text-gray-800">{formatCurrency(orderDetail.total || 0)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Paid Amount</p>
+                  <p className="font-medium text-gray-800">{formatCurrency(orderDetail.paidAmount || 0)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Item Quantity</p>
+                  <p className="font-medium text-gray-800">{orderDetail.itemQuantity || 0}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Order Date</p>
+                  <p className="font-medium text-gray-800">
+                    {orderDetail.orderAt ? dayjs(orderDetail.orderAt).format("DD/MM/YYYY") : "-"}
+                  </p>
+                </div>
+                {orderDetail.note && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-600 mb-1">Note</p>
+                    <p className="font-medium text-gray-800">{orderDetail.note}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Agency Information */}
+            {orderDetail.agency && (
+              <div className="bg-white rounded-lg p-5 border border-gray-200">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                  Agency Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">{orderDetail.agency.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Location</p>
+                    <p className="font-medium text-gray-800">{orderDetail.agency.location || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Address</p>
+                    <p className="font-medium text-gray-800">{orderDetail.agency.address || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Contact</p>
+                    <p className="font-medium text-gray-800">{orderDetail.agency.contactInfo || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Status</p>
+                    <p className="font-medium text-gray-800">{orderDetail.agency.status || "-"}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Order Payments */}
+            {orderDetail.orderPayments && orderDetail.orderPayments.length > 0 && (
+              <div className="bg-white rounded-lg p-5 border border-gray-200">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                  Order Payments ({orderDetail.orderPayments.length})
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Invoice Number</th>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Amount</th>
+                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Payment Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {orderDetail.orderPayments.map((payment) => (
+                        <tr key={payment.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-2 text-gray-800">{payment.invoiceNumber || "-"}</td>
+                          <td className="px-4 py-2 text-gray-800">{formatCurrency(payment.amount || 0)}</td>
+                          <td className="px-4 py-2 text-gray-800">
+                            {payment.payAt ? dayjs(payment.payAt).format("DD/MM/YYYY") : "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Order Items */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Order Items ({orderItems.length})
+              </h4>
+              <div className="space-y-4">
+                {orderItems.map((orderItem, index) => {
+                  const detail = orderItem.detail;
+                  const currentWarehouseId = detail?.warehouse?.id || "";
+                  const selectedWarehouseId = selectedWarehouses[orderItem.id] || currentWarehouseId || "";
+                  const isUpdating = updatingWarehouse[orderItem.id];
+
+                  return (
+                    <div key={orderItem.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="mb-4">
+                        <h5 className="font-semibold text-gray-800 mb-2">Item #{index + 1}</h5>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-gray-600">Motorbike:</p>
+                            <p className="font-medium">{detail?.electricMotorbike?.name || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Color:</p>
+                            <p className="font-medium">{detail?.color?.colorType || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Quantity:</p>
+                            <p className="font-medium">{orderItem.quantity || detail?.quantity || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Base Price:</p>
+                            <p className="font-medium">{formatCurrency(orderItem.basePrice || 0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Wholesale Price:</p>
+                            <p className="font-medium">{formatCurrency(orderItem.wholesalePrice || 0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Discount Total:</p>
+                            <p className="font-medium">{formatCurrency(orderItem.discountTotal || 0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Promotion Total:</p>
+                            <p className="font-medium">{formatCurrency(orderItem.promotionTotal || 0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Final Price:</p>
+                            <p className="font-medium text-indigo-600">{formatCurrency(orderItem.finalPrice || detail?.finalPrice || 0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-600">Current Warehouse:</p>
+                            <p className="font-medium">
+                              {detail?.warehouse?.name || "Not assigned"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      {!detail?.warehouse?.id && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Select Warehouse <span className="text-red-500">*</span>
+                          </label>
+                          <div className="flex gap-2">
+                            <select
+                              value={selectedWarehouseId}
+                              onChange={(e) => {
+                                setSelectedWarehouses(prev => ({
+                                  ...prev,
+                                  [orderItem.id]: e.target.value
+                                }));
+                              }}
+                              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              disabled={isUpdating}
+                            >
+                              <option value="">-- Select Warehouse --</option>
+                              {warehouseList.map((warehouse) => (
+                                <option key={warehouse.id} value={warehouse.id}>
+                                  {warehouse.name} - {warehouse.location}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => {
+                                const warehouseId = selectedWarehouses[orderItem.id];
+                                if (!warehouseId) {
+                                  toast.error("Please select a warehouse");
+                                  return;
+                                }
+                                handleUpdateWarehouseItem(
+                                  orderItem.id,
+                                  detail?.electricMotorbike?.id,
+                                  warehouseId,
+                                  detail?.color?.id
+                                );
+                              }}
+                              disabled={isUpdating || !selectedWarehouses[orderItem.id]}
+                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                              {isUpdating ? (
+                                <>
+                                  <CircularProgress size={16} />
+                                  <span>Updating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="w-4 h-4" />
+                                  <span>Save</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No data available
+          </div>
+        )}
+      </BaseModal>
       <FormModal
         isOpen={formModal}
         onClose={() => setFormModal(false)}

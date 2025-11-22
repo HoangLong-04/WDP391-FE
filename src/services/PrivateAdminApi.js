@@ -91,6 +91,10 @@ const PrivateAdminApi = {
     ),
   updateOrder: (id, data) =>
     apiConfig.privateApi.patch(`order-restock-management/status/${id}`, data),
+  updateWarehouseItem: (orderItemId, motorbikeId, warehouseId, colorId) =>
+    apiConfig.privateApi.patch(
+      `order-restock-management/update/warehouse-item/${orderItemId}/${motorbikeId}/${warehouseId}/${colorId}`
+    ),
   // Check credit for an order
   checkCreditOrder: (orderId) =>
     apiConfig.privateApi.patch(`order-restock-management/checked/${orderId}`),
