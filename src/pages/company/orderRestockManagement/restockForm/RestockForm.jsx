@@ -33,6 +33,7 @@ function RestockForm({form, setForm}) {
           <option value="APPROVED">APPROVED</option>
           <option value="DELIVERED">DELIVERED</option>
           <option value="PAID">PAID</option>
+          <option value="COMPLETED">COMPLETED</option>
           <option value="CANCELED">CANCELED</option>
         </select>
       </div>
