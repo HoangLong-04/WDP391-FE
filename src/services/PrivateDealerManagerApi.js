@@ -134,6 +134,8 @@ const PrivateDealerManagerApi = {
     apiConfig.privateApi.get(`batches-management/detail/${batchId}`),
   payApBatch: (platform, data) =>
     apiConfig.privateApi.post(`vnpay/agency-bill?platform=${platform}`, data),
+  payOrderRestock: (platform, data) =>
+    apiConfig.privateApi.post(`vnpay/agency-bill?platform=${platform}`, data),
 
   // Email APIs
   sendCustomerContractEmail: (customerContractId) =>

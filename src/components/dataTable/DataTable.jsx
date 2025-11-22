@@ -46,6 +46,8 @@ function DataTable({
                       ? "bg-green-500 hover:bg-green-600"
                       : action.type === "delete"
                       ? "bg-red-500 hover:bg-red-600"
+                      : action.type === "payment"
+                      ? "bg-indigo-500 hover:bg-indigo-600"
                       : "bg-gray-500 hover:bg-gray-600";
                     return (
                       <button

@@ -18,14 +18,6 @@ function OrderRestockForm({
   const handleChange = (e, itemIndex) => {
     const { name, value } = e.target;
 
-    if (name === "orderType") {
-      setForm((prevData) => ({
-        ...prevData,
-        orderType: value,
-      }));
-      return;
-    }
-
     let processedValue;
 
     if (value === "") {
@@ -61,7 +53,6 @@ function OrderRestockForm({
           quantity: 0,
           discountId: null,
           promotionId: null,
-          warehouseId: 0,
           motorbikeId: 0,
           colorId: 0,
         },
@@ -118,22 +109,6 @@ function OrderRestockForm({
 
   return (
     <div className="space-y-4">
-      <div className="group">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Order Type <span className="text-red-500">*</span>
-        </label>
-        <select
-          name="orderType"
-          value={form.orderType || "FULL"}
-          onChange={(e) => handleChange(e, 0)}
-          className={selectClasses}
-          required
-        >
-          <option value="FULL">FULL</option>
-          <option value="DEFERRED">DEFERRED</option>
-        </select>
-      </div>
-
       {/* Order Items List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -226,28 +201,6 @@ function OrderRestockForm({
                     {colorOptions.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.colorType}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="group">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Warehouse <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="warehouseId"
-                    value={orderItem.warehouseId || ""}
-                    onChange={(e) => handleChange(e, index)}
-                    className={selectClasses}
-                    required
-                  >
-                    <option value="" disabled hidden>
-                      -- Chọn Warehouse --
-                    </option>
-                    {warehouseList.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.location} - {d.name}
                       </option>
                     ))}
                   </select>

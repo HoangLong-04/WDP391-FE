@@ -14,7 +14,7 @@ import useWarehouseAgency from "../../../../hooks/useWarehouseAgency";
 import usePromotionAgency from "../../../../hooks/usePromotionAgency";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import OrderRestockForm from "./orderRestockForm/OrderRestockForm";
-import { Send, Plus, Trash2 } from "lucide-react";
+import { Send, Plus, Trash2, CreditCard } from "lucide-react";
 import { renderStatusTag } from "../../../../utils/statusTag";
 
 function OrderRestockAgency() {
@@ -44,13 +44,11 @@ function OrderRestockAgency() {
   const [deleteModal, setDeleteModal] = useState(false)
 
   const [form, setForm] = useState({
-    orderType: "FULL",
     orderItems: [
       {
         quantity: 0,
         discountId: null,
         promotionId: null,
-        warehouseId: 0,
         motorbikeId: 0,
         colorId: 0,
       },
@@ -92,13 +90,15 @@ function OrderRestockAgency() {
       // Lưu thông tin order chung
       setOrderGeneralInfo({
         orderId: item.id,
-        orderType: item.orderType,
         orderAt: item.orderAt,
         orderStatus: item.status,
-        orderSubtotal: item.subtotal,
+        orderTotal: item.total,
+        orderSubtotal: item.subtotal, // Fallback nếu không có total
+        paidAmount: item.paidAmount,
         itemQuantity: item.itemQuantity,
         creditChecked: item.creditChecked,
         agencyId: item.agencyId,
+        note: item.note,
       });
 
       // Fetch detail cho tất cả orderItems
@@ -146,7 +146,6 @@ function OrderRestockAgency() {
         (item) =>
           item.motorbikeId > 0 &&
           item.colorId > 0 &&
-          item.warehouseId > 0 &&
           item.quantity > 0
       );
 
@@ -158,12 +157,10 @@ function OrderRestockAgency() {
 
       // Chuyển đổi form thành format API: loại bỏ null/0 và chỉ gửi giá trị hợp lệ
       const payload = {
-        orderType: form.orderType,
         orderItems: validItems.map((item) => ({
           quantity: item.quantity,
           motorbikeId: item.motorbikeId,
           colorId: item.colorId,
-          warehouseId: item.warehouseId,
           ...(item.discountId && item.discountId > 0 && { discountId: item.discountId }),
           ...(item.promotionId && item.promotionId > 0 && { promotionId: item.promotionId }),
         })),
@@ -174,13 +171,11 @@ function OrderRestockAgency() {
       
       // Reset form to default after successful creation
       setForm({
-        orderType: "FULL",
         orderItems: [
           {
             quantity: 0,
             discountId: null,
             promotionId: null,
-            warehouseId: 0,
             motorbikeId: 0,
             colorId: 0,
           },
@@ -234,7 +229,41 @@ function OrderRestockAgency() {
     } finally {
       setSubmit(false);
     }
-  }
+  };
+
+  const handlePayment = async (orderId, total, paidAmount) => {
+    setSubmit(true);
+    try {
+      // Tính số tiền còn lại cần thanh toán
+      const remainingAmount = (total || 0) - (paidAmount || 0);
+      
+      if (remainingAmount <= 0) {
+        toast.error("Đơn hàng đã được thanh toán đủ");
+        setSubmit(false);
+        return;
+      }
+
+      const paymentData = {
+        orderId: orderId,
+        amount: remainingAmount,
+      };
+
+      const response = await PrivateDealerManagerApi.payOrderRestock("web", paymentData);
+      
+      if (!response?.data?.data?.paymentUrl) {
+        toast.error("Không nhận được payment URL từ server. Vui lòng thử lại.");
+        setSubmit(false);
+        return;
+      }
+      
+      toast.success("Đang chuyển đến trang thanh toán...");
+      // Redirect to payment URL
+      window.location.href = response.data.data.paymentUrl;
+    } catch (error) {
+      toast.error(error.message || "Có lỗi xảy ra khi thanh toán");
+      setSubmit(false);
+    }
+  };
 
   useEffect(() => {
     fetchRestockList();
@@ -247,12 +276,16 @@ function OrderRestockAgency() {
 
   const columns = [
     { key: "id", title: "Id" },
-    { key: "orderType", title: "Order type" },
     { key: "itemQuantity", title: "Items" },
     {
-      key: "subtotal",
-      title: "Subtotal",
+      key: "total",
+      title: "Total",
       render: (val) => (typeof val === "number" ? formatCurrency(val) : val),
+    },
+    {
+      key: "paidAmount",
+      title: "Paid Amount",
+      render: (val) => (typeof val === "number" ? formatCurrency(val) : formatCurrency(0)),
     },
     {
       key: "orderAt",
@@ -291,6 +324,19 @@ function OrderRestockAgency() {
       },
       show: (item) => item.status === 'DRAFT',
     },
+    {
+      type: "payment",
+      label: "Thanh toán",
+      icon: CreditCard,
+      onClick: (item) => {
+        if (item.status === 'DELIVERED') {
+          const total = item.total || item.subtotal || 0;
+          const paidAmount = item.paidAmount || 0;
+          handlePayment(item.id, total, paidAmount);
+        }
+      },
+      show: (item) => item.status === 'DELIVERED',
+    },
   ];
 
   return (
@@ -311,6 +357,8 @@ function OrderRestockAgency() {
             <option value="PENDING">PENDING</option>
             <option value="APPROVED">APPROVED</option>
             <option value="DELIVERED">DELIVERED</option>
+            <option value="PAID">PAID</option>
+            <option value="COMPLETED">COMPLETED</option>
             <option value="CANCELED">CANCELED</option>
           </select>
         </div>
@@ -353,7 +401,7 @@ function OrderRestockAgency() {
             <CircularProgress />
           </div>
         ) : (
-          <div className="space-y-6 max-h-[80vh] overflow-y-auto">
+          <div className="space-y-6">
             {/* Order General Info */}
             {orderGeneralInfo.orderId && (
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
@@ -370,25 +418,33 @@ function OrderRestockAgency() {
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Order Type:</span>
-                    <span className="ml-2 font-medium text-gray-800">{orderGeneralInfo.orderType || "-"}</span>
-                  </div>
-                  <div>
                     <span className="text-gray-600">Status:</span>
                     <span className="ml-2 font-medium text-gray-800">
                       {renderStatusTag(orderGeneralInfo.orderStatus)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Subtotal:</span>
+                    <span className="text-gray-600">Total:</span>
                     <span className="ml-2 font-medium text-gray-800">
-                      {orderGeneralInfo.orderSubtotal ? formatCurrency(orderGeneralInfo.orderSubtotal) : "-"}
+                      {orderGeneralInfo.orderTotal ? formatCurrency(orderGeneralInfo.orderTotal) : orderGeneralInfo.orderSubtotal ? formatCurrency(orderGeneralInfo.orderSubtotal) : "-"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Paid Amount:</span>
+                    <span className="ml-2 font-medium text-gray-800">
+                      {orderGeneralInfo.paidAmount ? formatCurrency(orderGeneralInfo.paidAmount) : formatCurrency(0)}
                     </span>
                   </div>
                   <div>
                     <span className="text-gray-600">Total Items:</span>
                     <span className="ml-2 font-medium text-gray-800">{restockOrderItems.length}</span>
                   </div>
+                  {orderGeneralInfo.note && (
+                    <div className="col-span-full">
+                      <span className="text-gray-600">Note:</span>
+                      <p className="mt-1 font-medium text-gray-800">{orderGeneralInfo.note}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -421,12 +477,14 @@ function OrderRestockAgency() {
                         <p className="text-sm text-gray-600 mb-1">Quantity</p>
                         <p className="font-medium text-gray-800">{item.quantity || 0}</p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Warehouse</p>
-                        <p className="font-medium text-gray-800">
-                          {item.warehouse?.name || item.warehouse?.location || "-"}
-                        </p>
-                      </div>
+                      {item.warehouse && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Warehouse</p>
+                          <p className="font-medium text-gray-800">
+                            {item.warehouse?.name || item.warehouse?.location || "-"}
+                          </p>
+                        </div>
+                      )}
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Base Price</p>
                         <p className="font-medium text-gray-800">
@@ -436,7 +494,7 @@ function OrderRestockAgency() {
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Wholesale Price</p>
                         <p className="font-medium text-gray-800">
-                          {item.wholeSalePrice ? formatCurrency(item.wholeSalePrice) : "-"}
+                          {item.wholesalePrice ? formatCurrency(item.wholesalePrice) : "-"}
                         </p>
                       </div>
                       <div>
