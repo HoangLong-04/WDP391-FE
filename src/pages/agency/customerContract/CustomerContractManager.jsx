@@ -182,6 +182,22 @@ function CustomerContractManager() {
     },
     { key: "title", title: "Title" },
     {
+      key: "customer",
+      title: "Customer Name",
+      render: (customer) => {
+        if (!customer) return "-";
+        return <span className="font-medium text-gray-800">{customer.name || "-"}</span>;
+      },
+    },
+    {
+      key: "customer",
+      title: "Customer Email",
+      render: (customer) => {
+        if (!customer) return "-";
+        return <span className="text-gray-600">{customer.email || "-"}</span>;
+      },
+    },
+    {
       key: "finalPrice",
       title: "Final Price",
       render: (price) => formatCurrency(price),

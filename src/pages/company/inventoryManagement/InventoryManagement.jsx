@@ -16,7 +16,7 @@ import {
   inventoryGroupFields,
 } from "../../../components/viewModel/inventoryModel/InventoryModel";
 import { warehouseFields } from "../../../components/viewModel/warehouseModel/WarehouseModel";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import useColorList from "../../../hooks/useColorList";
 
 function InventoryManagement() {
@@ -27,6 +27,7 @@ function InventoryManagement() {
   const [motor, setMotor] = useState({});
   const [warehouse, setWarehouse] = useState({});
   const [inventory, setInventory] = useState({});
+  const [inventoryDetails, setInventoryDetails] = useState({}); // Map to store detail data: key = "motorId-warehouseId-colorId"
   const { colorList } = useColorList();
 
   const [page, setPage] = useState(1);
@@ -69,8 +70,32 @@ function InventoryManagement() {
     setLoading(true);
     try {
       const response = await PrivateAdminApi.getInventory({ page, limit });
-      setInventoryList(response.data.data);
+      const inventoryData = response.data.data;
+      setInventoryList(inventoryData);
       setTotalItem(response.data.paginationInfo.total);
+
+      // Fetch details for all items in parallel
+      const detailPromises = inventoryData.map((item) =>
+        PrivateAdminApi.getInventoryDetail(
+          item.electricMotorbikeId,
+          item.warehouseId,
+          item.colorId
+        ).catch((error) => {
+          console.error(`Failed to fetch detail for inventory item:`, error);
+          return null;
+        })
+      );
+
+      const detailResponses = await Promise.all(detailPromises);
+      const detailsMap = {};
+      detailResponses.forEach((response, index) => {
+        if (response && response.data && response.data.data) {
+          const item = inventoryData[index];
+          const key = `${item.electricMotorbikeId}-${item.warehouseId}-${item.colorId}`;
+          detailsMap[key] = response.data.data;
+        }
+      });
+      setInventoryDetails(detailsMap);
     } catch (error) {
       console.log(error);
     } finally {
@@ -334,28 +359,68 @@ function InventoryManagement() {
       render: (stockDate) => dayjs(stockDate).format("DD/MM/YYYY"),
     },
     {
-      key: "lastUpdate",
-      title: "Last update",
-      render: (lastUpdate) => dayjs(lastUpdate).format("DD/MM/YYYY"),
+      key: "electricMotorbikeId",
+      title: "Motorbike",
+      render: (electricMotorbikeId, item) => {
+        const key = `${item.electricMotorbikeId}-${item.warehouseId}-${item.colorId}`;
+        const detail = inventoryDetails[key];
+        const motorbikeName = detail?.motorbike?.name || "Loading...";
+        return (
+          <span
+            onClick={() => {
+              setMotorModal(true);
+              fetchMotorById(electricMotorbikeId);
+            }}
+            className="cursor-pointer text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            {motorbikeName}
+          </span>
+        );
+      },
+    },
+    {
+      key: "warehouseId",
+      title: "Warehouse",
+      render: (warehouseId, item) => {
+        const key = `${item.electricMotorbikeId}-${item.warehouseId}-${item.colorId}`;
+        const detail = inventoryDetails[key];
+        const warehouseName = detail?.warehouse?.name || "Loading...";
+        return (
+          <span
+            onClick={() => {
+              setWarehouseModal(true);
+              fetchWarehouseById(warehouseId);
+            }}
+            className="cursor-pointer text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            {warehouseName}
+          </span>
+        );
+      },
+    },
+    {
+      key: "colorId",
+      title: "Color",
+      render: (colorId, item) => {
+        const key = `${item.electricMotorbikeId}-${item.warehouseId}-${item.colorId}`;
+        const detail = inventoryDetails[key];
+        const colorName = detail?.color || "Loading...";
+
+        return (
+          <div
+            className="px-3 py-1 rounded-md text-white font-semibold flex justify-center items-center"
+            style={{ backgroundColor: colorName }}
+          >
+            {colorName}
+          </div>
+        );
+      },
     },
     {
       key: "action1",
       title: "Action",
       render: (_, item) => (
-        <div className="flex gap-2">
-          <span
-            onClick={() => {
-              setInventoryModal(true);
-              fetchInventoryDetail(
-                item.electricMotorbikeId,
-                item.warehouseId,
-                item.colorId
-              );
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-          >
-            <Eye className="w-5 h-5 text-white" />
-          </span>
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
           <span
             onClick={() => {
               setUpdateForm({
@@ -389,53 +454,6 @@ function InventoryManagement() {
         </div>
       ),
     },
-    {
-      key: "electricMotorbikeId",
-      title: "Motorbike",
-      render: (electricMotorbikeId) => (
-        <span
-          onClick={() => {
-            setMotorModal(true);
-            fetchMotorById(electricMotorbikeId);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Eye className="w-5 h-5 text-white" />
-        </span>
-      ),
-    },
-    {
-      key: "warehouseId",
-      title: "Warehouse",
-      render: (warehouseId) => (
-        <span
-          onClick={() => {
-            setWarehouseModal(true);
-            fetchWarehouseById(warehouseId);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Eye className="w-5 h-5 text-white" />
-        </span>
-      ),
-    },
-    {
-      key: "colorId",
-      title: "Color",
-      render: (colorId) => {
-        const color = colorList.find((c) => c.id === colorId);
-        const colorName = color?.colorType || "unknown";
-
-        return (
-          <div
-            className="px-3 py-1 rounded-md text-white font-semibold flex justify-center items-center"
-            style={{ backgroundColor: colorName }}
-          >
-            {colorName}
-          </div>
-        );
-      },
-    },
   ];
 
   return (
@@ -460,6 +478,14 @@ function InventoryManagement() {
         columns={columns}
         setPage={setPage}
         totalItem={totalItem}
+        onRowClick={(item) => {
+          setInventoryModal(true);
+          fetchInventoryDetail(
+            item.electricMotorbikeId,
+            item.warehouseId,
+            item.colorId
+          );
+        }}
       />
 
       <FormModal
