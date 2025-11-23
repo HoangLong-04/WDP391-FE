@@ -25,6 +25,9 @@ export const renderStatusTag = (status) => {
     COMPLETED: { bg: "bg-green-600", label: "Completed" },
     CANCELED: { bg: "bg-rose-500", label: "Canceled" },
     CANCELLED: { bg: "bg-rose-500", label: "Cancelled" },
+    // Booking statuses
+    ACCEPTED: { bg: "bg-green-500", label: "Accepted" },
+    REJECTED: { bg: "bg-red-500", label: "Rejected" },
     
     // Default fallback
     default: { bg: "bg-gray-500", label: status },

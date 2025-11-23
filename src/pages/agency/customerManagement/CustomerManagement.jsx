@@ -133,7 +133,6 @@ function CustomerManagement() {
       title: "Dob",
       render: (dob) => dob ? dayjs(dob).format("DD-MM-YYYY") : "-",
     },
-    { key: "agencyId", title: "Agency" },
   ];
 
   const actions = [

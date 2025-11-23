@@ -5,8 +5,11 @@ import { toast } from "react-toastify";
 import DataTable from "../../../../components/dataTable/DataTable";
 import dayjs from "dayjs";
 import FormModal from "../../../../components/modal/formModal/FormModal";
+import BaseModal from "../../../../components/modal/baseModal/BaseModal";
+import CircularProgress from "@mui/material/CircularProgress";
 import BookForm from "./bookForm/BookForm";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Eye } from "lucide-react";
+import { renderStatusTag } from "../../../../utils/statusTag";
 
 function BookingManagement() {
   const { user } = useAuth();
@@ -32,8 +35,14 @@ function BookingManagement() {
 
   const [loading, setLoading] = useState(false);
   const [submit, setSubmit] = useState(false);
+  const [viewModalLoading, setViewModalLoading] = useState(false);
+  const [bookingDetail, setBookingDetail] = useState(null);
+  const [viewModal, setViewModal] = useState(false);
 
   const [selectedId, setSelectedId] = useState("");
+  
+  // Map to store motorbike names by booking ID
+  const [motorbikeNames, setMotorbikeNames] = useState({});
 
   const fetchBookList = useCallback(async () => {
     if (!user?.agencyId) return;
@@ -46,14 +55,55 @@ function BookingManagement() {
         phone,
         email,
       });
-      setBookList(response.data.data);
+      const bookings = response.data.data || [];
+      setBookList(bookings);
       setTotalItem(response.data.paginationInfo.total);
+      
+      // Fetch details for all bookings to get motorbike names
+      if (bookings.length > 0) {
+        fetchBookingDetails(bookings);
+      }
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
   }, [user?.agencyId, page, limit, fullname, phone, email]);
+
+  // Fetch details for all bookings to get motorbike names
+  const fetchBookingDetails = async (bookings) => {
+    try {
+      // Fetch all details in parallel
+      const detailPromises = bookings.map((booking) =>
+        PrivateDealerStaff.getBookingDetail(booking.id)
+          .then((response) => ({
+            bookingId: booking.id,
+            detail: response.data?.data || null,
+          }))
+          .catch((error) => {
+            console.error(`Failed to fetch detail for booking ${booking.id}:`, error);
+            return { bookingId: booking.id, detail: null };
+          })
+      );
+
+      const details = await Promise.all(detailPromises);
+      
+      // Update motorbike names state
+      const newMotorbikeNames = {};
+      details.forEach(({ bookingId, detail }) => {
+        if (detail?.electricMotorbike?.name) {
+          newMotorbikeNames[bookingId] = detail.electricMotorbike.name;
+        }
+      });
+      
+      setMotorbikeNames((prev) => ({
+        ...prev,
+        ...newMotorbikeNames,
+      }));
+    } catch (error) {
+      console.error("Error fetching booking details:", error);
+    }
+  };
 
   useEffect(() => {
     fetchBookList();
@@ -82,8 +132,28 @@ function BookingManagement() {
     }
   };
 
-  const handleViewDetail = (item) => {
-    // Can add view detail modal if needed
+  const handleViewDetail = async (item) => {
+    setSelectedId(item.id);
+    setViewModalLoading(true);
+    setViewModal(true);
+    try {
+      const response = await PrivateDealerStaff.getBookingDetail(item.id);
+      const detail = response.data?.data || null;
+      setBookingDetail(detail);
+      
+      // Store motorbike name for this booking
+      if (detail?.electricMotorbike?.name) {
+        setMotorbikeNames((prev) => ({
+          ...prev,
+          [item.id]: detail.electricMotorbike.name,
+        }));
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to fetch booking detail");
+      setViewModal(false);
+    } finally {
+      setViewModalLoading(false);
+    }
   };
 
   const columns = [
@@ -91,13 +161,26 @@ function BookingManagement() {
     { key: "fullname", title: "Fullname" },
     { key: "phone", title: "Phone" },
     { key: "email", title: "Email" },
+    {
+      key: "motorbikeName",
+      title: "Motorbike",
+      render: (_, item) => (
+        <span className="font-medium">
+          {motorbikeNames[item.id] || "-"}
+        </span>
+      ),
+    },
     { 
       key: "driveDate", 
       title: "Date",
       render: (date) => date ? dayjs(date).format("DD/MM/YYYY") : "-",
     },
     { key: "driveTime", title: "Time" },
-    { key: "status", title: "Status" },
+    { 
+      key: "status", 
+      title: "Status",
+      render: (status) => renderStatusTag(status),
+    },
   ];
 
   const actions = [
@@ -181,6 +264,110 @@ function BookingManagement() {
       >
         <BookForm form={form} setForm={setForm} />
       </FormModal>
+
+      {/* View Detail Modal */}
+      <BaseModal
+        isOpen={viewModal}
+        onClose={() => {
+          setViewModal(false);
+          setBookingDetail(null);
+        }}
+        title="Booking Detail"
+        size="lg"
+      >
+        {viewModalLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : bookingDetail ? (
+          <div className="space-y-6">
+            {/* Customer Info */}
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+              <h3 className="font-bold text-lg mb-4 text-gray-800">Customer Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Fullname</p>
+                  <p className="font-semibold">{bookingDetail.fullname || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Email</p>
+                  <p className="font-semibold">{bookingDetail.email || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Phone</p>
+                  <p className="font-semibold">{bookingDetail.phone || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Status</p>
+                  <div className="mt-1">
+                    {renderStatusTag(bookingDetail.status)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Booking Details */}
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+              <h3 className="font-bold text-lg mb-4 text-gray-800">Booking Details</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Drive Date</p>
+                  <p className="font-semibold">
+                    {bookingDetail.driveDate
+                      ? dayjs(bookingDetail.driveDate).format("DD/MM/YYYY")
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Drive Time</p>
+                  <p className="font-semibold">{bookingDetail.driveTime || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Booking ID</p>
+                  <p className="font-semibold">#{bookingDetail.id}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Motorbike Info */}
+            {bookingDetail.electricMotorbike && (
+              <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+                <h3 className="font-bold text-lg mb-4 text-gray-800">Motorbike Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Name</p>
+                    <p className="font-semibold">
+                      {bookingDetail.electricMotorbike.name || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Model</p>
+                    <p className="font-semibold">
+                      {bookingDetail.electricMotorbike.model || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Made From</p>
+                    <p className="font-semibold">
+                      {bookingDetail.electricMotorbike.makeFrom || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Version</p>
+                    <p className="font-semibold">
+                      {bookingDetail.electricMotorbike.version || "-"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No booking detail available
+          </div>
+        )}
+      </BaseModal>
     </div>
   );
 }
