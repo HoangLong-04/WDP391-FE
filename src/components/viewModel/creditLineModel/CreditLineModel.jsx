@@ -1,14 +1,24 @@
-import { Check, X } from "lucide-react";
-
 export const creditGeneralField = [
   { key: "id", label: "Id" },
   { key: "creditLimit", label: "Limit" },
+  {
+    key: "currentDebt",
+    label: "Current Debt",
+    render: (data) => (data !== undefined && data !== null ? data.toLocaleString() + " đ" : "0 đ"),
+  },
   { key: "warningThreshold", label: "Threshold" },
   { key: "overDueThreshHoldDays", label: "Over due days" },
   {
     key: "isBlocked",
     label: "Available",
-    render: (data) => (data === true ? <X /> : <Check />),
+    render: (data) => {
+      const isAvailable = data !== true;
+      return (
+        <span className={`font-semibold ${isAvailable ? "text-green-600" : "text-red-600"}`}>
+          {isAvailable ? "Yes" : "No"}
+        </span>
+      );
+    },
   },
 ];
 

@@ -6,7 +6,6 @@ import {
   Building2,
   Warehouse,
   Bike,
-  Package,
   DollarSign,
   TrendingUp,
   Calendar,
@@ -25,14 +24,12 @@ function CompanyDash() {
     totalAgencies: 0,
     totalWarehouses: 0,
     totalMotorbikes: 0,
-    totalApBatches: 0,
     totalContractRevenue: 0,
   });
   const [previousStats, setPreviousStats] = useState({
     totalAgencies: 0,
     totalWarehouses: 0,
     totalMotorbikes: 0,
-    totalApBatches: 0,
     totalContractRevenue: 0,
   });
   const [quarterRevenue, setQuarterRevenue] = useState([]);
@@ -52,7 +49,6 @@ function CompanyDash() {
         agenciesRes,
         warehousesRes,
         motorbikesRes,
-        apBatchesRes,
         revenueRes,
         quarterRes,
         topMotorbikesRes,
@@ -60,7 +56,6 @@ function CompanyDash() {
         PrivateAdminApi.getTotalAgencies(),
         PrivateAdminApi.getTotalWarehouses(),
         PrivateAdminApi.getTotalMotorbikes(),
-        PrivateAdminApi.getTotalApBatches(filters.agencyId ? { agencyId: filters.agencyId } : {}),
         PrivateAdminApi.getTotalContractRevenue(filters.agencyId ? { agencyId: filters.agencyId } : {}),
         PrivateAdminApi.getQuarterRevenue({
           quarter: filters.quarter,
@@ -75,7 +70,6 @@ function CompanyDash() {
         totalAgencies: agenciesRes.data.data.totalAgencies,
         totalWarehouses: warehousesRes.data.data.totalWarehouses,
         totalMotorbikes: motorbikesRes.data.data.totalMotorbikes,
-        totalApBatches: apBatchesRes.data.data.totalApBatches,
         totalContractRevenue: revenueRes.data.data.totalContractRevenue,
       });
       setQuarterRevenue(quarterRes.data.data.quarterContractChartData || []);
@@ -294,7 +288,7 @@ function CompanyDash() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Agencies"
           value={stats.totalAgencies}
@@ -315,13 +309,6 @@ function CompanyDash() {
           icon={Bike}
           color="purple"
           trend={calculateTrend(stats.totalMotorbikes, previousStats.totalMotorbikes)}
-        />
-        <StatCard
-          title="AP Batches"
-          value={stats.totalApBatches}
-          icon={Package}
-          color="orange"
-          trend={calculateTrend(stats.totalApBatches, previousStats.totalApBatches)}
         />
         <StatCard
           title="Revenue"

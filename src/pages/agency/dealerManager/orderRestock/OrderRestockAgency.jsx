@@ -14,7 +14,7 @@ import useWarehouseAgency from "../../../../hooks/useWarehouseAgency";
 import usePromotionAgency from "../../../../hooks/usePromotionAgency";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import OrderRestockForm from "./orderRestockForm/OrderRestockForm";
-import { Send, Plus, Trash2 } from "lucide-react";
+import { Send, Plus, Trash2, CreditCard } from "lucide-react";
 import { renderStatusTag } from "../../../../utils/statusTag";
 
 function OrderRestockAgency() {
@@ -42,15 +42,16 @@ function OrderRestockAgency() {
   const [viewModal, setViewModal] = useState(false);
   const [sendRequestModal, setSendRequestModal] = useState(false)
   const [deleteModal, setDeleteModal] = useState(false)
+  const [paymentModal, setPaymentModal] = useState(false)
+  const [paymentAmount, setPaymentAmount] = useState("")
+  const [selectedPaymentOrder, setSelectedPaymentOrder] = useState(null)
 
   const [form, setForm] = useState({
-    orderType: "FULL",
     orderItems: [
       {
         quantity: 0,
         discountId: null,
         promotionId: null,
-        warehouseId: 0,
         motorbikeId: 0,
         colorId: 0,
       },
@@ -92,13 +93,16 @@ function OrderRestockAgency() {
       // Lưu thông tin order chung
       setOrderGeneralInfo({
         orderId: item.id,
-        orderType: item.orderType,
         orderAt: item.orderAt,
         orderStatus: item.status,
-        orderSubtotal: item.subtotal,
+        orderTotal: item.total,
+        orderSubtotal: item.subtotal, // Fallback nếu không có total
+        paidAmount: item.paidAmount,
         itemQuantity: item.itemQuantity,
         creditChecked: item.creditChecked,
         agencyId: item.agencyId,
+        note: item.note,
+        orderPayments: item.orderPayments || [],
       });
 
       // Fetch detail cho tất cả orderItems
@@ -146,7 +150,6 @@ function OrderRestockAgency() {
         (item) =>
           item.motorbikeId > 0 &&
           item.colorId > 0 &&
-          item.warehouseId > 0 &&
           item.quantity > 0
       );
 
@@ -158,12 +161,10 @@ function OrderRestockAgency() {
 
       // Chuyển đổi form thành format API: loại bỏ null/0 và chỉ gửi giá trị hợp lệ
       const payload = {
-        orderType: form.orderType,
         orderItems: validItems.map((item) => ({
           quantity: item.quantity,
           motorbikeId: item.motorbikeId,
           colorId: item.colorId,
-          warehouseId: item.warehouseId,
           ...(item.discountId && item.discountId > 0 && { discountId: item.discountId }),
           ...(item.promotionId && item.promotionId > 0 && { promotionId: item.promotionId }),
         })),
@@ -174,13 +175,11 @@ function OrderRestockAgency() {
       
       // Reset form to default after successful creation
       setForm({
-        orderType: "FULL",
         orderItems: [
           {
             quantity: 0,
             discountId: null,
             promotionId: null,
-            warehouseId: 0,
             motorbikeId: 0,
             colorId: 0,
           },
@@ -234,11 +233,103 @@ function OrderRestockAgency() {
     } finally {
       setSubmit(false);
     }
-  }
+  };
+
+  const handleOpenPaymentModal = (item) => {
+    const total = item.total || item.subtotal || 0;
+    const paidAmount = item.paidAmount || 0;
+    const remainingAmount = total - paidAmount;
+    
+    if (remainingAmount <= 0) {
+      toast.error("Order has been fully paid");
+      return;
+    }
+
+    setSelectedPaymentOrder({
+      orderId: item.id,
+      total: total,
+      paidAmount: paidAmount,
+      remainingAmount: remainingAmount,
+    });
+    setPaymentAmount("");
+    setPaymentModal(true);
+  };
+
+  const handlePayment = async (e) => {
+    e.preventDefault();
+    
+    if (!selectedPaymentOrder) {
+      toast.error("Payment information is missing");
+      return;
+    }
+
+    const amount = parseFloat(paymentAmount);
+    const MAX_PAYMENT_AMOUNT = 200000000;
+    
+    if (!paymentAmount || isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid payment amount");
+      return;
+    }
+
+    if (amount > selectedPaymentOrder.remainingAmount) {
+      toast.error(`Payment amount cannot exceed remaining amount: ${formatCurrency(selectedPaymentOrder.remainingAmount)}`);
+      return;
+    }
+
+    if (amount > MAX_PAYMENT_AMOUNT) {
+      toast.error(`Payment amount cannot exceed maximum limit: ${formatCurrency(MAX_PAYMENT_AMOUNT)}`);
+      return;
+    }
+
+    setSubmit(true);
+    try {
+      const paymentData = {
+        orderId: selectedPaymentOrder.orderId,
+        amount: amount,
+      };
+
+      const response = await PrivateDealerManagerApi.payOrderRestock("web", paymentData);
+      
+      if (!response?.data?.data?.paymentUrl) {
+        toast.error("Failed to receive payment URL from server. Please try again.");
+        setSubmit(false);
+        return;
+      }
+      
+      toast.success("Redirecting to payment page...");
+      setPaymentModal(false);
+      setSelectedPaymentOrder(null);
+      setPaymentAmount("");
+      // Redirect to payment URL
+      window.location.href = response.data.data.paymentUrl;
+    } catch (error) {
+      toast.error(error.message || "An error occurred during payment");
+      setSubmit(false);
+    }
+  };
 
   useEffect(() => {
     fetchRestockList();
   }, [page, limit, status]);
+
+  // Check for payment success callback and refresh list
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentSuccess = urlParams.get('payment_success');
+    const paymentStatus = urlParams.get('status');
+    
+    if (paymentSuccess === 'true' || paymentStatus === 'success') {
+      toast.success("Payment completed successfully");
+      fetchRestockList();
+      // Clean up URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (paymentStatus === 'failed' || paymentStatus === 'cancel') {
+      toast.error("Payment was cancelled or failed");
+      fetchRestockList();
+      // Clean up URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const handleViewDetail = async (item) => {
     setViewModal(true);
@@ -247,12 +338,16 @@ function OrderRestockAgency() {
 
   const columns = [
     { key: "id", title: "Id" },
-    { key: "orderType", title: "Order type" },
     { key: "itemQuantity", title: "Items" },
     {
-      key: "subtotal",
-      title: "Subtotal",
+      key: "total",
+      title: "Total",
       render: (val) => (typeof val === "number" ? formatCurrency(val) : val),
+    },
+    {
+      key: "paidAmount",
+      title: "Paid Amount",
+      render: (val) => (typeof val === "number" ? formatCurrency(val) : formatCurrency(0)),
     },
     {
       key: "orderAt",
@@ -291,6 +386,17 @@ function OrderRestockAgency() {
       },
       show: (item) => item.status === 'DRAFT',
     },
+    {
+      type: "payment",
+      label: "Payment",
+      icon: CreditCard,
+      onClick: (item) => {
+        if (item.status === 'DELIVERED') {
+          handleOpenPaymentModal(item);
+        }
+      },
+      show: (item) => item.status === 'DELIVERED',
+    },
   ];
 
   return (
@@ -311,6 +417,8 @@ function OrderRestockAgency() {
             <option value="PENDING">PENDING</option>
             <option value="APPROVED">APPROVED</option>
             <option value="DELIVERED">DELIVERED</option>
+            <option value="PAID">PAID</option>
+            <option value="COMPLETED">COMPLETED</option>
             <option value="CANCELED">CANCELED</option>
           </select>
         </div>
@@ -353,7 +461,7 @@ function OrderRestockAgency() {
             <CircularProgress />
           </div>
         ) : (
-          <div className="space-y-6 max-h-[80vh] overflow-y-auto">
+          <div className="space-y-6">
             {/* Order General Info */}
             {orderGeneralInfo.orderId && (
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
@@ -370,28 +478,88 @@ function OrderRestockAgency() {
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Order Type:</span>
-                    <span className="ml-2 font-medium text-gray-800">{orderGeneralInfo.orderType || "-"}</span>
-                  </div>
-                  <div>
                     <span className="text-gray-600">Status:</span>
                     <span className="ml-2 font-medium text-gray-800">
                       {renderStatusTag(orderGeneralInfo.orderStatus)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Subtotal:</span>
+                    <span className="text-gray-600">Total:</span>
                     <span className="ml-2 font-medium text-gray-800">
-                      {orderGeneralInfo.orderSubtotal ? formatCurrency(orderGeneralInfo.orderSubtotal) : "-"}
+                      {orderGeneralInfo.orderTotal ? formatCurrency(orderGeneralInfo.orderTotal) : orderGeneralInfo.orderSubtotal ? formatCurrency(orderGeneralInfo.orderSubtotal) : "-"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Paid Amount:</span>
+                    <span className="ml-2 font-medium text-gray-800">
+                      {orderGeneralInfo.paidAmount ? formatCurrency(orderGeneralInfo.paidAmount) : formatCurrency(0)}
                     </span>
                   </div>
                   <div>
                     <span className="text-gray-600">Total Items:</span>
                     <span className="ml-2 font-medium text-gray-800">{restockOrderItems.length}</span>
                   </div>
+                  {orderGeneralInfo.note && (
+                    <div className="col-span-full">
+                      <span className="text-gray-600">Note:</span>
+                      <p className="mt-1 font-medium text-gray-800">{orderGeneralInfo.note}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
+
+            {/* Order Payments */}
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Order Payments {orderGeneralInfo.orderPayments && orderGeneralInfo.orderPayments.length > 0 && `(${orderGeneralInfo.orderPayments.length})`}
+              </h4>
+              {orderGeneralInfo.orderPayments && orderGeneralInfo.orderPayments.length > 0 ? (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">Payment ID</th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">Invoice Number</th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">Amount</th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">Payment Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {orderGeneralInfo.orderPayments.map((payment) => (
+                          <tr key={payment.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 text-gray-800">{payment.id || "-"}</td>
+                            <td className="px-4 py-2 text-gray-800">{payment.invoiceNumber || "-"}</td>
+                            <td className="px-4 py-2 text-gray-800">{formatCurrency(payment.amount || 0)}</td>
+                            <td className="px-4 py-2 text-gray-800">
+                              {payment.payAt ? dayjs(payment.payAt).format("DD/MM/YYYY") : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan="2" className="px-4 py-2 text-right font-semibold text-gray-700">
+                            Total Payments:
+                          </td>
+                          <td className="px-4 py-2 text-gray-800 font-semibold">
+                            {formatCurrency(
+                              orderGeneralInfo.orderPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0)
+                            )}
+                          </td>
+                          <td className="px-4 py-2"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  No payments recorded
+                </div>
+              )}
+            </div>
 
             {/* All Order Items */}
             <div>
@@ -421,12 +589,14 @@ function OrderRestockAgency() {
                         <p className="text-sm text-gray-600 mb-1">Quantity</p>
                         <p className="font-medium text-gray-800">{item.quantity || 0}</p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Warehouse</p>
-                        <p className="font-medium text-gray-800">
-                          {item.warehouse?.name || item.warehouse?.location || "-"}
-                        </p>
-                      </div>
+                      {item.warehouse && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Warehouse</p>
+                          <p className="font-medium text-gray-800">
+                            {item.warehouse?.name || item.warehouse?.location || "-"}
+                          </p>
+                        </div>
+                      )}
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Base Price</p>
                         <p className="font-medium text-gray-800">
@@ -436,7 +606,7 @@ function OrderRestockAgency() {
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Wholesale Price</p>
                         <p className="font-medium text-gray-800">
-                          {item.wholeSalePrice ? formatCurrency(item.wholeSalePrice) : "-"}
+                          {item.wholesalePrice ? formatCurrency(item.wholesalePrice) : "-"}
                         </p>
                       </div>
                       <div>
@@ -527,6 +697,58 @@ function OrderRestockAgency() {
         <p className="text-gray-700">
           Are you sure you want to delete order {selectedDeleteId}? This action cannot be undone.
         </p>
+      </FormModal>
+
+      <FormModal
+        isOpen={paymentModal}
+        onClose={() => {
+          setPaymentModal(false);
+          setSelectedPaymentOrder(null);
+          setPaymentAmount("");
+        }}
+        onSubmit={handlePayment}
+        isSubmitting={submit}
+        title={"Payment"}
+        isDelete={false}
+        isPayment={true}
+      >
+        {selectedPaymentOrder && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Order Total:</span>
+                <span className="font-semibold text-gray-800">{formatCurrency(selectedPaymentOrder.total)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Paid Amount:</span>
+                <span className="font-semibold text-gray-800">{formatCurrency(selectedPaymentOrder.paidAmount)}</span>
+              </div>
+              <div className="flex justify-between border-t border-gray-300 pt-2">
+                <span className="text-gray-700 font-medium">Remaining Amount:</span>
+                <span className="font-bold text-indigo-600">{formatCurrency(selectedPaymentOrder.remainingAmount)}</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Payment Amount <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Enter payment amount"
+                min="0"
+                max={Math.min(selectedPaymentOrder.remainingAmount, 200000000)}
+                step="1000"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Maximum: {formatCurrency(Math.min(selectedPaymentOrder.remainingAmount, 200000000))} per transaction
+              </p>
+            </div>
+          </div>
+        )}
       </FormModal>
     </div>
   );

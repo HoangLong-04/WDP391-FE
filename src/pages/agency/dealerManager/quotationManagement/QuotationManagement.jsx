@@ -38,7 +38,7 @@ function QuotationManagement() {
   const { warehouse } = useWarehouseAgency();
   const [orderRestockModal, setOrderRestockModal] = useState(false);
   const [selectedQuotationForRestock, setSelectedQuotationForRestock] = useState(null);
-  const [restockForm, setRestockForm] = useState({ warehouseId: 0 });
+  const [restockForm, setRestockForm] = useState({});
   const [creatingRestock, setCreatingRestock] = useState(false);
   const isFetchingRef = useRef(false);
   const lastFetchKeyRef = useRef("");
@@ -358,7 +358,7 @@ function QuotationManagement() {
         }
       }
       setSelectedQuotationForRestock(detail);
-      setRestockForm({ warehouseId: 0 });
+      setRestockForm({});
       setOrderRestockModal(true);
     } catch (error) {
       toast.error(error.message || "Failed to load quotation detail");
@@ -368,11 +368,6 @@ function QuotationManagement() {
   const handleCreateOrderRestock = async (e) => {
     e.preventDefault();
     if (!selectedQuotationForRestock) return;
-    
-    if (!restockForm.warehouseId || restockForm.warehouseId === 0) {
-      toast.error("Please select a warehouse");
-      return;
-    }
 
     if (!selectedQuotationForRestock.motorbikeId || !selectedQuotationForRestock.colorId) {
       toast.error("Quotation is missing motorbike or color information");
@@ -382,13 +377,13 @@ function QuotationManagement() {
     setCreatingRestock(true);
     try {
       const payload = {
-        orderType: "FULL",
         orderItems: [
           {
             quantity: 1,
             motorbikeId: selectedQuotationForRestock.motorbikeId,
             colorId: selectedQuotationForRestock.colorId,
-            warehouseId: Number(restockForm.warehouseId),
+            ...(selectedQuotationForRestock.discountId && { discountId: selectedQuotationForRestock.discountId }),
+            ...(selectedQuotationForRestock.promotionId && { promotionId: selectedQuotationForRestock.promotionId }),
           },
         ],
         agencyId: user?.agencyId,
@@ -404,18 +399,13 @@ function QuotationManagement() {
       toast.success("Order restock created successfully");
       setOrderRestockModal(false);
       setSelectedQuotationForRestock(null);
-      setRestockForm({ warehouseId: 0 });
+      setRestockForm({});
       
       // Navigate to order restock page
       navigate("/agency/order-restock");
     } catch (error) {
-      // Improve error message for inventory not found
       const errorMessage = error.response?.data?.message || error.message || "Failed to create order restock";
-      if (errorMessage.includes("inventory") || errorMessage.includes("Not find inventory")) {
-        toast.error("Warehouse không có tồn kho cho motorbike và color này. Vui lòng chọn warehouse khác hoặc liên hệ admin để thêm inventory.");
-      } else {
-        toast.error(errorMessage);
-      }
+      toast.error(errorMessage);
     } finally {
       setCreatingRestock(false);
     }
@@ -753,7 +743,7 @@ function QuotationManagement() {
         onClose={() => {
           setOrderRestockModal(false);
           setSelectedQuotationForRestock(null);
-          setRestockForm({ warehouseId: 0 });
+          setRestockForm({});
         }}
         title="Create Order Restock"
         isDelete={false}
@@ -773,27 +763,9 @@ function QuotationManagement() {
                   <p><span className="font-medium">Quantity:</span> 1</p>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Warehouse <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="w-full px-3 py-2 border rounded-lg"
-                  value={restockForm.warehouseId}
-                  onChange={(e) => setRestockForm({ warehouseId: Number(e.target.value) })}
-                  required
-                >
-                  <option value="0">-- Select Warehouse --</option>
-                  {warehouse.map((wh) => (
-                    <option key={wh.id} value={wh.id}>
-                      {wh.name || wh.location || `Warehouse ${wh.id}`}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  ⚠️ Lưu ý: Warehouse phải có tồn kho (inventory) cho motorbike và color này. Nếu không có, vui lòng chọn warehouse khác hoặc liên hệ admin.
-                </p>
-              </div>
+              <p className="text-sm text-gray-600">
+                Warehouse sẽ được EVM Staff chọn khi xử lý đơn hàng.
+              </p>
             </>
           )}
         </div>
