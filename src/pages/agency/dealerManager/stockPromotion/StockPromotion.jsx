@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useAuth } from "../../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../../services/PrivateDealerManagerApi";
+import PrivateDealerStaffApi from "../../../../services/PrivateDealerStaffApi";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
 import DataTable from "../../../../components/dataTable/DataTable";
 import FormModal from "../../../../components/modal/formModal/FormModal";
+import BaseModal from "../../../../components/modal/baseModal/BaseModal";
+import CircularProgress from "@mui/material/CircularProgress";
 import StockPromotionForm from "./stockPromotionForm/StockPromotionForm";
 import useStockListAgency from "../../../../hooks/useStockListAgency";
 import { Pencil, Trash2, Tag, Plus } from "lucide-react";
@@ -15,11 +18,18 @@ const inputClasses =
 const selectClasses = `${inputClasses} bg-white cursor-pointer appearance-none`;
 function StockPromotion() {
   const { user } = useAuth();
+  const userRole = user?.role?.[0] || "";
+  const isDealerStaff = userRole === "Dealer Staff";
   const { stockList } = useStockListAgency();
   const [stockPromoList, setStockPromoList] = useState([]);
   const [listStockId, setListStockId] = useState([]);
   const [assignedStocks, setAssignedStocks] = useState([]);
   const [loadingAssignDetail, setLoadingAssignDetail] = useState(false);
+  
+  // Detail modal state
+  const [detailModal, setDetailModal] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [promotionDetail, setPromotionDetail] = useState(null);
 
   const [page, setPage] = useState(1);
   const [limit] = useState(5);
@@ -57,25 +67,34 @@ function StockPromotion() {
   const [selectedId, setSelectedId] = useState("");
   const [isEdit, setIsEdit] = useState(false);
 
-  const fetchStockPromoList = async () => {
+  const fetchStockPromoList = useCallback(async () => {
+    if (!user?.agencyId) return;
     setLoading(true);
     try {
-      const response = await PrivateDealerManagerApi.getStockPromotionList(
-        user?.agencyId,
-        { page, limit, valueType, status }
-      );
-      setStockPromoList(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      let response;
+      if (isDealerStaff) {
+        // Dealer Staff uses different API
+        response = await PrivateDealerStaffApi.getStockPromotionListStaff(user.agencyId);
+        setStockPromoList(response.data?.data || []);
+        setTotalItem(response.data?.data?.length || 0);
+      } else {
+        response = await PrivateDealerManagerApi.getStockPromotionList(
+          user.agencyId,
+          { page, limit, valueType, status }
+        );
+        setStockPromoList(response.data.data);
+        setTotalItem(response.data.paginationInfo.total);
+      }
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.agencyId, page, limit, status, valueType, isDealerStaff]);
 
   useEffect(() => {
     fetchStockPromoList();
-  }, [page, limit, status, valueType]);
+  }, [fetchStockPromoList]);
 
   const handleCreateStockPromotion = async (e) => {
     e.preventDefault();
@@ -186,8 +205,21 @@ function StockPromotion() {
     }
   };
 
-  const handleViewDetail = (item) => {
-    // Can add view detail modal if needed
+  const handleViewDetail = async (item) => {
+    setDetailModal(true);
+    setDetailLoading(true);
+    setPromotionDetail(null);
+    try {
+      const response = isDealerStaff
+        ? await PrivateDealerStaffApi.getStockPromotionDetail(item.id)
+        : await PrivateDealerManagerApi.getStockPromotionDetail(item.id);
+      setPromotionDetail(response.data?.data || null);
+    } catch (error) {
+      toast.error(error.message || "Failed to fetch promotion detail");
+      setDetailModal(false);
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const columns = [
@@ -207,58 +239,59 @@ function StockPromotion() {
     {
       key: "startAt",
       title: "Start date",
-      render: (date) => dayjs(date).format("DD-MM-YYYY"),
+      render: (date) => date ? dayjs(date).format("DD-MM-YYYY") : "-",
     },
     {
       key: "endAt",
       title: "End date",
-      render: (date) => dayjs(date).format("DD-MM-YYYY"),
+      render: (date) => date ? dayjs(date).format("DD-MM-YYYY") : "-",
     },
     {
       key: "status",
       title: "Status",
       render: (status) => renderStatusTag(status),
     },
-    { key: "agencyId", title: "Agency" },
   ];
 
-  const actions = [
-    {
-      type: "edit",
-      label: "Edit",
-      icon: Pencil,
-      onClick: (item) => {
-        setIsEdit(true);
-        setFormModal(true);
-        setSelectedId(item.id);
-        setUpdateForm({
-          ...item,
-          endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
-          startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
-        });
-      },
-    },
-    {
-      type: "delete",
-      label: "Delete",
-      icon: Trash2,
-      onClick: (item) => {
-        setDeleteModal(true);
-        setSelectedId(item.id);
-      },
-    },
-    {
-      type: "edit",
-      label: "Assign to Stock",
-      icon: Tag,
-      onClick: (item) => {
-        setAssignModal(true);
-        setSelectedId(item.id);
-        setListStockId([]);
-        fetchPromotionDetail(item.id);
-      },
-    },
-  ];
+  const actions = isDealerStaff
+    ? [] // Dealer Staff chỉ xem, không có actions
+    : [
+        {
+          type: "edit",
+          label: "Edit",
+          icon: Pencil,
+          onClick: (item) => {
+            setIsEdit(true);
+            setFormModal(true);
+            setSelectedId(item.id);
+            setUpdateForm({
+              ...item,
+              endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
+              startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
+            });
+          },
+        },
+        {
+          type: "delete",
+          label: "Delete",
+          icon: Trash2,
+          onClick: (item) => {
+            setDeleteModal(true);
+            setSelectedId(item.id);
+          },
+        },
+        {
+          type: "edit",
+          label: "Assign to Stock",
+          icon: Tag,
+          onClick: (item) => {
+            setAssignModal(true);
+            setSelectedId(item.id);
+            setListStockId([]);
+            fetchPromotionDetail(item.id);
+          },
+        },
+      ];
 
   const handleAddStockId = (e) => {
     const value = e.target.value;
@@ -311,17 +344,19 @@ function StockPromotion() {
             <option value="INACTIVE">INACTIVE</option>
           </select>
         </div>
-        <div>
-          <button
-            onClick={() => {
-              setFormModal(true);
-              setIsEdit(false);
-            }}
-            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <Plus size={20} />
-          </button>
-        </div>
+        {!isDealerStaff && (
+          <div>
+            <button
+              onClick={() => {
+                setFormModal(true);
+                setIsEdit(false);
+              }}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+        )}
       </div>
       <DataTable
         title="Stock Promotion"
@@ -456,6 +491,166 @@ function StockPromotion() {
           </div>
         </div>
       </FormModal>
+
+      {/* Detail Modal */}
+      <BaseModal
+        isOpen={detailModal}
+        onClose={() => {
+          setDetailModal(false);
+          setPromotionDetail(null);
+        }}
+        title="Stock Promotion Detail"
+        size="lg"
+      >
+        {detailLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : promotionDetail ? (
+          <div className="space-y-6">
+            {/* Promotion Information */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Promotion Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">ID</p>
+                  <p className="font-medium text-gray-800">{promotionDetail.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Name</p>
+                  <p className="font-medium text-gray-800">{promotionDetail.name || "-"}</p>
+                </div>
+                {promotionDetail.description && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-600 mb-1">Description</p>
+                    <p className="font-medium text-gray-800">{promotionDetail.description}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Value Type</p>
+                  <p className="font-medium text-gray-800">{promotionDetail.valueType || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Value</p>
+                  <p className="font-medium text-gray-800">
+                    {promotionDetail.valueType === "PERCENT"
+                      ? `${Number(promotionDetail.value || 0).toLocaleString("vi-VN")}%`
+                      : `${Number(promotionDetail.value || 0).toLocaleString("vi-VN")} đ`}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Start Date</p>
+                  <p className="font-medium text-gray-800">
+                    {promotionDetail.startAt
+                      ? dayjs(promotionDetail.startAt).format("DD/MM/YYYY")
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">End Date</p>
+                  <p className="font-medium text-gray-800">
+                    {promotionDetail.endAt
+                      ? dayjs(promotionDetail.endAt).format("DD/MM/YYYY")
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Status</p>
+                  <div className="mt-1">{renderStatusTag(promotionDetail.status)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Assigned Stocks */}
+            <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                Assigned Stocks ({promotionDetail.agencyStockPromotion?.length || 0})
+              </h3>
+              {promotionDetail.agencyStockPromotion &&
+              promotionDetail.agencyStockPromotion.length > 0 ? (
+                <div className="space-y-3">
+                  {promotionDetail.agencyStockPromotion.map((item, idx) => {
+                    const stock = item?.agencyStock;
+                    if (!stock) return null;
+                    return (
+                      <div
+                        key={stock.id || idx}
+                        className="bg-white rounded-lg p-4 border border-purple-100 shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Stock ID</p>
+                            <p className="font-semibold text-gray-800">#{stock.id}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Quantity</p>
+                            <p className="font-semibold text-gray-800">
+                              {stock.quantity || 0}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Price</p>
+                            <p className="font-semibold text-emerald-600">
+                              {Number(stock.price || 0).toLocaleString("vi-VN")} đ
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Color</p>
+                            <div
+                              className="inline-block px-3 py-1 rounded-full text-white text-sm font-medium"
+                              style={{
+                                backgroundColor: stock.color?.colorType || "#gray",
+                              }}
+                            >
+                              {stock.color?.colorType || "-"}
+                            </div>
+                          </div>
+                          {stock.motorbike && (
+                            <>
+                              <div>
+                                <p className="text-sm text-gray-600">Motorbike Name</p>
+                                <p className="font-semibold text-gray-800">
+                                  {stock.motorbike.name || "-"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600">Model</p>
+                                <p className="font-semibold text-gray-800">
+                                  {stock.motorbike.model || "-"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600">Version</p>
+                                <p className="font-semibold text-gray-800">
+                                  {stock.motorbike.version || "-"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600">Made From</p>
+                                <p className="font-semibold text-gray-800">
+                                  {stock.motorbike.makeFrom || "-"}
+                                </p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No stocks assigned to this promotion yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No promotion detail available
+          </div>
+        )}
+      </BaseModal>
     </div>
   );
 }
