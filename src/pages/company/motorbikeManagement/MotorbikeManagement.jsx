@@ -28,7 +28,6 @@ function MotorbikeManagement() {
   const [model, setModel] = useState("");
   const [makeFrom, setMakeFrom] = useState("");
   const [totalItem, setTotalItem] = useState(0);
-  const [allMotorList, setAllMotorList] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
   const [makeFromOptions, setMakeFromOptions] = useState([]);
 
@@ -54,6 +53,27 @@ function MotorbikeManagement() {
     model: "",
     makeFrom: "",
     version: "",
+    // Configuration fields
+    motorType: "",
+    speedLimit: "",
+    maximumCapacity: 0,
+    // Appearance fields
+    length: 0,
+    width: 0,
+    height: 0,
+    weight: 0,
+    undercarriageDistance: 0,
+    storageLimit: 0,
+    // Battery fields
+    type: "",
+    capacity: "",
+    chargeTime: "",
+    chargeType: "",
+    energyConsumption: "",
+    limit: "",
+    // Safe feature fields
+    brake: "",
+    lock: "",
   });
   const [updateForm, setUpdateForm] = useState({
     name: "",
@@ -222,21 +242,18 @@ function MotorbikeManagement() {
   const fetchMotorbikeList = async () => {
     setLoading(true);
     try {
-      const response = await PrivateAdminApi.getMotorList({
-        page: 1,
-        limit: 1000,
-        makeFrom,
-        model,
-      });
-      // Filter deleted items (isDeleted = true) to ensure they are not displayed
-      const filteredData =
-        response.data.data?.filter((motor) => !motor.isDeleted) || [];
+      const params = {
+        page,
+        limit,
+      };
+      if (makeFrom) params.makeFrom = makeFrom;
+      if (model) params.model = model;
 
-      setAllMotorList(filteredData);
-      const startIdx = (page - 1) * limit;
-      const endIdx = startIdx + limit;
-      setMotorList(filteredData.slice(startIdx, endIdx));
-      setTotalItem(filteredData.length);
+      const response = await PrivateAdminApi.getAllMotorbikes(params);
+      
+      // Backend already filters deleted items, just use the data directly
+      setMotorList(response.data?.data || []);
+      setTotalItem(response.data?.paginationInfo?.total || 0);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -244,17 +261,43 @@ function MotorbikeManagement() {
     }
   };
 
-  // Update filter options based on existing list in memory
+  // Update filter options - fetch all for filter options
   useEffect(() => {
-    const uniqueModels = Array.from(
-      new Set(allMotorList.map((it) => it.model).filter(Boolean))
-    );
-    const uniqueMakeFroms = Array.from(
-      new Set(allMotorList.map((it) => it.makeFrom).filter(Boolean))
-    );
-    setModelOptions(uniqueModels);
-    setMakeFromOptions(uniqueMakeFroms);
-  }, [allMotorList]);
+    const fetchFilterOptions = async () => {
+      try {
+        // Fetch all pages to get complete filter options
+        let allData = [];
+        let currentPage = 1;
+        let hasMore = true;
+        const pageSize = 100;
+
+        while (hasMore) {
+          const response = await PrivateAdminApi.getAllMotorbikes({
+            page: currentPage,
+            limit: pageSize,
+          });
+          const motors = response.data?.data || [];
+          allData = [...allData, ...motors];
+          
+          const totalPages = response.data?.paginationInfo?.totalPages || 1;
+          hasMore = currentPage < totalPages;
+          currentPage++;
+        }
+
+        const uniqueModels = Array.from(
+          new Set(allData.map((it) => it.model).filter(Boolean))
+        );
+        const uniqueMakeFroms = Array.from(
+          new Set(allData.map((it) => it.makeFrom).filter(Boolean))
+        );
+        setModelOptions(uniqueModels);
+        setMakeFromOptions(uniqueMakeFroms);
+      } catch (error) {
+        console.error("Error fetching filter options:", error);
+      }
+    };
+    fetchFilterOptions();
+  }, []);
 
   const fetchConfigByMotorId = async (id) => {
     setDialogLoading(true);
@@ -546,21 +589,103 @@ function MotorbikeManagement() {
     }
   };
 
+  // Reset page to 1 when filters change
   useEffect(() => {
-    fetchMotorbikeList();
+    setPage(1);
   }, [makeFrom, model]);
 
   useEffect(() => {
-    const startIdx = (page - 1) * limit;
-    const endIdx = startIdx + limit;
-    setMotorList(allMotorList.slice(startIdx, endIdx));
-  }, [page, limit, allMotorList]);
+    fetchMotorbikeList();
+  }, [page, limit, makeFrom, model]);
 
   const handleCreateMotorbike = async (e) => {
     e.preventDefault();
     setSubmit(true);
     try {
-      await PrivateAdminApi.createMotorbike(form);
+      // Step 1: Create motorbike first
+      const motorbikeData = {
+        name: form.name,
+        price: form.price,
+        description: form.description,
+        model: form.model,
+        makeFrom: form.makeFrom,
+        version: form.version,
+      };
+      const motorbikeResponse = await PrivateAdminApi.createMotorbike(motorbikeData);
+      const motorbikeId = motorbikeResponse.data.data?.id;
+      
+      if (!motorbikeId) {
+        throw new Error("Failed to create motorbike: No ID returned");
+      }
+
+      // Step 2: Create configuration, appearance, battery, and safe feature
+      const createPromises = [];
+
+      // Create configuration if fields are provided
+      if (form.motorType || form.speedLimit || form.maximumCapacity) {
+        createPromises.push(
+          PrivateAdminApi.createConfiguration(motorbikeId, {
+            motorType: form.motorType,
+            speedLimit: form.speedLimit,
+            maximumCapacity: form.maximumCapacity,
+          }).catch((err) => {
+            console.error("Error creating configuration:", err);
+            toast.warning("Motorbike created but configuration failed");
+          })
+        );
+      }
+
+      // Create appearance if fields are provided
+      if (form.length || form.width || form.height || form.weight || form.undercarriageDistance || form.storageLimit) {
+        createPromises.push(
+          PrivateAdminApi.createAppearance(motorbikeId, {
+            length: form.length,
+            width: form.width,
+            height: form.height,
+            weight: form.weight,
+            undercarriageDistance: form.undercarriageDistance,
+            storageLimit: form.storageLimit,
+          }).catch((err) => {
+            console.error("Error creating appearance:", err);
+            toast.warning("Motorbike created but appearance failed");
+          })
+        );
+      }
+
+      // Create battery if fields are provided
+      if (form.type || form.capacity || form.chargeTime || form.chargeType || form.energyConsumption || form.limit) {
+        createPromises.push(
+          PrivateAdminApi.createBattery(motorbikeId, {
+            type: form.type,
+            capacity: form.capacity,
+            chargeTime: form.chargeTime,
+            chargeType: form.chargeType,
+            energyConsumption: form.energyConsumption,
+            limit: form.limit,
+          }).catch((err) => {
+            console.error("Error creating battery:", err);
+            toast.warning("Motorbike created but battery failed");
+          })
+        );
+      }
+
+      // Create safe feature if fields are provided
+      if (form.brake || form.lock) {
+        createPromises.push(
+          PrivateAdminApi.createSafeFeature(motorbikeId, {
+            brake: form.brake,
+            lock: form.lock,
+          }).catch((err) => {
+            console.error("Error creating safe feature:", err);
+            toast.warning("Motorbike created but safe feature failed");
+          })
+        );
+      }
+
+      // Wait for all sub-entities to be created
+      await Promise.all(createPromises);
+
+      // Reset form
       setForm({
         name: "",
         price: 0,
@@ -568,12 +693,29 @@ function MotorbikeManagement() {
         model: "",
         makeFrom: "",
         version: "",
+        motorType: "",
+        speedLimit: "",
+        maximumCapacity: 0,
+        length: 0,
+        width: 0,
+        height: 0,
+        weight: 0,
+        undercarriageDistance: 0,
+        storageLimit: 0,
+        type: "",
+        capacity: "",
+        chargeTime: "",
+        chargeType: "",
+        energyConsumption: "",
+        limit: "",
+        brake: "",
+        lock: "",
       });
       toast.success("Create successfully");
       setFormModal(false);
       fetchMotorbikeList();
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message || "Failed to create motorbike");
     } finally {
       setSubmit(false);
     }
@@ -601,15 +743,9 @@ function MotorbikeManagement() {
       await PrivateAdminApi.deleteMotorbike(selectedId);
       toast.success("Delete successfully");
       setDeleteModal(false);
-
-      // Update full list and client-side pagination
-      const newAll = allMotorList.filter((motor) => motor.id !== selectedId);
-      setAllMotorList(newAll);
-      const newTotal = Math.max(0, newAll.length);
-      setTotalItem(newTotal);
-      const maxPageAfterDelete = Math.ceil(newTotal / limit) || 1;
-      const nextPage = Math.min(page, maxPageAfterDelete);
-      setPage(nextPage);
+      
+      // Refetch the list from API
+      fetchMotorbikeList();
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -621,25 +757,31 @@ function MotorbikeManagement() {
     {
       key: "id",
       title: <span className="block text-center">ID</span>,
-      render: (id) => (
-        <span
-          onClick={() => {
-            setMotorModal(true);
-            fetchMotorById(id);
-          }}
-          className="cursor-pointer block text-center"
-        >
-          {id}
-        </span>
-      ),
+      render: (id) => <span className="block text-center">{id}</span>,
     },
     {
       key: "name",
       title: <span className="block text-center">Name</span>,
       render: (name) => <span className="block text-center">{name}</span>,
     },
-    // { key: "price", title: "Price", render: (price) => price.toLocaleString() },
-    // { key: "description", title: "Description" },
+    {
+      key: "price",
+      title: <span className="block text-center">Price</span>,
+      render: (price) => (
+        <span className="block text-center">
+          {price ? price.toLocaleString() : "-"}
+        </span>
+      ),
+    },
+    {
+      key: "description",
+      title: <span className="block text-center">Description</span>,
+      render: (description) => (
+        <span className="block text-center truncate max-w-xs" title={description}>
+          {description || "-"}
+        </span>
+      ),
+    },
     {
       key: "model",
       title: <span className="block text-center">Model</span>,
@@ -656,21 +798,33 @@ function MotorbikeManagement() {
       render: (version) => <span className="block text-center">{version}</span>,
     },
     {
+      key: "images",
+      title: <span className="block text-center">Images</span>,
+      render: (images) => (
+        <div className="flex justify-center gap-1">
+          {images && images.length > 0 ? (
+            images.slice(0, 3).map((img, idx) => (
+              <img
+                key={idx}
+                src={img.imageUrl}
+                alt=""
+                className="w-10 h-10 object-cover rounded"
+              />
+            ))
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </div>
+      ),
+    },
+    {
       key: "action",
       title: <span className="block text-center">Action</span>,
       render: (_, item) => (
         <div className="flex gap-2 justify-center">
           <span
-            onClick={() => {
-              setMotorModal(true);
-              fetchMotorById(item.id);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-gray-500 rounded-lg hover:bg-gray-600 transition"
-          >
-            <Eye className="w-5 h-5 text-white" />
-          </span>
-          <span
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setUpdateForm(item);
               setIsEdit(true);
               setFormModal(true);
@@ -681,127 +835,14 @@ function MotorbikeManagement() {
             <Pencil className="w-5 h-5 text-white" />
           </span>
           <span
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setDeleteModal(true);
               setSelectedId(item.id);
             }}
             className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition"
           >
             <Trash2 className="w-5 h-5 text-white" />
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: "action3",
-      title: <span className="block text-center">Configuration</span>,
-      render: (_, item) => (
-        <ActionMenu
-          title={"config"}
-          onView={() => {
-            setConfigModal(true);
-            setIsEdit(true);
-            fetchConfigByMotorId(item.id);
-            setSelectedId(item.id);
-          }}
-          onAdd={() => {
-            setConfigModal(true);
-            setIsEdit(false);
-            setSelectedId(item.id);
-          }}
-        />
-      ),
-    },
-    {
-      key: "action4",
-      title: <span className="block text-center">Appearance</span>,
-      render: (_, item) => (
-        <ActionMenu
-          title="appearance"
-          onView={() => {
-            setAppearanceModal(true);
-            setIsEdit(true);
-            fetchAppearanceDetail(item.id);
-            setSelectedId(item.id);
-          }}
-          onAdd={() => {
-            setAppearanceModal(true);
-            setIsEdit(false);
-            setSelectedId(item.id);
-          }}
-        />
-      ),
-    },
-    {
-      key: "action5",
-      title: <span className="block text-center">Battery</span>,
-      render: (_, item) => (
-        <ActionMenu
-          title="battery"
-          onView={() => {
-            setBatteryModal(true);
-            setIsEdit(true);
-            fetchBatteryDetail(item.id);
-            setSelectedId(item.id);
-          }}
-          onAdd={() => {
-            setBatteryModal(true);
-            setIsEdit(false);
-            setSelectedId(item.id);
-          }}
-        />
-      ),
-    },
-    {
-      key: "action6",
-      title: <span className="block text-center">Safe feature</span>,
-      render: (_, item) => (
-        <ActionMenu
-          title="safe"
-          onView={() => {
-            setSafeFeatureModal(true);
-            setIsEdit(true);
-            fetchSafeFeatureDetail(item.id);
-            setSelectedId(item.id);
-          }}
-          onAdd={() => {
-            setSafeFeatureModal(true);
-            setIsEdit(false);
-            setSelectedId(item.id);
-          }}
-        />
-      ),
-    },
-    {
-      key: "action7",
-      title: <span className="block text-center">Motorbike image</span>,
-      render: (_, item) => (
-        <div className="flex justify-center">
-          <span
-            onClick={() => {
-              setMotorImageModal(true);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
-          >
-            <Plus className="w-5 h-5 text-white" />
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: "action8",
-      title: <span className="block text-center">Color</span>,
-      render: (_, item) => (
-        <div className="flex justify-center">
-          <span
-            onClick={() => {
-              setColorImageModal(true);
-              setSelectedId(item.id);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
-          >
-            <Plus className="w-5 h-5 text-white" />
           </span>
         </div>
       ),
@@ -879,6 +920,10 @@ function MotorbikeManagement() {
         setPage={setPage}
         title={"Motorbike"}
         totalItem={totalItem}
+        onRowClick={(item) => {
+          setMotorModal(true);
+          fetchMotorById(item.id);
+        }}
       />
       <GroupModal
         data={motor}
@@ -893,7 +938,35 @@ function MotorbikeManagement() {
 
       <FormModal
         isOpen={formModal}
-        onClose={() => setFormModal(false)}
+        onClose={() => {
+          setFormModal(false);
+          setIsEdit(false);
+          setForm({
+            name: "",
+            price: 0,
+            description: "",
+            model: "",
+            makeFrom: "",
+            version: "",
+            motorType: "",
+            speedLimit: "",
+            maximumCapacity: 0,
+            length: 0,
+            width: 0,
+            height: 0,
+            weight: 0,
+            undercarriageDistance: 0,
+            storageLimit: 0,
+            type: "",
+            capacity: "",
+            chargeTime: "",
+            chargeType: "",
+            energyConsumption: "",
+            limit: "",
+            brake: "",
+            lock: "",
+          });
+        }}
         title={isEdit ? "Update motorbike" : "Create motorbike"}
         isDelete={false}
         onSubmit={isEdit ? handleUpdateMotorbike : handleCreateMotorbike}

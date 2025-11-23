@@ -125,42 +125,40 @@ function AgencyManagement() {
       ),
     },
     {
-      key: "action2",
-      title: "Update",
+      key: "action",
+      title: "Action",
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setIsEdit(true);
-            setFormModal(true);
-            setUpdateForm({
-              name: item.name,
-              contactInfo: item.contactInfo,
-              location: item.location,
-              address: item.address,
-            });
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Pencil className="w-5 h-5 text-white" />
-        </span>
-      ),
-    },
-    {
-      key: "action1",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            console.log(item.id);
-            
-            setDeleteModal(true);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
-        >
-          <Trash2 className="w-5 h-5 text-white" />
-        </span>
+        <div className="flex items-center justify-center gap-2">
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedId(item.id);
+              setIsEdit(true);
+              setFormModal(true);
+              setUpdateForm({
+                name: item.name,
+                contactInfo: item.contactInfo,
+                location: item.location,
+                address: item.address,
+              });
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
+            title="Edit"
+          >
+            <Pencil className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedId(item.id);
+              setDeleteModal(true);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition"
+            title="Delete"
+          >
+            <Trash2 className="w-5 h-5 text-white" />
+          </span>
+        </div>
       ),
     },
     
