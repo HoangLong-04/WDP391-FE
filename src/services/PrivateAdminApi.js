@@ -31,6 +31,8 @@ const PrivateAdminApi = {
 
   getPricePolicy: (params) =>
     apiConfig.privateApi.get("price/list", { params }),
+  getPricePolicyDetail: (pricePolicyId) =>
+    apiConfig.privateApi.get(`price/detail/${pricePolicyId}`),
   createPricePolicy: (data) => apiConfig.privateApi.post("price", data),
   updatePricePolicy: (id, data) =>
     apiConfig.privateApi.patch(`price/${id}`, data),
