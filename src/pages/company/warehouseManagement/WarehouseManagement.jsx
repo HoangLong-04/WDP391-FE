@@ -9,7 +9,7 @@ function WarehouseManagement() {
   const [warehouse, setWarehouse] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [location, setLocation] = useState("");
   const [address, setAddress] = useState("");
   const [totalItem, setTotalItem] = useState(0);
@@ -118,40 +118,38 @@ function WarehouseManagement() {
       ),
     },
     {
-      key: "action1",
-      title: "Action",
+      key: "action",
+      title: <span className="block text-center">Action</span>,
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setIsEdit(true);
-            setFormModal(true);
-            setUpdateForm({
-              address: item.address,
-              location: item.location,
-              name: item.name,
-              isActive: item.isActive,
-            });
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Pencil className="w-5 h-5 text-white" />
-        </span>
-      ),
-    },
-    {
-      key: "action2",
-      title: "Action",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setDeleteModal(true);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
-        >
-          <Trash2 className="w-5 h-5 text-white" />
-        </span>
+        <div className="flex gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
+          <span
+            onClick={() => {
+              setSelectedId(item.id);
+              setIsEdit(true);
+              setFormModal(true);
+              setUpdateForm({
+                address: item.address,
+                location: item.location,
+                name: item.name,
+                isActive: item.isActive,
+              });
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
+            title="Update"
+          >
+            <Pencil className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={() => {
+              setSelectedId(item.id);
+              setDeleteModal(true);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition"
+            title="Delete"
+          >
+            <Trash2 className="w-5 h-5 text-white" />
+          </span>
+        </div>
       ),
     },
   ];

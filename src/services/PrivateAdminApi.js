@@ -22,6 +22,8 @@ const PrivateAdminApi = {
 
   getDiscountList: (params) =>
     apiConfig.privateApi.get("discount/list", { params }),
+  getDiscountDetail: (discountId) =>
+    apiConfig.privateApi.get(`discount/detail/${discountId}`),
   createDiscount: (data) => apiConfig.privateApi.post("discount", data),
   updateDiscount: (id, data) =>
     apiConfig.privateApi.patch(`discount/${id}`, data),
@@ -36,6 +38,8 @@ const PrivateAdminApi = {
 
   getPromotionList: (params) =>
     apiConfig.privateApi.get("promotion/list", { params }),
+  getPromotionDetail: (promotionId) =>
+    apiConfig.privateApi.get(`promotion/detail/${promotionId}`),
   createPromotion: (data) => apiConfig.privateApi.post("promotion", data),
   updatePromotion: (id, data) =>
     apiConfig.privateApi.patch(`promotion/${id}`, data),

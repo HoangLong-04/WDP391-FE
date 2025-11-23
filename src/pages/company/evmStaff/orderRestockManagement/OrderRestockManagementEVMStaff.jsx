@@ -22,7 +22,7 @@ function OrderRestockManagementEVMStaff() {
   const [orderWarehouseStatus, setOrderWarehouseStatus] = useState({});
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [status, setStatus] = useState("");
   const [agencyId, setAgencyId] = useState("");
   const [totalItem, setTotalItem] = useState(0);

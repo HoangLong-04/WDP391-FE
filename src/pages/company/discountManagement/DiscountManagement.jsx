@@ -1,41 +1,39 @@
 import React, { useEffect, useState } from "react";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
-import { Eye, Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import dayjs from "dayjs";
 import useMotorList from "../../../hooks/useMotorList";
-import {
-  motorGeneralFields,
-  motorGroupedFields,
-} from "../../../components/viewModel/motorbikeModel/MotorbikeModel";
 import { toast } from "react-toastify";
-import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import DiscountForm from "./discountForm/DiscountForm";
 import useAgencyList from "../../../hooks/useAgencyList";
+import BaseModal from "../../../components/modal/baseModal/BaseModal";
+import { formatCurrency } from "../../../utils/currency";
+import CircularProgress from "@mui/material/CircularProgress";
 
 function DiscountManagement() {
   const { motorList } = useMotorList();
   const { agencyList } = useAgencyList();
   const [discount, setDiscount] = useState([]);
-  const [motor, setMotor] = useState({});
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [type, setType] = useState("");
   const [valueType, setValueType] = useState("");
   const [motorbikeId, setMotorbikeId] = useState("");
   const [agencyId, setAgencyId] = useState("");
   const [totalItem, setTotalItem] = useState(null);
 
-  const [motorModal, setMotorModal] = useState(false);
   const [formModal, setFormModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
+  const [detailModal, setDetailModal] = useState(false);
+  const [discountDetail, setDiscountDetail] = useState(null);
 
   const [submit, setSubmit] = useState(false);
 
   const [loading, setLoading] = useState(false);
-  const [viewModalLoading, setViewModalLoading] = useState(false);
+  const [detailModalLoading, setDetailModalLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -78,7 +76,35 @@ function DiscountManagement() {
       });
       // Sort by ID descending to show newest first
       const sortedData = [...response.data.data].sort((a, b) => b.id - a.id);
-      setDiscount(sortedData);
+      
+      // Enrich với vehicle names từ detail API
+      const enrichedData = await Promise.all(
+        sortedData.map(async (item) => {
+          try {
+            if (item.motorbikeId) {
+              const detailResponse = await PrivateAdminApi.getDiscountDetail(item.id);
+              const detail = detailResponse.data?.data;
+              return {
+                ...item,
+                motorbikeName: detail?.motorbike?.name || "-",
+                motorbike: detail?.motorbike,
+              };
+            }
+            return {
+              ...item,
+              motorbikeName: "-",
+            };
+          } catch (err) {
+            console.error(`Error fetching discount detail for ${item.id}:`, err);
+            return {
+              ...item,
+              motorbikeName: "-",
+            };
+          }
+        })
+      );
+      
+      setDiscount(enrichedData);
       setTotalItem(response.data.paginationInfo.total);
     } catch (error) {
       console.log(error);
@@ -91,15 +117,15 @@ function DiscountManagement() {
     fetchDiscount();
   }, [page, limit, type, valueType, motorbikeId, agencyId]);
 
-  const fetchMotorById = async (id) => {
-    setViewModalLoading(true);
+  const fetchDiscountDetail = async (discountId) => {
+    setDetailModalLoading(true);
     try {
-      const response = await PrivateAdminApi.getMotorbikeById(id);
-      setMotor(response.data.data);
+      const response = await PrivateAdminApi.getDiscountDetail(discountId);
+      setDiscountDetail(response.data.data);
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message || "Failed to load discount detail");
     } finally {
-      setViewModalLoading(false);
+      setDetailModalLoading(false);
     }
   };
 
@@ -212,62 +238,53 @@ function DiscountManagement() {
       },
     },
     {
-      key: "action1",
+      key: "motorbike",
       title: "Motor",
       render: (_, item) => (
-        <span
-          onClick={() => {
-            fetchMotorById(item.motorbikeId);
-            setMotorModal(true);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Eye className="w-5 h-5 text-white" />
+        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-md">
+          {item.motorbikeName || "-"}
         </span>
       ),
     },
     {
-      key: "action2",
-      title: "Update",
+      key: "action",
+      title: <span className="block text-center">Action</span>,
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setFormModal(true);
-            setIsEdit(true);
-            setSelectedId(item.id);
-            setUpdateForm({
-              name: item.name,
-              type: item.type,
-              valueType: item.valueType,
-              value: item.value,
-              min_quantity: item.min_quantity,
-              startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
-              endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
-              status: item.status,
-              motorbikeId: item.motorbikeId,
-              agencyId: item.agencyId,
-            });
-            console.log(item);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Pencil className="w-5 h-5 text-white" />
-        </span>
-      ),
-    },
-    {
-      key: "action3",
-      title: "Delete",
-      render: (_, item) => (
-        <span
-          onClick={() => {
-            setSelectedId(item.id);
-            setDeleteModal(true);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
-        >
-          <Trash2 className="w-5 h-5 text-white" />
-        </span>
+        <div className="flex gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
+          <span
+            onClick={() => {
+              setFormModal(true);
+              setIsEdit(true);
+              setSelectedId(item.id);
+              setUpdateForm({
+                name: item.name,
+                type: item.type,
+                valueType: item.valueType,
+                value: item.value,
+                min_quantity: item.min_quantity,
+                startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
+                endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
+                status: item.status,
+                motorbikeId: item.motorbikeId,
+                agencyId: item.agencyId,
+              });
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
+            title="Update"
+          >
+            <Pencil className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={() => {
+              setSelectedId(item.id);
+              setDeleteModal(true);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition"
+            title="Delete"
+          >
+            <Trash2 className="w-5 h-5 text-white" />
+          </span>
+        </div>
       ),
     },
   ];
@@ -359,16 +376,10 @@ function DiscountManagement() {
         title={"Disscount Management"}
         loading={loading}
         totalItem={totalItem}
-      />
-
-      <GroupModal
-        data={motor}
-        groupedFields={motorGroupedFields}
-        isOpen={motorModal}
-        loading={viewModalLoading}
-        onClose={() => setMotorModal(false)}
-        title={"Motorbike info"}
-        generalFields={motorGeneralFields}
+        onRowClick={(item) => {
+          setDetailModal(true);
+          fetchDiscountDetail(item.id);
+        }}
       />
 
       <FormModal
@@ -403,6 +414,155 @@ function DiscountManagement() {
           be undone.
         </p>
       </FormModal>
+
+      <BaseModal
+        isOpen={detailModal}
+        onClose={() => {
+          setDetailModal(false);
+          setDiscountDetail(null);
+        }}
+        title="Discount Detail"
+        size="lg"
+      >
+        {detailModalLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : discountDetail ? (
+          <div className="space-y-6">
+            {/* Discount Information */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Discount Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">ID</p>
+                  <p className="font-medium text-gray-800">{discountDetail.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Name</p>
+                  <p className="font-medium text-gray-800">{discountDetail.name || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Type</p>
+                  <p className="font-medium text-gray-800">{discountDetail.type || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Value Type</p>
+                  <p className="font-medium text-gray-800">{discountDetail.valueType || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Value</p>
+                  <p className="font-medium text-gray-800">
+                    {discountDetail.valueType === "PERCENT" 
+                      ? `${discountDetail.value}%` 
+                      : formatCurrency(discountDetail.value || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Min Quantity</p>
+                  <p className="font-medium text-gray-800">{discountDetail.min_quantity || 0}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Start Date</p>
+                  <p className="font-medium text-gray-800">
+                    {discountDetail.startAt ? dayjs(discountDetail.startAt).format("DD/MM/YYYY") : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">End Date</p>
+                  <p className="font-medium text-gray-800">
+                    {discountDetail.endAt ? dayjs(discountDetail.endAt).format("DD/MM/YYYY") : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Status</p>
+                  <span
+                    className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
+                      discountDetail.status === "ACTIVE" ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  >
+                    {discountDetail.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Agency Information */}
+            {discountDetail.agency && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-5 border border-green-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-green-200">
+                  Agency Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">{discountDetail.agency.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Location</p>
+                    <p className="font-medium text-gray-800">{discountDetail.agency.location || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Address</p>
+                    <p className="font-medium text-gray-800">{discountDetail.agency.address || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Contact</p>
+                    <p className="font-medium text-gray-800">{discountDetail.agency.contactInfo || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Status</p>
+                    <p className="font-medium text-gray-800">{discountDetail.agency.status || "-"}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Motorbike Information */}
+            {discountDetail.motorbike && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
+                  Motorbike Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">{discountDetail.motorbike.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Price</p>
+                    <p className="font-medium text-gray-800">
+                      {formatCurrency(discountDetail.motorbike.price || 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Model</p>
+                    <p className="font-medium text-gray-800">{discountDetail.motorbike.model || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Version</p>
+                    <p className="font-medium text-gray-800">{discountDetail.motorbike.version || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Make From</p>
+                    <p className="font-medium text-gray-800">{discountDetail.motorbike.makeFrom || "-"}</p>
+                  </div>
+                  {discountDetail.motorbike.description && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-gray-600 mb-1">Description</p>
+                      <p className="font-medium text-gray-800">{discountDetail.motorbike.description}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No data available
+          </div>
+        )}
+      </BaseModal>
     </div>
   );
 }

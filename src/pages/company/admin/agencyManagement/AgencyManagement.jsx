@@ -11,7 +11,7 @@ function AgencyManagement() {
   const [page, setPage] = useState(1);
   const [location, setLocation] = useState(null);
   const [address, setAddress] = useState(null);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(0);
 
   const [loading, setLoading] = useState(false);
