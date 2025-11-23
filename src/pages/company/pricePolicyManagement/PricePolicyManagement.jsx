@@ -1,17 +1,12 @@
 import { formatCurrency } from "../../../utils/currency";
 import React, { useEffect, useState } from "react";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
-import { Eye, Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import { toast } from "react-toastify";
-import ViewModal from "../../../components/modal/viewModal/ViewModal";
-import { agencyField } from "../../../components/viewModel/agencyModel/AgencyModel";
-import {
-  motorGeneralFields,
-  motorGroupedFields,
-} from "../../../components/viewModel/motorbikeModel/MotorbikeModel";
-import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import FormModal from "../../../components/modal/formModal/FormModal";
+import BaseModal from "../../../components/modal/baseModal/BaseModal";
+import CircularProgress from "@mui/material/CircularProgress";
 import useMotorList from "../../../hooks/useMotorList";
 import useAgencyList from "../../../hooks/useAgencyList";
 import PricePolicyForm from "./pricePolicyForm/PricePolicyForm";
@@ -20,17 +15,15 @@ function PricePolicyManagement() {
   const { motorList } = useMotorList();
   const { agencyList } = useAgencyList();
   const [priceList, setPriceList] = useState([]);
-  const [agency, setAgency] = useState({});
-  const [motor, setMotor] = useState({});
 
   const [page, setPage] = useState(1);
   const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(null);
 
-  const [agencyModal, setAgencyModal] = useState(false);
-  const [motorModal, setMotorModal] = useState(false);
   const [formModal, setFormModal] = useState(false);
   const [deleleModal, setDeleteModal] = useState(false);
+  const [detailModal, setDetailModal] = useState(false);
+  const [pricePolicyDetail, setPricePolicyDetail] = useState(null);
 
   const [submit, setSubmit] = useState(false);
 
@@ -51,7 +44,7 @@ function PricePolicyManagement() {
     motorbikeId: null,
   });
 
-  const [viewModalLoading, setViewModalLoading] = useState(false);
+  const [detailModalLoading, setDetailModalLoading] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [isEdit, setIsedit] = useState(false);
@@ -62,7 +55,8 @@ function PricePolicyManagement() {
     try {
       const response = await PrivateAdminApi.getPricePolicy({ page, limit });
       setPriceList(response.data.data);
-      setTotalItem(response.data.pagination.total);
+      // API response có pagination hoặc paginationInfo
+      setTotalItem(response.data.pagination?.total || response.data.paginationInfo?.total || 0);
     } catch (error) {
       console.log(error);
     } finally {
@@ -70,22 +64,22 @@ function PricePolicyManagement() {
     }
   };
 
+  const fetchPricePolicyDetail = async (pricePolicyId) => {
+    setDetailModalLoading(true);
+    try {
+      const response = await PrivateAdminApi.getPricePolicyDetail(pricePolicyId);
+      setPricePolicyDetail(response.data.data);
+    } catch (error) {
+      toast.error(error.message || "Failed to load price policy detail");
+    } finally {
+      setDetailModalLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchPriceList();
   }, [page, limit]);
 
-  const fetchAgencyById = async (id) => {
-    setViewModalLoading(true);
-    try {
-      const response = await PrivateAdminApi.getAgencyById(id);
-      console.log("Agency data from API:", response.data.data);
-      setAgency(response.data.data);
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setViewModalLoading(false);
-    }
-  };
 
   const handleCreatePolicy = async (e) => {
     e.preventDefault();
@@ -141,17 +135,6 @@ function PricePolicyManagement() {
     }
   };
 
-  const fetchMotorById = async (id) => {
-    setViewModalLoading(true);
-    try {
-      const response = await PrivateAdminApi.getMotorbikeById(id);
-      setMotor(response.data.data);
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setViewModalLoading(false);
-    }
-  };
 
   const columns = [
     { key: "id", title: "Id" },
@@ -166,32 +149,20 @@ function PricePolicyManagement() {
       },
     },
     {
-      key: "agencyId",
+      key: "agency",
       title: "Agency",
-      render: (agencyId) => (
-        <span
-          onClick={() => {
-            setAgencyModal(true);
-            fetchAgencyById(agencyId);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Eye className="w-5 h-5 text-white" />
+      render: (_, item) => (
+        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-md">
+          {item.agency?.name || "-"}
         </span>
       ),
     },
     {
-      key: "motorbikeId",
+      key: "motorbike",
       title: "Motorbike",
-      render: (motorbikeId) => (
-        <span
-          onClick={() => {
-            setMotorModal(true);
-            fetchMotorById(motorbikeId);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Eye className="w-5 h-5 text-white" />
+      render: (_, item) => (
+        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-md">
+          {item.motorbike?.name || "-"}
         </span>
       ),
     },
@@ -252,26 +223,134 @@ function PricePolicyManagement() {
         title={"Price Policy"}
         pageSize={limit}
         totalItem={totalItem}
+        onRowClick={(item) => {
+          setDetailModal(true);
+          fetchPricePolicyDetail(item.id);
+        }}
       />
 
-      <ViewModal
-        data={agency}
-        fields={agencyField}
-        isOpen={agencyModal}
-        loading={viewModalLoading}
-        onClose={() => setAgencyModal(false)}
-        title={"Agency info"}
-      />
+      <BaseModal
+        isOpen={detailModal}
+        onClose={() => {
+          setDetailModal(false);
+          setPricePolicyDetail(null);
+        }}
+        title="Price Policy Detail"
+        size="lg"
+      >
+        {detailModalLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : pricePolicyDetail ? (
+          <div className="space-y-6">
+            {/* Price Policy Information */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Price Policy Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">ID</p>
+                  <p className="font-medium text-gray-800">{pricePolicyDetail.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Title</p>
+                  <p className="font-medium text-gray-800">{pricePolicyDetail.title || "-"}</p>
+                </div>
+                {pricePolicyDetail.content && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-600 mb-1">Content</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.content}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Policy</p>
+                  <p className="font-medium text-gray-800">{pricePolicyDetail.policy || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Wholesale Price</p>
+                  <p className="font-medium text-gray-800">
+                    {formatCurrency(pricePolicyDetail.wholesalePrice || 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
 
-      <GroupModal
-        data={motor}
-        groupedFields={motorGroupedFields}
-        isOpen={motorModal}
-        loading={viewModalLoading}
-        onClose={() => setMotorModal(false)}
-        title={"Motorbike info"}
-        generalFields={motorGeneralFields}
-      />
+            {/* Agency Information */}
+            {pricePolicyDetail.agency && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-5 border border-green-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-green-200">
+                  Agency Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.agency.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Location</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.agency.location || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Address</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.agency.address || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Contact</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.agency.contactInfo || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Status</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.agency.status || "-"}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Motorbike Information */}
+            {pricePolicyDetail.motorbike && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
+                  Motorbike Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.motorbike.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Price</p>
+                    <p className="font-medium text-gray-800">
+                      {pricePolicyDetail.motorbike.price ? pricePolicyDetail.motorbike.price.toLocaleString('vi-VN') + ' đ' : "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Model</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.motorbike.model || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Version</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.motorbike.version || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Make From</p>
+                    <p className="font-medium text-gray-800">{pricePolicyDetail.motorbike.makeFrom || "-"}</p>
+                  </div>
+                  {pricePolicyDetail.motorbike.description && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-gray-600 mb-1">Description</p>
+                      <p className="font-medium text-gray-800">{pricePolicyDetail.motorbike.description}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No data available
+          </div>
+        )}
+      </BaseModal>
 
       <FormModal
         isOpen={formModal}
