@@ -70,7 +70,54 @@ function OrderRestockAgency() {
         { page, limit, status }
       );
       const list = response.data?.data || [];
-      setRestockList(list);
+      
+      // Enrich list with vehicle names from detail API if not available in orderItems
+      const enrichedList = await Promise.all(
+        list.map(async (order) => {
+          const orderItems = order?.orderItems || [];
+          
+          // Check if orderItems already have vehicle names
+          const hasVehicleNames = orderItems.some(
+            (item) => item?.electricMotorbike?.name || item?.motorbike?.name
+          );
+          
+          // If vehicle names are missing, fetch them from detail API
+          if (!hasVehicleNames && orderItems.length > 0) {
+            try {
+              const itemDetailPromises = orderItems.map(async (orderItem) => {
+                try {
+                  if (orderItem.id) {
+                    const detailResponse = await PrivateDealerManagerApi.getRestockOrderItemDetail(orderItem.id);
+                    const detail = detailResponse.data?.data;
+                    return {
+                      ...orderItem,
+                      electricMotorbike: detail?.electricMotorbike || orderItem.electricMotorbike,
+                      motorbike: detail?.motorbike || orderItem.motorbike,
+                    };
+                  }
+                  return orderItem;
+                } catch (err) {
+                  console.error(`Error fetching vehicle name for item ${orderItem.id}:`, err);
+                  return orderItem;
+                }
+              });
+              
+              const enrichedItems = await Promise.all(itemDetailPromises);
+              return {
+                ...order,
+                orderItems: enrichedItems,
+              };
+            } catch (err) {
+              console.error(`Error enriching order ${order.id}:`, err);
+              return order;
+            }
+          }
+          
+          return order;
+        })
+      );
+      
+      setRestockList(enrichedList);
       setTotalItem(response.data?.paginationInfo?.total ?? list.length ?? 0);
     } catch (error) {
       toast.error(error.message);
@@ -339,6 +386,40 @@ function OrderRestockAgency() {
   const columns = [
     { key: "id", title: "Id" },
     { key: "itemQuantity", title: "Items" },
+    {
+      key: "vehicleNames",
+      title: "Vehicle Name(s)",
+      render: (_, item) => {
+        const orderItems = item?.orderItems || [];
+        if (orderItems.length === 0) return "-";
+        
+        // Extract unique vehicle names from orderItems
+        const vehicleNames = new Set();
+        orderItems.forEach((orderItem) => {
+          const vehicleName = orderItem?.electricMotorbike?.name || orderItem?.motorbike?.name;
+          if (vehicleName) {
+            vehicleNames.add(vehicleName);
+          }
+        });
+        
+        if (vehicleNames.size === 0) return "-";
+        
+        const namesArray = Array.from(vehicleNames);
+        // Hiển thị mỗi tên xe trên một dòng với badge
+        return (
+          <div className="flex flex-col gap-1">
+            {namesArray.map((name, index) => (
+              <span
+                key={index}
+                className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-md whitespace-nowrap"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        );
+      },
+    },
     {
       key: "total",
       title: "Total",

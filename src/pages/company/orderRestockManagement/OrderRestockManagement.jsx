@@ -36,7 +36,59 @@ function OrderRestockManagement() {
       if (agencyId) params.agencyId = agencyId;
       
       const response = await PrivateAdminApi.getOrderRestock(params);
-      setOrderList(response.data?.data || []);
+      const list = response.data?.data || [];
+      
+      // API list không trả về orderItems, cần fetch detail để lấy orderItems và vehicle names
+      const enrichedList = await Promise.all(
+        list.map(async (order) => {
+          try {
+            // Fetch order detail để lấy orderItems
+            const detailResponse = await PrivateAdminApi.getOrderRestockDetail(order.id);
+            const orderDetail = detailResponse.data?.data;
+            const orderItems = orderDetail?.orderItems || [];
+            
+            // Fetch order item details để lấy vehicle names
+            if (orderItems.length > 0) {
+              const itemDetailPromises = orderItems.map(async (orderItem) => {
+                try {
+                  if (orderItem.id) {
+                    const itemDetailResponse = await PrivateAdminApi.getOrderRestockOrderItemDetail(orderItem.id);
+                    const itemDetail = itemDetailResponse.data?.data;
+                    return {
+                      ...orderItem,
+                      electricMotorbike: itemDetail?.electricMotorbike,
+                      motorbike: itemDetail?.motorbike,
+                    };
+                  }
+                  return orderItem;
+                } catch (err) {
+                  console.error(`Error fetching vehicle name for item ${orderItem.id}:`, err);
+                  return orderItem;
+                }
+              });
+              
+              const enrichedItems = await Promise.all(itemDetailPromises);
+              return {
+                ...order,
+                orderItems: enrichedItems,
+              };
+            }
+            
+            return {
+              ...order,
+              orderItems: [],
+            };
+          } catch (err) {
+            console.error(`Error fetching detail for order ${order.id}:`, err);
+            return {
+              ...order,
+              orderItems: [],
+            };
+          }
+        })
+      );
+      
+      setOrderList(enrichedList);
       const total = response.data?.paginationInfo?.total;
       setTotalItem(total ? Number(total) : 0);
     } catch (error) {
@@ -52,7 +104,42 @@ function OrderRestockManagement() {
     setViewModalLoading(true);
     try {
       const response = await PrivateAdminApi.getOrderRestockDetail(orderId);
-      setOrderDetail(response.data.data);
+      const orderDetail = response.data.data;
+      
+      // Fetch order item details để lấy thông tin đầy đủ (vehicle names, color, warehouse, etc.)
+      const orderItems = orderDetail?.orderItems || [];
+      if (orderItems.length > 0) {
+        const enrichedItems = await Promise.all(
+          orderItems.map(async (item) => {
+            try {
+              if (item.id) {
+                const itemDetailResponse = await PrivateAdminApi.getOrderRestockOrderItemDetail(item.id);
+                const itemDetail = itemDetailResponse.data?.data;
+                return {
+                  ...item,
+                  electricMotorbike: itemDetail?.electricMotorbike,
+                  motorbike: itemDetail?.motorbike,
+                  color: itemDetail?.color,
+                  warehouse: itemDetail?.warehouse,
+                  discountPolicy: itemDetail?.discountPolicy,
+                  promotion: itemDetail?.promotion,
+                };
+              }
+              return item;
+            } catch (err) {
+              console.error(`Error fetching detail for item ${item.id}:`, err);
+              return item;
+            }
+          })
+        );
+        
+        setOrderDetail({
+          ...orderDetail,
+          orderItems: enrichedItems,
+        });
+      } else {
+        setOrderDetail(orderDetail);
+      }
     } catch (error) {
       toast.error(error.message || "Failed to load order detail");
     } finally {
@@ -72,6 +159,40 @@ function OrderRestockManagement() {
       render: (agency) => agency?.name || "-",
     },
     { key: "itemQuantity", title: "Quantity" },
+    {
+      key: "vehicleNames",
+      title: "Vehicle Name(s)",
+      render: (_, item) => {
+        const orderItems = item?.orderItems || [];
+        if (orderItems.length === 0) return "-";
+        
+        // Extract unique vehicle names from orderItems
+        const vehicleNames = new Set();
+        orderItems.forEach((orderItem) => {
+          const vehicleName = orderItem?.electricMotorbike?.name || orderItem?.motorbike?.name;
+          if (vehicleName) {
+            vehicleNames.add(vehicleName);
+          }
+        });
+        
+        if (vehicleNames.size === 0) return "-";
+        
+        const namesArray = Array.from(vehicleNames);
+        // Hiển thị mỗi tên xe trên một dòng với badge
+        return (
+          <div className="flex flex-col gap-1">
+            {namesArray.map((name, index) => (
+              <span
+                key={index}
+                className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-md whitespace-nowrap"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        );
+      },
+    },
     {
       key: "total",
       title: "Total",
@@ -251,9 +372,23 @@ function OrderRestockManagement() {
                       <h5 className="font-semibold text-gray-800 mb-3">Item #{index + 1}</h5>
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div>
+                          <p className="text-gray-600">Motorbike:</p>
+                          <p className="font-medium">{item.electricMotorbike?.name || item.motorbike?.name || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Color:</p>
+                          <p className="font-medium">{item.color?.colorType || "-"}</p>
+                        </div>
+                        <div>
                           <p className="text-gray-600">Quantity:</p>
                           <p className="font-medium">{item.quantity || "-"}</p>
                         </div>
+                        {item.warehouse && (
+                          <div>
+                            <p className="text-gray-600">Warehouse:</p>
+                            <p className="font-medium">{item.warehouse?.name || item.warehouse?.location || "-"}</p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-gray-600">Base Price:</p>
                           <p className="font-medium">{formatCurrency(item.basePrice || 0)}</p>
@@ -274,6 +409,36 @@ function OrderRestockManagement() {
                           <p className="text-gray-600">Final Price:</p>
                           <p className="font-medium text-indigo-600">{formatCurrency(item.finalPrice || 0)}</p>
                         </div>
+                        {item.discountPolicy && (
+                          <div>
+                            <p className="text-gray-600">Discount:</p>
+                            <p className="font-medium">
+                              {item.discountPolicy.name || "-"}
+                              {item.discountPolicy.value && (
+                                <span className="ml-2 text-green-600">
+                                  ({item.discountPolicy.valueType === "PERCENT" 
+                                    ? `${item.discountPolicy.value}%` 
+                                    : formatCurrency(item.discountPolicy.value)})
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                        {item.promotion && (
+                          <div>
+                            <p className="text-gray-600">Promotion:</p>
+                            <p className="font-medium">
+                              {item.promotion.name || "-"}
+                              {item.promotion.value && (
+                                <span className="ml-2 text-green-600">
+                                  ({item.promotion.valueType === "PERCENT" 
+                                    ? `${item.promotion.value}%` 
+                                    : formatCurrency(item.promotion.value)})
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
