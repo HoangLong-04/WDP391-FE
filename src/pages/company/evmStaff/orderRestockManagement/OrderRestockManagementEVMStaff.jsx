@@ -55,13 +55,67 @@ function OrderRestockManagementEVMStaff() {
       
       const response = await PrivateAdminApi.getOrderRestock(params);
       const orders = response.data?.data || [];
-      setOrderList(orders);
+      
+      // API list không trả về orderItems, cần fetch detail để lấy orderItems và vehicle names
+      // Nhưng chỉ fetch vehicle names, giữ nguyên tất cả thông tin khác để không làm mất logic warehouse
+      const enrichedOrders = await Promise.all(
+        orders.map(async (order) => {
+          try {
+            // Fetch order detail để lấy orderItems
+            const detailResponse = await PrivateAdminApi.getOrderRestockDetail(order.id);
+            const orderDetail = detailResponse.data?.data;
+            const orderItems = orderDetail?.orderItems || [];
+            
+            // Fetch order item details để lấy vehicle names, nhưng giữ nguyên tất cả field gốc
+            if (orderItems.length > 0) {
+              const itemDetailPromises = orderItems.map(async (orderItem) => {
+                try {
+                  if (orderItem.id) {
+                    const itemDetailResponse = await PrivateAdminApi.getOrderRestockOrderItemDetail(orderItem.id);
+                    const itemDetail = itemDetailResponse.data?.data;
+                    // Giữ nguyên tất cả thông tin từ orderItem gốc, chỉ thêm vehicle names
+                    return {
+                      ...orderItem, // Giữ nguyên warehouseId, colorId, electricMotorbikeId, etc.
+                      electricMotorbike: itemDetail?.electricMotorbike,
+                      motorbike: itemDetail?.motorbike,
+                    };
+                  }
+                  return orderItem;
+                } catch (err) {
+                  console.error(`Error fetching vehicle name for item ${orderItem.id}:`, err);
+                  // Nếu lỗi, vẫn trả về orderItem gốc với đầy đủ thông tin
+                  return orderItem;
+                }
+              });
+              
+              const enrichedItems = await Promise.all(itemDetailPromises);
+              return {
+                ...order,
+                orderItems: enrichedItems,
+              };
+            }
+            
+            return {
+              ...order,
+              orderItems: [],
+            };
+          } catch (err) {
+            console.error(`Error fetching detail for order ${order.id}:`, err);
+            return {
+              ...order,
+              orderItems: [],
+            };
+          }
+        })
+      );
+      
+      setOrderList(enrichedOrders);
       const total = response.data?.paginationInfo?.total;
       setTotalItem(total ? Number(total) : 0);
       
       // Check warehouse status for APPROVED orders
       const warehouseStatusMap = {};
-      for (const order of orders) {
+      for (const order of enrichedOrders) {
         if (order.status === "APPROVED" && order.orderItems && order.orderItems.length > 0) {
           // Check if all items have warehouseId
           const allHaveWarehouse = order.orderItems.every(item => item.warehouseId !== null && item.warehouseId !== undefined);
@@ -293,6 +347,40 @@ function OrderRestockManagementEVMStaff() {
       render: (agency) => agency?.name || "-",
     },
     { key: "itemQuantity", title: "Quantity" },
+    {
+      key: "vehicleNames",
+      title: "Vehicle Name(s)",
+      render: (_, item) => {
+        const orderItems = item?.orderItems || [];
+        if (orderItems.length === 0) return "-";
+        
+        // Extract unique vehicle names from orderItems
+        const vehicleNames = new Set();
+        orderItems.forEach((orderItem) => {
+          const vehicleName = orderItem?.electricMotorbike?.name || orderItem?.motorbike?.name;
+          if (vehicleName) {
+            vehicleNames.add(vehicleName);
+          }
+        });
+        
+        if (vehicleNames.size === 0) return "-";
+        
+        const namesArray = Array.from(vehicleNames);
+        // Hiển thị mỗi tên xe trên một dòng với badge
+        return (
+          <div className="flex flex-col gap-1">
+            {namesArray.map((name, index) => (
+              <span
+                key={index}
+                className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-md whitespace-nowrap"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        );
+      },
+    },
     {
       key: "total",
       title: "Total",
