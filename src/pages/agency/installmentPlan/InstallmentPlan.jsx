@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import PrivateDealerManagerApi from "../../../services/PrivateDealerManagerApi";
+import PrivateDealerStaffApi from "../../../services/PrivateDealerStaffApi";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
 import DataTable from "../../../components/dataTable/DataTable";
@@ -11,12 +12,15 @@ import { renderStatusTag } from "../../../utils/statusTag";
 
 function InstallmentPlan() {
   const { user } = useAuth();
+  const userRole = user?.role?.[0] || "";
+  const isDealerStaff = userRole === "Dealer Staff";
   const [installmentLít, setInstallmentList] = useState([]);
 
   const [page, setPage] = useState(1);
   const [limit] = useState(5);
   const [status, setStatus] = useState('');
   const [interestPaidType, setInterestPaidType] = useState('');
+  const [sort, setSort] = useState('newest');
   const [totalItem, setTotalItem] = useState(0);
 
   const [loading, setLoading] = useState(false);
@@ -54,25 +58,26 @@ function InstallmentPlan() {
   const [isEdit, setIsEdit] = useState(false);
   const [selectedId, setSelectedId] = useState("");
 
-  const fetchInstallList = async () => {
+  const fetchInstallList = useCallback(async () => {
+    if (!user?.agencyId) return;
     setLoading(true);
     try {
-      const response = await PrivateDealerManagerApi.getInstallmentPlan(
-        user?.agencyId,
-        { page, limit, interestPaidType, status }
-      );
-      setInstallmentList(response.data.data);
-      setTotalItem(response.data.paginationInfo.total);
+      const params = { page, limit, interestPaidType, status, sort };
+      const response = isDealerStaff
+        ? await PrivateDealerStaffApi.getInstallmentPlan(user.agencyId, params)
+        : await PrivateDealerManagerApi.getInstallmentPlan(user.agencyId, params);
+      setInstallmentList(response.data.data || []);
+      setTotalItem(response.data.paginationInfo?.total || 0);
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.agencyId, page, limit, interestPaidType, status, sort, isDealerStaff]);
 
   useEffect(() => {
     fetchInstallList();
-  }, [page, limit, interestPaidType, status]);
+  }, [fetchInstallList]);
 
   const handleCreateInstallment = async (e) => {
     e.preventDefault();
@@ -126,60 +131,62 @@ function InstallmentPlan() {
   const columns = [
     { key: "id", title: "Id" },
     { key: "name", title: "Name" },
-    { key: "interestRate", title: "Rate" },
-    { key: "interestRateTotalMonth", title: "Total month rate" },
-    { key: "totalPaidMonth", title: "Total paid month" },
-    { key: "interestPaidType", title: "Rate type" },
-    { key: "prePaidPercent", title: "Pre-paid percent" },
+    { key: "tensor", title: "Tensor" },
+    { key: "interestRate", title: "Interest Rate" },
+    { key: "interestRateTotalMonth", title: "Total Month Rate" },
+    { key: "totalPaidMonth", title: "Total Paid Month" },
+    { key: "interestPaidType", title: "Interest Paid Type" },
+    { key: "prePaidPercent", title: "Pre-paid Percent" },
     {
       key: "processFee",
-      title: "Fee",
+      title: "Process Fee",
       render: (fee) => (fee ? `${Number(fee).toLocaleString('vi-VN')} đ` : "0 đ"),
     },
     {
       key: "startAt",
-      title: "Ngày Bắt Đầu",
+      title: "Start Date",
       render: (date) => (date ? dayjs(date).format("DD/MM/YYYY") : "-"),
     },
     {
       key: "endAt",
-      title: "Ngày Kết Thúc",
+      title: "End Date",
       render: (date) => (date ? dayjs(date).format("DD/MM/YYYY") : "-"),
     },
     {
       key: "status",
-      title: "Trạng Thái",
+      title: "Status",
       render: (status) => renderStatusTag(status),
     },
-    { key: "agencyId", title: "Agency ID" },
   ];
 
-  const actions = [
-    {
-      type: "edit",
-      label: "Edit",
-      icon: Pencil,
-      onClick: (item) => {
-        setIsEdit(true);
-        setFormModal(true);
-        setSelectedId(item.id);
-        setUpdateForm({
-          ...item,
-          endAt: dayjs(item.endAt).format('YYYY-MM-DD'),
-          startAt: dayjs(item.startAt).format('YYYY-MM-DD')
-        });
-      },
-    },
-    {
-      type: "delete",
-      label: "Delete",
-      icon: Trash2,
-      onClick: (item) => {
-        setDeleteModal(true);
-        setSelectedId(item.id);
-      },
-    },
-  ];
+  const actions = isDealerStaff
+    ? [] // Dealer Staff chỉ xem, không có actions
+    : [
+        {
+          type: "edit",
+          label: "Edit",
+          icon: Pencil,
+          onClick: (item) => {
+            setIsEdit(true);
+            setFormModal(true);
+            setSelectedId(item.id);
+            setUpdateForm({
+              ...item,
+              endAt: dayjs(item.endAt).format('YYYY-MM-DD'),
+              startAt: dayjs(item.startAt).format('YYYY-MM-DD')
+            });
+          },
+        },
+        {
+          type: "delete",
+          label: "Delete",
+          icon: Trash2,
+          onClick: (item) => {
+            setDeleteModal(true);
+            setSelectedId(item.id);
+          },
+        },
+      ];
   return (
     <div>
       <div className="my-3 flex justify-end items-center gap-5">
@@ -216,16 +223,33 @@ function InstallmentPlan() {
         </div>
 
         <div>
-          <button
-            onClick={() => {
-              setFormModal(true);
-              setIsEdit(false);
+          <label className="mr-2 font-medium text-gray-600">Sort:</label>
+          <select
+            className="border border-gray-300 rounded-md px-2 py-1"
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value);
+              setPage(1);
             }}
-            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            <Plus size={20} />
-          </button>
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+          </select>
         </div>
+
+        {!isDealerStaff && (
+          <div>
+            <button
+              onClick={() => {
+                setFormModal(true);
+                setIsEdit(false);
+              }}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 cursor-pointer rounded-lg px-4 py-2.5 text-white font-medium shadow-md hover:shadow-lg flex items-center justify-center transform hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+        )}
       </div>
       <DataTable
         title="Installment Plan"

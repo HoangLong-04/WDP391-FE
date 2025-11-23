@@ -32,6 +32,8 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.delete(`quotation/${quotationId}`),
   getStockPromotionListStaff: (agencyId) =>
     apiConfig.privateApi.get(`stock-promotion/list/staff/${agencyId}`),
+  getStockPromotionDetail: (stockPromotionId) =>
+    apiConfig.privateApi.get(`stock-promotion/detail/${stockPromotionId}`),
   getCustomerContractList: (agencyId, params) =>
     apiConfig.privateApi.get(`customer-contract/list/${agencyId}`, { params }),
   getCustomerContractDetail: (contractId) =>
@@ -46,6 +48,8 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.get(`deposit/${depositId}`),
   getCustomerList: (agencyId, params) =>
     apiConfig.privateApi.get(`customer/list/${agencyId}`, { params }),
+  getInstallmentPlan: (agencyId, params) =>
+    apiConfig.privateApi.get(`installment-plan/list/${agencyId}`, { params }),
   // Email APIs
   sendCustomerContractEmail: (customerContractId) =>
     apiConfig.privateApi.post(`email/customer-contract/${customerContractId}`),
