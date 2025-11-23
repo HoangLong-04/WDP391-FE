@@ -3,6 +3,8 @@ import { apiConfig } from "./ApiConfig";
 const PrivateDealerStaff = {
   getBookingList: (agencyId, params) =>
     apiConfig.privateApi.get(`drive-trial/list/${agencyId}`, { params }),
+  getBookingDetail: (bookingId) =>
+    apiConfig.privateApi.get(`drive-trial/detail/${bookingId}`),
   updateBooking: (id, data) =>
     apiConfig.privateApi.patch(`drive-trial/${id}`, data),
   getStockList: (agencyId, params) =>
