@@ -78,7 +78,7 @@ function StaffManagement() {
     fetchRole();
   }, [page, limit, role]);
 
-  // Fetch agency list để tính toán available agencies
+  // Fetch agency list to calculate available agencies
   useEffect(() => {
     const fetchAgenciesForCheck = async () => {
       try {
@@ -110,19 +110,19 @@ function StaffManagement() {
         const staffData = response.data.data;
         allStaff = [...allStaff, ...staffData];
         
-        // Kiểm tra xem còn trang nào không
+        // Check if there are more pages
         const totalPages = Math.ceil(response.data.paginationInfo.total / 100);
         hasMore = currentPage < totalPages && staffData.length > 0;
         currentPage++;
         
-        // Giới hạn tối đa 10 trang để tránh quá nhiều request
+        // Limit to maximum 10 pages to avoid too many requests
         if (currentPage > 10) break;
       }
       
       // Filter out deleted staff
       const filteredStaff = allStaff.filter(staff => !staff.isDeleted);
       
-      // Tính toán agencies đã có Dealer Manager
+      // Calculate agencies that already have Dealer Manager
       const agenciesWithManagerSet = new Set();
       filteredStaff.forEach(staff => {
         if (staff.agencyId) {
@@ -148,14 +148,14 @@ function StaffManagement() {
       });
       setAgenciesWithManager(agenciesWithManagerSet);
       
-      // Sắp xếp theo createAt giảm dần (mới nhất trước)
+      // Sort by createAt descending (newest first)
       const sortedStaff = filteredStaff.sort((a, b) => {
         const dateA = new Date(a.createAt || 0);
         const dateB = new Date(b.createAt || 0);
-        return dateB - dateA; // Giảm dần: mới nhất trước
+        return dateB - dateA; // Descending: newest first
       });
       
-      // Phân trang ở client-side
+      // Client-side pagination
       const startIndex = (page - 1) * limit;
       const endIndex = startIndex + limit;
       const paginatedStaff = sortedStaff.slice(startIndex, endIndex);
@@ -344,7 +344,7 @@ function StaffManagement() {
         const hasDealerManagerRole = normalizedRoleNames.includes(normalizedAllowed);
         const canAssign = !item.agencyId && hasDealerManagerRole;
         
-        // Check xem còn agency nào available không
+        // Check if there are any available agencies
         const availableAgencies = agencyList.filter(agency => 
           !agenciesWithManager.has(agency.id)
         );

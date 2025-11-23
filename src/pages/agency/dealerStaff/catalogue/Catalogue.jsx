@@ -1567,7 +1567,7 @@ function Catalogue() {
                   className="w-4 h-4 text-indigo-600"
                 />
                 <span className="text-sm font-medium text-gray-700">
-                  Chọn khách hàng cũ
+                  Select existing customer
                 </span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -1592,7 +1592,7 @@ function Catalogue() {
                   className="w-4 h-4 text-indigo-600"
                 />
                 <span className="text-sm font-medium text-gray-700">
-                  Tạo mới khách hàng
+                  Create new customer
                 </span>
               </label>
             </div>
@@ -1601,7 +1601,7 @@ function Catalogue() {
             {customerMode === "existing" && (
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Chọn khách hàng <span className="text-red-500">*</span>
+                  Select customer <span className="text-red-500">*</span>
                 </label>
                 {loadingCustomers ? (
                   <div className="text-sm text-gray-500 py-2">
@@ -1638,7 +1638,7 @@ function Catalogue() {
                     }}
                     required
                   >
-                    <option value="">-- Chọn khách hàng --</option>
+                    <option value="">-- Select customer --</option>
                     {customerList.map((customer) => (
                       <option key={customer.id} value={customer.id}>
                         {customer.name} - {customer.phone}{" "}
@@ -1649,7 +1649,7 @@ function Catalogue() {
                 )}
                 {customerList.length === 0 && !loadingCustomers && (
                   <p className="text-xs text-gray-500 mt-1">
-                    Không có khách hàng nào. Vui lòng chọn "Tạo mới khách hàng".
+                    No customers available. Please select "Create new customer".
                   </p>
                 )}
               </div>

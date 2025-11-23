@@ -149,12 +149,12 @@ function OrderRestockManagementEVMStaff() {
     try {
       const orderId = item.id;
       
-      // Gọi API để lấy order detail
+      // Call API to get order detail
       const orderDetailResponse = await PrivateAdminApi.getOrderRestockDetail(orderId);
       const orderDetailData = orderDetailResponse.data.data;
       setOrderDetail(orderDetailData);
       
-      // Lấy tất cả order items từ API response
+      // Get all order items from API response
       const items = orderDetailData?.orderItems || [];
       if (items.length === 0) {
         toast.error("This order has no items to display");
@@ -162,7 +162,7 @@ function OrderRestockManagementEVMStaff() {
         return;
       }
       
-      // Fetch detail cho từng order item để có thông tin warehouse và motorbike/color
+      // Fetch detail for each order item to get warehouse and motorbike/color information
       const itemDetailsPromises = items.map(async (orderItem) => {
         try {
           const itemDetailResponse = await PrivateAdminApi.getOrderRestockOrderItemDetail(orderItem.id);
@@ -294,7 +294,7 @@ function OrderRestockManagementEVMStaff() {
   const handleDeliver = async (orderId) => {
     setSubmit(true);
     try {
-      // Kiểm tra xem tất cả items đã có warehouse chưa
+      // Check if all items have warehouse
       const orderDetailResponse = await PrivateAdminApi.getOrderRestockDetail(orderId);
       const orderDetail = orderDetailResponse.data.data;
       const items = orderDetail?.orderItems || [];
@@ -305,7 +305,7 @@ function OrderRestockManagementEVMStaff() {
         return;
       }
       
-      // Fetch detail cho từng item để kiểm tra warehouse
+      // Fetch detail for each item to check warehouse
       const itemDetailsPromises = items.map(async (item) => {
         try {
           const itemDetailResponse = await PrivateAdminApi.getOrderRestockOrderItemDetail(item.id);
@@ -366,7 +366,7 @@ function OrderRestockManagementEVMStaff() {
         if (vehicleNames.size === 0) return "-";
         
         const namesArray = Array.from(vehicleNames);
-        // Hiển thị mỗi tên xe trên một dòng với badge
+        // Display each vehicle name on a separate line with badge
         return (
           <div className="flex flex-col gap-1">
             {namesArray.map((name, index) => (
@@ -449,7 +449,7 @@ function OrderRestockManagementEVMStaff() {
                     fetchOrderRestockDetail(item);
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition cursor-pointer text-sm font-medium"
-                  title="Chọn warehouse cho tất cả items"
+                  title="Select warehouse for all items"
                 >
                   <Save className="w-4 h-4" />
                 </button>

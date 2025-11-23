@@ -764,7 +764,7 @@ function QuotationManagement() {
                 </div>
               </div>
               <p className="text-sm text-gray-600">
-                Warehouse sẽ được EVM Staff chọn khi xử lý đơn hàng.
+                Warehouse will be selected by EVM Staff when processing the order.
               </p>
             </>
           )}

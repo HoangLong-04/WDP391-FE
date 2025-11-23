@@ -8,8 +8,11 @@ function OrderRestockForm({
   motorList,
   colorList,
   warehouseList,
-  promoList,
-  discountList,
+  globalPromotions = [],
+  promotionsByMotorbike = {},
+  agencyDiscounts = [],
+  discountsByMotorbike = {},
+  onMotorbikeChange,
 }) {
   const inputClasses =
     "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none hover:border-gray-400";
@@ -35,13 +38,59 @@ function OrderRestockForm({
       ...prevData,
       orderItems: prevData.orderItems.map((item, idx) => {
         if (idx !== itemIndex) return item;
-        // Khi đổi xe, reset colorId
+        // When changing motorbike, reset colorId, discountId, promotionId
         if (name === "motorbikeId") {
-          return { ...item, motorbikeId: processedValue, colorId: null };
+          const newItem = { ...item, motorbikeId: processedValue, colorId: null, discountId: null, promotionId: null };
+          // Call callback to fetch promotions and discounts for the new motorbike
+          if (onMotorbikeChange) {
+            onMotorbikeChange(itemIndex, processedValue);
+          }
+          return newItem;
         }
         return { ...item, [name]: processedValue };
       }),
     }));
+  };
+
+  // Helper function to get promotions for an item
+  const getPromotionsForItem = (itemIndex) => {
+    const item = form.orderItems[itemIndex];
+    const motorbikeId = item?.motorbikeId;
+    
+    const promotions = [];
+    
+    // Add global promotions (without motorbikeId)
+    promotions.push(...globalPromotions.filter(p => !p.motorbikeId));
+    
+    // Add promotions for specific motorbike if selected
+    if (motorbikeId && motorbikeId > 0 && promotionsByMotorbike[motorbikeId]) {
+      promotions.push(...promotionsByMotorbike[motorbikeId]);
+    }
+    
+    return promotions;
+  };
+
+  // Helper function to get discounts for an item
+  const getDiscountsForItem = (itemIndex) => {
+    const item = form.orderItems[itemIndex];
+    const motorbikeId = item?.motorbikeId;
+    
+    const discounts = [];
+    
+    // Add agency discounts (may or may not have motorbikeId)
+    // If motorbike is selected, only get agency discounts with null or matching motorbikeId
+    if (motorbikeId && motorbikeId > 0) {
+      discounts.push(...agencyDiscounts.filter(d => !d.motorbikeId || d.motorbikeId === motorbikeId));
+    } else {
+      discounts.push(...agencyDiscounts.filter(d => !d.motorbikeId));
+    }
+    
+    // Add common discounts for specific motorbike if selected
+    if (motorbikeId && motorbikeId > 0 && discountsByMotorbike[motorbikeId]) {
+      discounts.push(...discountsByMotorbike[motorbikeId]);
+    }
+    
+    return discounts;
   };
 
   const handleAddItem = () => {
@@ -127,6 +176,9 @@ function OrderRestockForm({
 
         {form.orderItems.map((orderItem, index) => {
           const colorOptions = colorOptionsMap.get(index) || [];
+          const availablePromotions = getPromotionsForItem(index);
+          const availableDiscounts = getDiscountsForItem(index);
+          const selectedMotorbike = motorList.find(m => m.id === orderItem.motorbikeId);
           
           return (
             <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -173,7 +225,7 @@ function OrderRestockForm({
                     required
                   >
                     <option value="" disabled hidden>
-                      -- Chọn Motorbike --
+                      -- Select Motorbike --
                     </option>
                     {motorList.map((d) => (
                       <option key={d.id} value={d.id}>
@@ -196,7 +248,7 @@ function OrderRestockForm({
                     disabled={!orderItem.motorbikeId || orderItem.motorbikeId === 0}
                   >
                     <option value="" disabled hidden>
-                      {orderItem.motorbikeId && orderItem.motorbikeId !== 0 ? "-- Chọn Color --" : "-- Chọn Motorbike trước --"}
+                      {orderItem.motorbikeId && orderItem.motorbikeId !== 0 ? "-- Select Color --" : "-- Select Motorbike First --"}
                     </option>
                     {colorOptions.map((d) => (
                       <option key={d.id} value={d.id}>
@@ -215,15 +267,42 @@ function OrderRestockForm({
                     value={orderItem.discountId || ""}
                     onChange={(e) => handleChange(e, index)}
                     className={selectClasses}
+                    disabled={!orderItem.motorbikeId || orderItem.motorbikeId === 0}
                   >
                     <option value="" disabled hidden>
-                      -- Chọn Discount --
+                      {orderItem.motorbikeId && orderItem.motorbikeId !== 0 ? "-- Select Discount --" : "-- Select Motorbike First --"}
                     </option>
-                    {discountList.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
+                    {availableDiscounts.length > 0 ? (
+                      <>
+                        {(() => {
+                          const agencyDiscountsForItem = orderItem.motorbikeId && orderItem.motorbikeId > 0
+                            ? agencyDiscounts.filter(d => !d.motorbikeId || d.motorbikeId === orderItem.motorbikeId)
+                            : agencyDiscounts.filter(d => !d.motorbikeId);
+                          return agencyDiscountsForItem.length > 0 && (
+                            <optgroup label="Discount for Agency">
+                              {agencyDiscountsForItem.map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          );
+                        })()}
+                        {orderItem.motorbikeId && orderItem.motorbikeId > 0 && discountsByMotorbike[orderItem.motorbikeId]?.length > 0 && (
+                          <optgroup label="Common Discount">
+                            {discountsByMotorbike[orderItem.motorbikeId].map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </>
+                    ) : (
+                      <option value="" disabled>
+                        No discount available
                       </option>
-                    ))}
+                    )}
                   </select>
                 </div>
 
@@ -238,13 +317,34 @@ function OrderRestockForm({
                     className={selectClasses}
                   >
                     <option value="" disabled hidden>
-                      -- Chọn Promotion --
+                      -- Select Promotion --
                     </option>
-                    {promoList.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
+                    {availablePromotions.length > 0 ? (
+                      <>
+                        {globalPromotions.filter(p => !p.motorbikeId).length > 0 && (
+                          <optgroup label="Global Promotion">
+                            {globalPromotions.filter(p => !p.motorbikeId).map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {orderItem.motorbikeId && orderItem.motorbikeId > 0 && promotionsByMotorbike[orderItem.motorbikeId]?.length > 0 && (
+                          <optgroup label={`Promotion for ${selectedMotorbike?.name || 'Selected Motorbike'}`}>
+                            {promotionsByMotorbike[orderItem.motorbikeId].map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </>
+                    ) : (
+                      <option value="" disabled>
+                        No promotion available
                       </option>
-                    ))}
+                    )}
                   </select>
                 </div>
               </div>

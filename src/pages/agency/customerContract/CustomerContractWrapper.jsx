@@ -13,12 +13,12 @@ function CustomerContractWrapper() {
     user?.roles?.includes("Dealer Manager") ||
     (Array.isArray(user?.role) && user.role.includes("Dealer Manager"));
 
-  // Dealer Manager chỉ xem, không có actions
+  // Dealer Manager can only view, no actions
   if (hasDealerManagerRole) {
     return <CustomerContractManager />;
   }
 
-  // Dealer Staff và các role khác dùng component đầy đủ với actions
+  // Dealer Staff and other roles use full component with actions
   return <CustomerContract />;
 }
 

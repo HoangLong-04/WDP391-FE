@@ -73,10 +73,15 @@ const PrivateDealerManagerApi = {
 
   getDiscountList: (agencyId, params) =>
     apiConfig.privateApi.get(`discount/agency/list/${agencyId}`, { params }),
+  getDiscountListForMotorbike: (motorbikeId, params) =>
+    apiConfig.privateApi.get(`discount/agency/motorbike/list/${motorbikeId}`, { params }),
 
   getWarehouseList: () => apiConfig.privateApi.get("warehouses/list"),
 
-  getPromotionList: () => apiConfig.privateApi.get("promotion/agency/list"),
+  getPromotionList: (params) =>
+    apiConfig.privateApi.get("promotion/agency/list", { params }),
+  getPromotionListWithMotorbike: (motorbikeId, params) =>
+    apiConfig.privateApi.get(`promotion/agency/list/with-motorbike/${motorbikeId}`, { params }),
 
   createInstallmentContract: (data) =>
     apiConfig.privateApi.post("installment-contract", data),

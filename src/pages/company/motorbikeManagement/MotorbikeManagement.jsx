@@ -155,7 +155,7 @@ function MotorbikeManagement() {
   const handleAddColorImage = async (e) => {
     e.preventDefault();
     if (!colorImage.colorId || !colorImage.color_image) {
-      toast.error("Vui lòng chọn Màu sắc và File ảnh.");
+      toast.error("Please select Color and Image file.");
 
       setSubmit(false);
       return;
@@ -228,7 +228,7 @@ function MotorbikeManagement() {
         makeFrom,
         model,
       });
-      // Filter các item đã bị xóa (isDeleted = true) để đảm bảo không hiển thị
+      // Filter deleted items (isDeleted = true) to ensure they are not displayed
       const filteredData =
         response.data.data?.filter((motor) => !motor.isDeleted) || [];
 
@@ -244,7 +244,7 @@ function MotorbikeManagement() {
     }
   };
 
-  // Cập nhật tùy chọn filter dựa trên danh sách hiện có trong bộ nhớ
+  // Update filter options based on existing list in memory
   useEffect(() => {
     const uniqueModels = Array.from(
       new Set(allMotorList.map((it) => it.model).filter(Boolean))
@@ -602,7 +602,7 @@ function MotorbikeManagement() {
       toast.success("Delete successfully");
       setDeleteModal(false);
 
-      // Cập nhật danh sách toàn bộ và phân trang client-side
+      // Update full list and client-side pagination
       const newAll = allMotorList.filter((motor) => motor.id !== selectedId);
       setAllMotorList(newAll);
       const newTotal = Math.max(0, newAll.length);

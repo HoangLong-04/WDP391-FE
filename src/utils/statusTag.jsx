@@ -8,7 +8,7 @@ export const renderStatusTag = (status) => {
 
   const statusUpper = status.toUpperCase();
   
-  // Mapping các status với màu và label
+  // Mapping statuses with colors and labels
   const statusConfig = {
     // Active/Inactive states
     ACTIVE: { bg: "bg-green-500", label: "Active" },
