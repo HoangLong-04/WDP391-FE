@@ -9,9 +9,7 @@ import BaseModal from "../../../../components/modal/baseModal/BaseModal";
 import { CircularProgress } from "@mui/material";
 import useColorList from "../../../../hooks/useColorList";
 import useMotorList from "../../../../hooks/useMotorList";
-import useDiscountAgency from "../../../../hooks/useDiscountAgency";
 import useWarehouseAgency from "../../../../hooks/useWarehouseAgency";
-import usePromotionAgency from "../../../../hooks/usePromotionAgency";
 import FormModal from "../../../../components/modal/formModal/FormModal";
 import OrderRestockForm from "./orderRestockForm/OrderRestockForm";
 import { Send, Plus, Trash2, CreditCard } from "lucide-react";
@@ -21,13 +19,17 @@ function OrderRestockAgency() {
   const { user } = useAuth();
   const { colorList } = useColorList();
   const { motorList } = useMotorList();
-  const { discountList } = useDiscountAgency();
   const { warehouse } = useWarehouseAgency();
-  const { promoList } = usePromotionAgency();
   const [restockList, setRestockList] = useState([]);
   const [restockDetail, setRestockDetail] = useState({});
   const [restockOrderItems, setRestockOrderItems] = useState([]); // All order items detail
   const [orderGeneralInfo, setOrderGeneralInfo] = useState({}); // Order general info
+  
+  // Promotion and Discount lists - will be fetched dynamically per item
+  const [globalPromotions, setGlobalPromotions] = useState([]);
+  const [promotionsByMotorbike, setPromotionsByMotorbike] = useState({}); // Map motorbikeId -> promotions
+  const [agencyDiscounts, setAgencyDiscounts] = useState([]);
+  const [discountsByMotorbike, setDiscountsByMotorbike] = useState({}); // Map motorbikeId -> discounts
 
   const [page, setPage] = useState(1);
   const [totalItem, setTotalItem] = useState(0);
@@ -129,7 +131,7 @@ function OrderRestockAgency() {
   const fetchOrderRestockDetail = async (item) => {
     setViewModalLoading(true);
     try {
-      // Lấy orderItems từ item (đã có từ API list)
+      // Get orderItems from item (already available from API list)
       const orderItems = item?.orderItems || [];
       if (orderItems.length === 0) {
         toast.error("This order has no items to display");
@@ -143,7 +145,7 @@ function OrderRestockAgency() {
         orderAt: item.orderAt,
         orderStatus: item.status,
         orderTotal: item.total,
-        orderSubtotal: item.subtotal, // Fallback nếu không có total
+        orderSubtotal: item.subtotal, // Fallback if total is not available
         paidAmount: item.paidAmount,
         itemQuantity: item.itemQuantity,
         creditChecked: item.creditChecked,
@@ -152,7 +154,7 @@ function OrderRestockAgency() {
         orderPayments: item.orderPayments || [],
       });
 
-      // Fetch detail cho tất cả orderItems
+      // Fetch detail for all orderItems
       const itemDetailPromises = orderItems.map(async (orderItem) => {
         try {
           const orderItemId = orderItem.id;
@@ -273,7 +275,7 @@ function OrderRestockAgency() {
       setRestockList((prev) => prev.filter((o) => o.id !== selectedDeleteId));
       setTotalItem((t) => Math.max(0, t - 1));
       toast.success('Delete successfully');
-      // Refetch để đồng bộ
+      // Refetch to sync
       fetchRestockList();
     } catch (error) {
       toast.error(error.message);
@@ -355,9 +357,109 @@ function OrderRestockAgency() {
     }
   };
 
+  // Fetch global promotions
+  const fetchGlobalPromotions = async () => {
+    try {
+      const response = await PrivateDealerManagerApi.getPromotionList({ limit: 100 });
+      setGlobalPromotions(response.data?.data || []);
+    } catch (error) {
+      console.error("Error fetching global promotions:", error);
+    }
+  };
+
+  // Fetch promotions for specific motorbike
+  const fetchPromotionsForMotorbike = async (motorbikeId) => {
+    if (!motorbikeId || promotionsByMotorbike[motorbikeId]) {
+      return; // Already fetched or invalid
+    }
+    try {
+      const response = await PrivateDealerManagerApi.getPromotionListWithMotorbike(motorbikeId, { limit: 100 });
+      setPromotionsByMotorbike(prev => ({
+        ...prev,
+        [motorbikeId]: response.data?.data || []
+      }));
+    } catch (error) {
+      console.error(`Error fetching promotions for motorbike ${motorbikeId}:`, error);
+      setPromotionsByMotorbike(prev => ({
+        ...prev,
+        [motorbikeId]: []
+      }));
+    }
+  };
+
+  // Fetch agency discounts (base list, no motorbikeId filter)
+  const fetchAgencyDiscounts = async () => {
+    try {
+      const response = await PrivateDealerManagerApi.getDiscountList(user?.agencyId, { limit: 100 });
+      setAgencyDiscounts(response.data?.data || []);
+    } catch (error) {
+      console.error("Error fetching agency discounts:", error);
+    }
+  };
+
+  // Fetch agency discounts with motorbikeId filter (for a specific item)
+  const fetchAgencyDiscountsForMotorbike = async (motorbikeId) => {
+    if (!motorbikeId) return;
+    try {
+      const response = await PrivateDealerManagerApi.getDiscountList(user?.agencyId, { 
+        limit: 100,
+        motorbikeId 
+      });
+      // Merge into agencyDiscounts to have both general discounts and discounts for specific motorbike
+      setAgencyDiscounts(prev => {
+        const existingIds = new Set(prev.map(d => d.id));
+        const newDiscounts = (response.data?.data || []).filter(d => !existingIds.has(d.id));
+        return [...prev, ...newDiscounts];
+      });
+    } catch (error) {
+      console.error(`Error fetching agency discounts for motorbike ${motorbikeId}:`, error);
+    }
+  };
+
+  // Fetch common discounts for motorbike
+  const fetchDiscountsForMotorbike = async (motorbikeId) => {
+    if (!motorbikeId || discountsByMotorbike[motorbikeId]) {
+      return; // Already fetched or invalid
+    }
+    try {
+      const response = await PrivateDealerManagerApi.getDiscountListForMotorbike(motorbikeId, { limit: 100 });
+      setDiscountsByMotorbike(prev => ({
+        ...prev,
+        [motorbikeId]: response.data?.data || []
+      }));
+    } catch (error) {
+      console.error(`Error fetching discounts for motorbike ${motorbikeId}:`, error);
+      setDiscountsByMotorbike(prev => ({
+        ...prev,
+        [motorbikeId]: []
+      }));
+    }
+  };
+
   useEffect(() => {
     fetchRestockList();
   }, [page, limit, status]);
+
+  // Fetch promotions and discounts when form modal opens
+  useEffect(() => {
+    if (formModal && user?.agencyId) {
+      fetchGlobalPromotions();
+      fetchAgencyDiscounts();
+    }
+  }, [formModal, user?.agencyId]);
+
+  // Fetch promotions and discounts when motorbike is selected in form
+  useEffect(() => {
+    if (formModal) {
+      form.orderItems.forEach((item) => {
+        if (item.motorbikeId && item.motorbikeId > 0) {
+          fetchPromotionsForMotorbike(item.motorbikeId);
+          fetchDiscountsForMotorbike(item.motorbikeId);
+          fetchAgencyDiscountsForMotorbike(item.motorbikeId);
+        }
+      });
+    }
+  }, [form.orderItems.map(item => item.motorbikeId).join(','), formModal]);
 
   // Check for payment success callback and refresh list
   useEffect(() => {
@@ -405,7 +507,7 @@ function OrderRestockAgency() {
         if (vehicleNames.size === 0) return "-";
         
         const namesArray = Array.from(vehicleNames);
-        // Hiển thị mỗi tên xe trên một dòng với badge
+        // Display each vehicle name on a separate line with badge
         return (
           <div className="flex flex-col gap-1">
             {namesArray.map((name, index) => (
@@ -747,10 +849,19 @@ function OrderRestockAgency() {
           colorList={colorList}
           form={form}
           motorList={motorList}
-          promoList={promoList}
           setForm={setForm}
           warehouseList={warehouse}
-          discountList={discountList}
+          globalPromotions={globalPromotions}
+          promotionsByMotorbike={promotionsByMotorbike}
+          agencyDiscounts={agencyDiscounts}
+          discountsByMotorbike={discountsByMotorbike}
+          onMotorbikeChange={(itemIndex, motorbikeId) => {
+            if (motorbikeId && motorbikeId > 0) {
+              fetchPromotionsForMotorbike(motorbikeId);
+              fetchDiscountsForMotorbike(motorbikeId);
+              fetchAgencyDiscountsForMotorbike(motorbikeId);
+            }
+          }}
         />
       </FormModal>
       <FormModal

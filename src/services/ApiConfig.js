@@ -53,7 +53,7 @@ privateApi.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Skip interceptor cho logout request khi token hết hạn
+    // Skip interceptor for logout request when token expires
     if (originalRequest._skipRefreshToken) {
       return Promise.reject(error);
     }
