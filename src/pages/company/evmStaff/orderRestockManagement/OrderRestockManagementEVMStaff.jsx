@@ -530,35 +530,56 @@ function OrderRestockManagementEVMStaff() {
             )}
 
             {/* Order Payments */}
-            {orderDetail.orderPayments && orderDetail.orderPayments.length > 0 && (
-              <div className="bg-white rounded-lg p-5 border border-gray-200">
-                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
-                  Order Payments ({orderDetail.orderPayments.length})
-                </h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Invoice Number</th>
-                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Amount</th>
-                        <th className="px-4 py-2 text-left text-gray-700 font-semibold">Payment Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {orderDetail.orderPayments.map((payment) => (
-                        <tr key={payment.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-2 text-gray-800">{payment.invoiceNumber || "-"}</td>
-                          <td className="px-4 py-2 text-gray-800">{formatCurrency(payment.amount || 0)}</td>
-                          <td className="px-4 py-2 text-gray-800">
-                            {payment.payAt ? dayjs(payment.payAt).format("DD/MM/YYYY") : "-"}
-                          </td>
+            <div className="bg-white rounded-lg p-5 border border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                Order Payments {orderDetail.orderPayments && orderDetail.orderPayments.length > 0 && `(${orderDetail.orderPayments.length})`}
+              </h4>
+              {orderDetail.orderPayments && orderDetail.orderPayments.length > 0 ? (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">Payment ID</th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">Invoice Number</th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">Amount</th>
+                          <th className="px-4 py-2 text-left text-gray-700 font-semibold">Payment Date</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {orderDetail.orderPayments.map((payment) => (
+                          <tr key={payment.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 text-gray-800">{payment.id || "-"}</td>
+                            <td className="px-4 py-2 text-gray-800">{payment.invoiceNumber || "-"}</td>
+                            <td className="px-4 py-2 text-gray-800">{formatCurrency(payment.amount || 0)}</td>
+                            <td className="px-4 py-2 text-gray-800">
+                              {payment.payAt ? dayjs(payment.payAt).format("DD/MM/YYYY") : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan="2" className="px-4 py-2 text-right font-semibold text-gray-700">
+                            Total Payments:
+                          </td>
+                          <td className="px-4 py-2 text-gray-800 font-semibold">
+                            {formatCurrency(
+                              orderDetail.orderPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0)
+                            )}
+                          </td>
+                          <td className="px-4 py-2"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  No payments recorded
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Order Items */}
             <div className="bg-white rounded-lg p-5 border border-gray-200">
