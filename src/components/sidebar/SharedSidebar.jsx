@@ -77,11 +77,6 @@ function SharedSidebar() {
           Icon: FileText,
         },
         {
-          path: "/agency/ap-batch-management",
-          label: "AP Batches",
-          Icon: CreditCard,
-        },
-        {
           path: "/agency/credit-line",
           label: "Credit line",
           Icon: BanknoteArrowUp,
@@ -239,11 +234,6 @@ function SharedSidebar() {
           path: "/company/evm-staff/price-policy",
           label: "Price policy",
           Icon: DollarSign,
-        },
-        {
-          path: "/company/evm-staff/batches",
-          label: "AP Batches",
-          Icon: FileText,
         },
         {
           path: "/company/credit-line",

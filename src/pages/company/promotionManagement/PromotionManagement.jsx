@@ -2,32 +2,30 @@
 import React, { useEffect, useState } from "react";
 import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import dayjs from "dayjs";
-import { Eye, Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import useMotorList from "../../../hooks/useMotorList";
 import { toast } from "react-toastify";
-import {
-  motorGeneralFields,
-  motorGroupedFields,
-} from "../../../components/viewModel/motorbikeModel/MotorbikeModel";
-import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import PromotionForm from "./promotionForm/PromotionForm";
+import BaseModal from "../../../components/modal/baseModal/BaseModal";
+import { formatCurrency } from "../../../utils/currency";
+import CircularProgress from "@mui/material/CircularProgress";
 function PromotionManagement() {
   const { motorList } = useMotorList();
   const [promotion, setPromotion] = useState([]);
-  const [motor, setMotor] = useState({});
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(5);
   const [totalItem, setTotalItem] = useState(null);
   const [valueType, setValueType] = useState("");
   const [motorbikeId, setMotorbikeId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [viewModalLoading, setViewModalLoading] = useState(false);
   const [submit, setSubmit] = useState(false);
-  const [motorModal, setMotorModal] = useState(false);
   const [formModal, setFormModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
+  const [detailModal, setDetailModal] = useState(false);
+  const [promotionDetail, setPromotionDetail] = useState(null);
+  const [detailModalLoading, setDetailModalLoading] = useState(false);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -61,7 +59,35 @@ function PromotionManagement() {
       });
       // Sort by ID descending to show newest first
       const sortedData = [...response.data.data].sort((a, b) => b.id - a.id);
-      setPromotion(sortedData);
+      
+      // Enrich với vehicle names từ detail API
+      const enrichedData = await Promise.all(
+        sortedData.map(async (item) => {
+          try {
+            if (item.motorbikeId) {
+              const detailResponse = await PrivateAdminApi.getPromotionDetail(item.id);
+              const detail = detailResponse.data?.data;
+              return {
+                ...item,
+                motorbikeName: detail?.motorbike?.name || "-",
+                motorbike: detail?.motorbike,
+              };
+            }
+            return {
+              ...item,
+              motorbikeName: "All",
+            };
+          } catch (err) {
+            console.error(`Error fetching promotion detail for ${item.id}:`, err);
+            return {
+              ...item,
+              motorbikeName: item.motorbikeId ? "-" : "All",
+            };
+          }
+        })
+      );
+      
+      setPromotion(enrichedData);
       setTotalItem(response.data.paginationInfo.total);
     } catch (error) {
       console.log(error);
@@ -72,15 +98,16 @@ function PromotionManagement() {
   useEffect(() => {
     fetchPromotion();
   }, [page, limit, valueType, motorbikeId]);
-  const fetchMotorById = async (id) => {
-    setViewModalLoading(true);
+
+  const fetchPromotionDetail = async (promotionId) => {
+    setDetailModalLoading(true);
     try {
-      const response = await PrivateAdminApi.getMotorbikeById(id);
-      setMotor(response.data.data);
+      const response = await PrivateAdminApi.getPromotionDetail(promotionId);
+      setPromotionDetail(response.data.data);
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message || "Failed to load promotion detail");
     } finally {
-      setViewModalLoading(false);
+      setDetailModalLoading(false);
     }
   };
   const handleCreatePromotion = async (e) => {
@@ -300,59 +327,48 @@ function PromotionManagement() {
       ),
     },
     {
-      key: "motorbikeId",
+      key: "motorbike",
       title: "Motorbike",
-      render: (motorbikeId) =>
-        motorbikeId ? (
-          <span
-            onClick={() => {
-              setMotorModal(true);
-              fetchMotorById(motorbikeId);
-            }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-          >
-            <Eye className="w-5 h-5 text-white" />
-          </span>
-        ) : (
-          <span className="text-gray-600 font-medium flex items-center justify-center">All</span>
-        ),
-    },
-    {
-      key: "action1",
-      title: "Update",
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setIsedit(true);
-            setFormModal(true);
-            setUpdateForm({
-              ...item,
-              value_type: item.valueType,
-              startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
-              endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
-              motorbikeId: item.motorbikeId || "ALL",
-            });
-            setSelectedId(item.id);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
-        >
-          <Pencil className="w-5 h-5 text-white" />
+        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-md">
+          {item.motorbikeName || (item.motorbikeId ? "-" : "All")}
         </span>
       ),
     },
     {
       key: "action",
-      title: "Delete",
+      title: <span className="block text-center">Action</span>,
       render: (_, item) => (
-        <span
-          onClick={() => {
-            setDeleteModal(true);
-            setSelectedId(item.id);
-          }}
-          className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
-        >
-          <Trash2 className="w-5 h-5 text-white" />
-        </span>
+        <div className="flex gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
+          <span
+            onClick={() => {
+              setIsedit(true);
+              setFormModal(true);
+              setUpdateForm({
+                ...item,
+                value_type: item.valueType,
+                startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
+                endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
+                motorbikeId: item.motorbikeId || "ALL",
+              });
+              setSelectedId(item.id);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
+            title="Update"
+          >
+            <Pencil className="w-5 h-5 text-white" />
+          </span>
+          <span
+            onClick={() => {
+              setDeleteModal(true);
+              setSelectedId(item.id);
+            }}
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition"
+            title="Delete"
+          >
+            <Trash2 className="w-5 h-5 text-white" />
+          </span>
+        </div>
       ),
     },
   ];
@@ -417,15 +433,10 @@ function PromotionManagement() {
         columns={columns}
         pageSize={limit}
         totalItem={totalItem}
-      />
-      <GroupModal
-        data={motor}
-        groupedFields={motorGroupedFields}
-        isOpen={motorModal}
-        loading={viewModalLoading}
-        onClose={() => setMotorModal(false)}
-        title={"Motorbike info"}
-        generalFields={motorGeneralFields}
+        onRowClick={(item) => {
+          setDetailModal(true);
+          fetchPromotionDetail(item.id);
+        }}
       />
       <FormModal
         isOpen={formModal}
@@ -457,6 +468,129 @@ function PromotionManagement() {
           be undone.
         </p>
       </FormModal>
+
+      <BaseModal
+        isOpen={detailModal}
+        onClose={() => {
+          setDetailModal(false);
+          setPromotionDetail(null);
+        }}
+        title="Promotion Detail"
+        size="lg"
+      >
+        {detailModalLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : promotionDetail ? (
+          <div className="space-y-6">
+            {/* Promotion Information */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Promotion Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">ID</p>
+                  <p className="font-medium text-gray-800">{promotionDetail.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Name</p>
+                  <p className="font-medium text-gray-800">{promotionDetail.name || "-"}</p>
+                </div>
+                {promotionDetail.description && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-600 mb-1">Description</p>
+                    <p className="font-medium text-gray-800">{promotionDetail.description}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Value Type</p>
+                  <p className="font-medium text-gray-800">{promotionDetail.valueType || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Value</p>
+                  <p className="font-medium text-gray-800">
+                    {promotionDetail.valueType === "PERCENT" 
+                      ? `${promotionDetail.value}%` 
+                      : formatCurrency(promotionDetail.value || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Start Date</p>
+                  <p className="font-medium text-gray-800">
+                    {promotionDetail.startAt ? dayjs(promotionDetail.startAt).format("DD/MM/YYYY") : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">End Date</p>
+                  <p className="font-medium text-gray-800">
+                    {promotionDetail.endAt ? dayjs(promotionDetail.endAt).format("DD/MM/YYYY") : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Status</p>
+                  <span
+                    className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
+                      promotionDetail.status === "ACTIVE" ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  >
+                    {promotionDetail.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Motorbike Information */}
+            {promotionDetail.motorbike ? (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
+                  Motorbike Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">{promotionDetail.motorbike.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Price</p>
+                    <p className="font-medium text-gray-800">
+                      {formatCurrency(promotionDetail.motorbike.price || 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Model</p>
+                    <p className="font-medium text-gray-800">{promotionDetail.motorbike.model || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Version</p>
+                    <p className="font-medium text-gray-800">{promotionDetail.motorbike.version || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Make From</p>
+                    <p className="font-medium text-gray-800">{promotionDetail.motorbike.makeFrom || "-"}</p>
+                  </div>
+                  {promotionDetail.motorbike.description && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-gray-600 mb-1">Description</p>
+                      <p className="font-medium text-gray-800">{promotionDetail.motorbike.description}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
+                  Motorbike Information
+                </h4>
+                <p className="text-gray-600 font-medium">All Motorbikes</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No data available
+          </div>
+        )}
+      </BaseModal>
     </div>
   );
 }

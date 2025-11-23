@@ -3,19 +3,10 @@ import PrivateAdminApi from "../../../services/PrivateAdminApi";
 import PaginationTable from "../../../components/paginationTable/PaginationTable";
 import dayjs from "dayjs";
 import { toast } from "react-toastify";
-import ViewModal from "../../../components/modal/viewModal/ViewModal";
-import GroupModal from "../../../components/modal/groupModal/GroupModal";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import InventoryForm from "./inventoryForm/InventoryForm";
-import {
-  motorGeneralFields,
-  motorGroupedFields,
-} from "../../../components/viewModel/motorbikeModel/MotorbikeModel";
-import {
-  inventoryGeneralFields,
-  inventoryGroupFields,
-} from "../../../components/viewModel/inventoryModel/InventoryModel";
-import { warehouseFields } from "../../../components/viewModel/warehouseModel/WarehouseModel";
+import BaseModal from "../../../components/modal/baseModal/BaseModal";
+import CircularProgress from "@mui/material/CircularProgress";
 import { Pencil, Trash2 } from "lucide-react";
 import useColorList from "../../../hooks/useColorList";
 
@@ -24,10 +15,8 @@ function InventoryManagement() {
   const [motorList, setMototList] = useState([]);
   const [allMotorList, setAllMotorList] = useState([]); // All motorbikes for form
   const [warehouseList, setWarehouseList] = useState([]);
-  const [motor, setMotor] = useState({});
-  const [warehouse, setWarehouse] = useState({});
-  const [inventory, setInventory] = useState({});
   const [inventoryDetails, setInventoryDetails] = useState({}); // Map to store detail data: key = "motorId-warehouseId-colorId"
+  const [inventoryDetail, setInventoryDetail] = useState(null);
   const { colorList } = useColorList();
 
   const [page, setPage] = useState(1);
@@ -35,12 +24,10 @@ function InventoryManagement() {
   const [totalItem, setTotalItem] = useState(null);
 
   const [loading, setLoading] = useState(false);
-  const [viewModalLoading, setViewModalLoading] = useState(false);
+  const [detailModalLoading, setDetailModalLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [motorModal, setMotorModal] = useState(false);
-  const [warehouseModal, setWarehouseModal] = useState(false);
-  const [inventoryModal, setInventoryModal] = useState(false);
+  const [detailModal, setDetailModal] = useState(false);
   const [formModal, setFormModal] = useState(false);
   const [deleteForm, setDeleteForm] = useState(false);
 
@@ -220,44 +207,19 @@ function InventoryManagement() {
     }
   }, [warehouseList, setForm, form.warehouseId]);
 
-  const fetchMotorById = async (id) => {
-    setViewModalLoading(true);
-    try {
-      const response = await PrivateAdminApi.getMotorbikeById(id);
-      setMotor(response.data.data);
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setViewModalLoading(false);
-    }
-  };
-
-  const fetchWarehouseById = async (id) => {
-    setViewModalLoading(true);
-    try {
-      const response = await PrivateAdminApi.getWarehouseById(id);
-      setWarehouse(response.data.data);
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setViewModalLoading(false);
-    }
-  };
-
   const fetchInventoryDetail = async (motorId, warehouseId, colorId) => {
-    setViewModalLoading(true);
+    setDetailModalLoading(true);
     try {
       const response = await PrivateAdminApi.getInventoryDetail(
         motorId,
         warehouseId,
         colorId
       );
-      const data = response.data.data;
-      setInventory(data);
+      setInventoryDetail(response.data.data);
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message || "Failed to load inventory detail");
     } finally {
-      setViewModalLoading(false);
+      setDetailModalLoading(false);
     }
   };
 
@@ -366,13 +328,7 @@ function InventoryManagement() {
         const detail = inventoryDetails[key];
         const motorbikeName = detail?.motorbike?.name || "Loading...";
         return (
-          <span
-            onClick={() => {
-              setMotorModal(true);
-              fetchMotorById(electricMotorbikeId);
-            }}
-            className="cursor-pointer text-blue-600 hover:text-blue-800 hover:underline"
-          >
+          <span className="text-gray-800">
             {motorbikeName}
           </span>
         );
@@ -386,13 +342,7 @@ function InventoryManagement() {
         const detail = inventoryDetails[key];
         const warehouseName = detail?.warehouse?.name || "Loading...";
         return (
-          <span
-            onClick={() => {
-              setWarehouseModal(true);
-              fetchWarehouseById(warehouseId);
-            }}
-            className="cursor-pointer text-blue-600 hover:text-blue-800 hover:underline"
-          >
+          <span className="text-gray-800">
             {warehouseName}
           </span>
         );
@@ -417,10 +367,10 @@ function InventoryManagement() {
       },
     },
     {
-      key: "action1",
-      title: "Action",
+      key: "action",
+      title: <span className="block text-center">Action</span>,
       render: (_, item) => (
-        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="flex gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
           <span
             onClick={() => {
               setUpdateForm({
@@ -433,7 +383,8 @@ function InventoryManagement() {
               setIsedit(true);
               setFormModal(true);
             }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition mx-auto"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
+            title="Update"
           >
             <Pencil className="w-5 h-5 text-white" />
           </span>
@@ -447,7 +398,8 @@ function InventoryManagement() {
               setIsDelete(true);
               setDeleteForm(true);
             }}
-            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition mx-auto"
+            className="cursor-pointer flex items-center justify-center w-10 h-10 bg-red-500 rounded-lg hover:bg-red-600 transition"
+            title="Delete"
           >
             <Trash2 className="w-5 h-5 text-white" />
           </span>
@@ -479,7 +431,7 @@ function InventoryManagement() {
         setPage={setPage}
         totalItem={totalItem}
         onRowClick={(item) => {
-          setInventoryModal(true);
+          setDetailModal(true);
           fetchInventoryDetail(
             item.electricMotorbikeId,
             item.warehouseId,
@@ -507,32 +459,131 @@ function InventoryManagement() {
         />
       </FormModal>
 
-      <GroupModal
-        data={motor}
-        groupedFields={motorGroupedFields}
-        isOpen={motorModal}
-        loading={viewModalLoading}
-        onClose={() => setMotorModal(false)}
-        title={"Motorbike info"}
-        generalFields={motorGeneralFields}
-      />
-      <GroupModal
-        data={inventory}
-        groupedFields={inventoryGroupFields}
-        isOpen={inventoryModal}
-        loading={viewModalLoading}
-        onClose={() => setInventoryModal(false)}
-        title={"Inventory info"}
-        generalFields={inventoryGeneralFields}
-      />
-      <ViewModal
-        data={warehouse}
-        fields={warehouseFields}
-        isOpen={warehouseModal}
-        loading={viewModalLoading}
-        onClose={() => setWarehouseModal(false)}
-        title={"Warehouse info"}
-      />
+      <BaseModal
+        isOpen={detailModal}
+        onClose={() => {
+          setDetailModal(false);
+          setInventoryDetail(null);
+        }}
+        title="Inventory Detail"
+        size="lg"
+      >
+        {detailModalLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <CircularProgress />
+          </div>
+        ) : inventoryDetail ? (
+          <div className="space-y-6">
+            {/* Inventory Information */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Inventory Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Quantity</p>
+                  <p className="font-medium text-gray-800">{inventoryDetail.quantity || 0}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Color</p>
+                  <div
+                    className="px-3 py-1 rounded-md text-white font-semibold inline-block"
+                    style={{ backgroundColor: inventoryDetail.color }}
+                  >
+                    {inventoryDetail.color || "-"}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Stock Date</p>
+                  <p className="font-medium text-gray-800">
+                    {inventoryDetail.stockDate ? dayjs(inventoryDetail.stockDate).format("DD/MM/YYYY") : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Last Update</p>
+                  <p className="font-medium text-gray-800">
+                    {inventoryDetail.lastUpdate ? dayjs(inventoryDetail.lastUpdate).format("DD/MM/YYYY") : "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Warehouse Information */}
+            {inventoryDetail.warehouse && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-5 border border-green-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-green-200">
+                  Warehouse Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">{inventoryDetail.warehouse.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Location</p>
+                    <p className="font-medium text-gray-800">{inventoryDetail.warehouse.location || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Address</p>
+                    <p className="font-medium text-gray-800">{inventoryDetail.warehouse.address || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Status</p>
+                    <span
+                      className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
+                        inventoryDetail.warehouse.isActive ? "bg-green-500" : "bg-red-500"
+                      }`}
+                    >
+                      {inventoryDetail.warehouse.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Motorbike Information */}
+            {inventoryDetail.motorbike && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
+                  Motorbike Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Name</p>
+                    <p className="font-medium text-gray-800">{inventoryDetail.motorbike.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Price</p>
+                    <p className="font-medium text-gray-800">
+                      {inventoryDetail.motorbike.price ? inventoryDetail.motorbike.price.toLocaleString('vi-VN') + ' đ' : "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Model</p>
+                    <p className="font-medium text-gray-800">{inventoryDetail.motorbike.model || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Version</p>
+                    <p className="font-medium text-gray-800">{inventoryDetail.motorbike.version || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Make From</p>
+                    <p className="font-medium text-gray-800">{inventoryDetail.motorbike.makeFrom || "-"}</p>
+                  </div>
+                  {inventoryDetail.motorbike.description && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-gray-600 mb-1">Description</p>
+                      <p className="font-medium text-gray-800">{inventoryDetail.motorbike.description}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No data available
+          </div>
+        )}
+      </BaseModal>
 
       <FormModal
         isOpen={deleteForm}

@@ -47,10 +47,8 @@ import EvmStaffPromotionManagement from "./pages/company/evmStaff/promotionManag
 import EvmStaffInventoryManagement from "./pages/company/evmStaff/inventoryManagement/InventoryManagementEVMStaff";
 import EvmStaffOrderRestockManagement from "./pages/company/evmStaff/orderRestockManagement/OrderRestockManagementEVMStaff";
 import EvmStaffPricePolicyManagement from "./pages/company/evmStaff/pricePolicyManagement/PricePolicyManagementEVMStaff";
-import BatchesManagement from "./pages/company/evmStaff/batchesManagement/BatchesManagement";
 import ContractForCustomer from "./pages/customer/customerContract/ContractForCustomer";
 import CustomerQuotation from "./pages/customer/customerQuotation/CustomerQuotation";
-import ApBatchManagement from "./pages/agency/dealerManager/apBatchManagement/ApBatchManagement";
 import CreditLineManagement from "./pages/company/creditLineManagement/CreditLineManagement";
 import CreditLineAgency from "./pages/agency/dealerManager/creditLineAgency/CreditLineAgency";
 
@@ -121,10 +119,6 @@ function App() {
               element={<QuotationManagement />}
             />
             <Route
-              path="agency/ap-batch-management"
-              element={<ApBatchManagement />}
-            />
-            <Route
               path="agency/credit-line"
               element={<CreditLineAgency />}
             />
@@ -191,8 +185,6 @@ function App() {
               element={<EvmStaffPricePolicyManagement />}
             />
             <Route
-              path="company/evm-staff/batches"
-              element={<BatchesManagement />}
             />
           </Route>
         </Routes>

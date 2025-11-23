@@ -62,15 +62,6 @@ function AgencySidebar() {
           },
         ]
       : []),
-    ...(user.role && user.role[0] === "Dealer Manager"
-      ? [
-          {
-            path: "/agency/ap-batch-management",
-            label: "AP Batches",
-            Icon: PaymentIcon,
-          },
-        ]
-      : []),
   ];
 
   const handleLogout = async () => {
