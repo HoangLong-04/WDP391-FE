@@ -121,7 +121,16 @@ function DiscountManagement() {
     setDetailModalLoading(true);
     try {
       const response = await PrivateAdminApi.getDiscountDetail(discountId);
-      setDiscountDetail(response.data.data);
+      const detail = response.data.data;
+      setDiscountDetail(detail);
+      // If editing, update the form with correct values
+      if (isEdit && selectedId === discountId) {
+        setUpdateForm(prev => ({
+          ...prev,
+          agencyId: (detail.agencyId && detail.agencyId !== 0 && detail.agencyId !== "0") ? detail.agencyId : null,
+          motorbikeId: (detail.motorbikeId && detail.motorbikeId !== 0 && detail.motorbikeId !== "0") ? detail.motorbikeId : null,
+        }));
+      }
     } catch (error) {
       toast.error(error.message || "Failed to load discount detail");
     } finally {
@@ -134,10 +143,14 @@ function DiscountManagement() {
     e.preventDefault();
     const sendData = {
       ...formData,
-      agencyId: formData.agencyId ? Number(formData.agencyId) : null,
-      min_quantity: Number(formData.min_quantity),
-      motorbikeId: formData.motorbikeId ? Number(formData.motorbikeId) : null,
-      value: Number(formData.value),
+      agencyId: formData.agencyId && formData.agencyId !== "" && formData.agencyId !== "0" 
+        ? Number(formData.agencyId) 
+        : null,
+      min_quantity: Number(formData.min_quantity) || 0,
+      motorbikeId: formData.motorbikeId && formData.motorbikeId !== "" && formData.motorbikeId !== "0"
+        ? Number(formData.motorbikeId)
+        : null,
+      value: formData.value ? parseFloat(formData.value) : 0,
     };
     try {
       await PrivateAdminApi.createDiscount(sendData);
@@ -168,8 +181,14 @@ function DiscountManagement() {
     setSubmit(true);
     const sendData = {
       ...updateForm,
-      min_quantity: Number(updateForm.min_quantity),
-      value: Number(updateForm.value),
+      agencyId: updateForm.agencyId && updateForm.agencyId !== "" && updateForm.agencyId !== "0" && updateForm.agencyId !== 0
+        ? Number(updateForm.agencyId)
+        : null,
+      motorbikeId: updateForm.motorbikeId && updateForm.motorbikeId !== "" && updateForm.motorbikeId !== "0" && updateForm.motorbikeId !== 0
+        ? Number(updateForm.motorbikeId)
+        : null,
+      min_quantity: Number(updateForm.min_quantity) || 0,
+      value: updateForm.value ? parseFloat(updateForm.value) : 0,
     };
     try {
       await PrivateAdminApi.updateDiscount(selectedId, sendData);
@@ -204,7 +223,18 @@ function DiscountManagement() {
     { key: "name", title: "Name" },
     { key: "type", title: "Type" },
     { key: "valueType", title: "Value type" },
-    { key: "value", title: "Value" },
+    {
+      key: "value",
+      title: "Value",
+      render: (value, item) => {
+        if (item.valueType === "PERCENT") {
+          return `${value}%`;
+        } else if (item.valueType === "FIXED") {
+          return formatCurrency(value || 0);
+        }
+        return value || "-";
+      },
+    },
     { key: "min_quantity", title: "Min quantity" },
     {
       key: "startAt",
@@ -252,22 +282,42 @@ function DiscountManagement() {
       render: (_, item) => (
         <div className="flex gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
           <span
-            onClick={() => {
+            onClick={async () => {
               setFormModal(true);
               setIsEdit(true);
               setSelectedId(item.id);
-              setUpdateForm({
-                name: item.name,
-                type: item.type,
-                valueType: item.valueType,
-                value: item.value,
-                min_quantity: item.min_quantity,
-                startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
-                endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
-                status: item.status,
-                motorbikeId: item.motorbikeId,
-                agencyId: item.agencyId,
-              });
+              // Fetch detail to get accurate values from backend
+              try {
+                const detailResponse = await PrivateAdminApi.getDiscountDetail(item.id);
+                const detail = detailResponse.data.data;
+                setUpdateForm({
+                  name: detail.name || item.name,
+                  type: detail.type || item.type,
+                  valueType: detail.valueType || item.valueType,
+                  value: detail.value || item.value,
+                  min_quantity: detail.min_quantity || item.min_quantity,
+                  startAt: detail.startAt ? dayjs(detail.startAt).format("YYYY-MM-DD") : dayjs(item.startAt).format("YYYY-MM-DD"),
+                  endAt: detail.endAt ? dayjs(detail.endAt).format("YYYY-MM-DD") : dayjs(item.endAt).format("YYYY-MM-DD"),
+                  status: detail.status || item.status,
+                  motorbikeId: (detail.motorbikeId && detail.motorbikeId !== 0 && detail.motorbikeId !== "0") ? detail.motorbikeId : null,
+                  agencyId: (detail.agencyId && detail.agencyId !== 0 && detail.agencyId !== "0") ? detail.agencyId : null,
+                });
+              } catch (error) {
+                // Fallback to item values if detail fetch fails
+                console.error("Error fetching discount detail for edit:", error);
+                setUpdateForm({
+                  name: item.name,
+                  type: item.type,
+                  valueType: item.valueType,
+                  value: item.value,
+                  min_quantity: item.min_quantity,
+                  startAt: dayjs(item.startAt).format("YYYY-MM-DD"),
+                  endAt: dayjs(item.endAt).format("YYYY-MM-DD"),
+                  status: item.status,
+                  motorbikeId: (item.motorbikeId && item.motorbikeId !== 0 && item.motorbikeId !== "0") ? item.motorbikeId : null,
+                  agencyId: (item.agencyId && item.agencyId !== 0 && item.agencyId !== "0") ? item.agencyId : null,
+                });
+              }
             }}
             className="cursor-pointer flex items-center justify-center w-10 h-10 bg-blue-500 rounded-lg hover:bg-blue-600 transition"
             title="Update"

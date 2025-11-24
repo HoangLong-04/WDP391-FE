@@ -10,10 +10,20 @@ function DiscountForm({
   setUpdateForm,
 }) {
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     let processedValue = value;
-    if (value === "null") {
+    
+    // Handle empty string for select fields (agencyId, motorbikeId)
+    if ((name === "agencyId" || name === "motorbikeId") && value === "") {
       processedValue = null;
+    } else if (value === "null") {
+      processedValue = null;
+    }
+    
+    // Handle number inputs - keep as string to avoid precision issues
+    if (type === "number" && name === "value") {
+      // Keep value as string to preserve precision, will convert to number on submit
+      processedValue = value === "" ? "" : value;
     }
 
     if (isEdit) {
@@ -94,7 +104,8 @@ function DiscountForm({
           type="number"
           name="value"
           min={1}
-          max={currentValueType === "PERCENT" && 100}
+          max={currentValueType === "PERCENT" ? 100 : undefined}
+          step={currentValueType === "PERCENT" ? 1 : "any"}
           value={isEdit ? updateForm.value : formData.value}
           onChange={handleChange}
           className={inputClasses}
@@ -175,7 +186,7 @@ function DiscountForm({
         <select
           disabled={isEdit}
           name="agencyId"
-          value={isEdit ? updateForm.agencyId : formData.agencyId}
+          value={isEdit ? (updateForm.agencyId || "") : (formData.agencyId || "")}
           onChange={handleChange}
           className={selectClasses}
         >
