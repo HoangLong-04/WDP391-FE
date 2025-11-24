@@ -150,7 +150,7 @@ function PromotionForm({
       </div>
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Motorbike <span className="text-red-500">*</span>
+          Motorbike
         </label>
         <select
           disabled={isEdit}
@@ -162,7 +162,6 @@ function PromotionForm({
               : setForm({ ...form, motorbikeId: e.target.value });
           }}
           className={selectClasses}
-          required
         >
           <option value="">-- Select Motorbike --</option>
           <option value="ALL">All</option>

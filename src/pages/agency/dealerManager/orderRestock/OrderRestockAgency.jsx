@@ -349,6 +349,9 @@ function OrderRestockAgency() {
       setPaymentModal(false);
       setSelectedPaymentOrder(null);
       setPaymentAmount("");
+      // Store returnUrl and payment type in localStorage to redirect back to order restock page after payment
+      localStorage.setItem("paymentReturnUrl", "/agency/order-restock");
+      localStorage.setItem("paymentType", "orderRestock");
       // Redirect to payment URL
       window.location.href = response.data.data.paymentUrl;
     } catch (error) {
@@ -600,7 +603,6 @@ function OrderRestockAgency() {
             <option value="PENDING">PENDING</option>
             <option value="APPROVED">APPROVED</option>
             <option value="DELIVERED">DELIVERED</option>
-            <option value="PAID">PAID</option>
             <option value="COMPLETED">COMPLETED</option>
             <option value="CANCELED">CANCELED</option>
           </select>
@@ -693,8 +695,8 @@ function OrderRestockAgency() {
             )}
 
             {/* Order Payments */}
-            <div className="bg-white rounded-lg p-5 border border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-5 border border-yellow-100">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-yellow-200">
                 Order Payments {orderGeneralInfo.orderPayments && orderGeneralInfo.orderPayments.length > 0 && `(${orderGeneralInfo.orderPayments.length})`}
               </h4>
               {orderGeneralInfo.orderPayments && orderGeneralInfo.orderPayments.length > 0 ? (
@@ -745,8 +747,8 @@ function OrderRestockAgency() {
             </div>
 
             {/* All Order Items */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
                 Order Items ({restockOrderItems.length})
               </h3>
               <div className="space-y-4">

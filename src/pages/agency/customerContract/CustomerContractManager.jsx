@@ -382,8 +382,8 @@ function CustomerContractManager() {
             </div>
 
             {/* Contract Info */}
-            <div className="bg-white rounded-lg p-5 border border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-5 border border-blue-100">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-blue-200">
                 Contract Information
               </h4>
               <div className="grid grid-cols-2 gap-4">
@@ -405,8 +405,8 @@ function CustomerContractManager() {
             </div>
 
             {/* Customer Information */}
-            <div className="bg-white rounded-lg p-5 border border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+            <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-5 border border-teal-100">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-teal-200">
                 Customer Information
               </h4>
               <div className="grid grid-cols-2 gap-4">
@@ -455,8 +455,8 @@ function CustomerContractManager() {
             </div>
 
             {/* Staff Information */}
-            <div className="bg-white rounded-lg p-5 border border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+            <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg p-5 border border-orange-100">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-orange-200">
                 Staff Information
               </h4>
               <div className="grid grid-cols-2 gap-4">
@@ -476,8 +476,8 @@ function CustomerContractManager() {
             </div>
 
             {/* Product Information */}
-            <div className="bg-white rounded-lg p-5 border border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
                 Product Information
               </h4>
               <div className="grid grid-cols-2 gap-4">

@@ -134,9 +134,9 @@ function DiscountManagement() {
     e.preventDefault();
     const sendData = {
       ...formData,
-      agencyId: Number(formData.agencyId),
+      agencyId: formData.agencyId ? Number(formData.agencyId) : null,
       min_quantity: Number(formData.min_quantity),
-      motorbikeId: Number(formData.motorbikeId),
+      motorbikeId: formData.motorbikeId ? Number(formData.motorbikeId) : null,
       value: Number(formData.value),
     };
     try {
