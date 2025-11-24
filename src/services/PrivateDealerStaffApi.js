@@ -55,5 +55,14 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.post(`email/customer-contract/${customerContractId}`),
   sendInstallmentScheduleEmail: (installmentContractId) =>
     apiConfig.privateApi.post(`email/customer/installment-schedule/${installmentContractId}`),
+  // Document Images APIs
+  uploadContractDocumentImages: (contractId, formData) =>
+    apiConfig.privateApi.post(`images/customer-contract-document/${contractId}`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }),
+  deleteContractDocumentImage: (imageId, data) =>
+    apiConfig.privateApi.delete(`images/document-contract/${imageId}`, { data }),
 };
 export default PrivateDealerStaff;

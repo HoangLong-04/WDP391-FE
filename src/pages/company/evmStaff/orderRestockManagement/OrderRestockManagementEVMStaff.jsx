@@ -346,7 +346,7 @@ function OrderRestockManagementEVMStaff() {
       title: "Agency",
       render: (agency) => agency?.name || "-",
     },
-    { key: "itemQuantity", title: "Quantity" },
+    { key: "itemQuantity", title: "Item(s)" },
     {
       key: "vehicleNames",
       title: "Vehicle Name(s)",
