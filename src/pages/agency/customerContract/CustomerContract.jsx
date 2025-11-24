@@ -21,7 +21,7 @@ import useColorList from "../../../hooks/useColorList";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
-import { Pencil, Trash2, Plus, CreditCard, CheckCircle, Mail, Edit, XCircle, Loader2, Wallet } from "lucide-react";
+import { Pencil, Trash2, Plus, CreditCard, CheckCircle, Mail, Edit, XCircle, Loader2, Wallet, X } from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
 import BaseModal from "../../../components/modal/baseModal/BaseModal";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -137,6 +137,13 @@ function CustomerContract() {
     electricMotorbikeId: "",
     colorId: "",
   });
+  const [documentType, setDocumentType] = useState("");
+  const [documentImages, setDocumentImages] = useState([]);
+  const [uploadedDocuments, setUploadedDocuments] = useState([]);
+  const [uploadingDocuments, setUploadingDocuments] = useState(false);
+  const [deletingDocumentId, setDeletingDocumentId] = useState(null);
+  const [currentContractStatus, setCurrentContractStatus] = useState("");
+  const [viewingImageUrl, setViewingImageUrl] = useState(null);
 
   const [isEdit, setIsedit] = useState(false);
   const [selectedId, setSelectedId] = useState("");
@@ -390,6 +397,76 @@ function CustomerContract() {
       toast.error(error.message);
     } finally {
       setSubmit(false);
+    }
+  };
+
+  const handleUploadDocuments = async () => {
+    if (!documentType || documentImages.length === 0) {
+      toast.error("Please select document type and upload at least one image");
+      return;
+    }
+
+    if (!selectedId) {
+      toast.error("Contract ID is missing");
+      return;
+    }
+
+    setUploadingDocuments(true);
+    try {
+      const formData = new FormData();
+      formData.append("documentType", documentType);
+      documentImages.forEach((file) => {
+        formData.append("documentImages", file);
+      });
+
+      const response = await PrivateDealerStaffApi.uploadContractDocumentImages(
+        selectedId,
+        formData
+      );
+
+      if (response.data?.data && response.data.data.length > 0) {
+        toast.success("Documents uploaded successfully");
+        // Reset form
+        setDocumentType("");
+        setDocumentImages([]);
+        // Fetch contract detail again to get updated documents with full info
+        try {
+          const detailRes = await PrivateDealerStaffApi.getCustomerContractDetail(selectedId);
+          const contractDetail = detailRes.data?.data || null;
+          if (contractDetail?.contractDocuments && contractDetail.contractDocuments.length > 0) {
+            setUploadedDocuments(contractDetail.contractDocuments);
+          }
+        } catch (error) {
+          console.error("Error fetching updated contract documents:", error);
+        }
+        // Refresh contract list
+        fetchCustomerContractList();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to upload documents");
+    } finally {
+      setUploadingDocuments(false);
+    }
+  };
+
+  const handleDeleteDocument = async (documentId, imageUrl) => {
+    if (!window.confirm("Are you sure you want to delete this document?")) {
+      return;
+    }
+
+    setDeletingDocumentId(documentId);
+    try {
+      await PrivateDealerStaffApi.deleteContractDocumentImage(documentId, {
+        imageUrl: imageUrl,
+      });
+      setUploadedDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+      toast.success("Document deleted successfully");
+      // Refresh contract detail
+      fetchCustomerContractList();
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to delete document");
+    } finally {
+      setDeletingDocumentId(null);
     }
   };
 
@@ -1010,10 +1087,12 @@ function CustomerContract() {
       type: "edit",
       label: "Edit",
       icon: Pencil,
-      onClick: (item) => {
+      onClick: async (item) => {
         setIsedit(true);
         setSelectedId(item.id);
         setFormModal(true);
+        setCurrentContractStatus(item.status || "");
+        console.log("Setting contract status for edit:", item.status);
         setUpdateForm({
           title: item.title || "",
           content: item.content || "",
@@ -1021,6 +1100,22 @@ function CustomerContract() {
           deliveryDate: item.deliveryDate ? dayjs(item.deliveryDate).format("YYYY-MM-DD") : "",
           contractPaidType: item.contractPaidType || "",
         });
+        // Reset document upload state
+        setDocumentType("");
+        setDocumentImages([]);
+        setUploadedDocuments([]);
+        // Fetch existing documents if Dealer Staff and status is CONFIRMED
+        if (user?.roles?.includes("Dealer Staff") && item.status === "CONFIRMED") {
+          try {
+            const res = await PrivateDealerStaffApi.getCustomerContractDetail(item.id);
+            const contractDetail = res.data?.data || null;
+            if (contractDetail?.contractDocuments && contractDetail.contractDocuments.length > 0) {
+              setUploadedDocuments(contractDetail.contractDocuments);
+            }
+          } catch (error) {
+            console.error("Error fetching contract documents:", error);
+          }
+        }
       },
       show: (item) => {
         // Allow edit for REJECTED and CONFIRMED status
@@ -1193,6 +1288,18 @@ function CustomerContract() {
           isEdit={isEdit}
           setUpdateForm={setUpdateForm}
           updateForm={updateForm}
+          user={user}
+          contractStatus={currentContractStatus}
+          documentType={documentType}
+          setDocumentType={setDocumentType}
+          documentImages={documentImages}
+          setDocumentImages={setDocumentImages}
+          uploadedDocuments={uploadedDocuments}
+          uploadingDocuments={uploadingDocuments}
+          deletingDocumentId={deletingDocumentId}
+          onUploadDocuments={handleUploadDocuments}
+          onDeleteDocument={handleDeleteDocument}
+          onViewImage={setViewingImageUrl}
         />
       </FormModal>
 
@@ -1489,56 +1596,93 @@ function CustomerContract() {
               </div>
             </div>
 
-            {/* Product Information */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
-              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
-                Product Information
-              </h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Motorbike Name</p>
-                  <p className="font-medium text-gray-800">
-                    {getNestedValue(contractDetail, "electricMotorbike.name") ||
-                      "-"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Model</p>
-                  <p className="font-medium text-gray-800">
-                    {getNestedValue(
-                      contractDetail,
-                      "electricMotorbike.model"
-                    ) || "-"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Version</p>
-                  <p className="font-medium text-gray-800">
-                    {getNestedValue(
-                      contractDetail,
-                      "electricMotorbike.version"
-                    ) || "-"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Make From</p>
-                  <p className="font-medium text-gray-800">
-                    {getNestedValue(
-                      contractDetail,
-                      "electricMotorbike.makeFrom"
-                    ) || "-"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Color</p>
-                  <p className="font-medium text-gray-800">
-                    {getNestedValue(contractDetail, "color.colorType") || "-"}
-                  </p>
-                </div>
-              </div>
-            </div>
+             {/* Product Information */}
+             <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+               <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
+                 Product Information
+               </h4>
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                   <p className="text-sm text-gray-600 mb-1">Motorbike Name</p>
+                   <p className="font-medium text-gray-800">
+                     {getNestedValue(contractDetail, "electricMotorbike.name") ||
+                       "-"}
+                   </p>
+                 </div>
+                 <div>
+                   <p className="text-sm text-gray-600 mb-1">Model</p>
+                   <p className="font-medium text-gray-800">
+                     {getNestedValue(
+                       contractDetail,
+                       "electricMotorbike.model"
+                     ) || "-"}
+                   </p>
+                 </div>
+                 <div>
+                   <p className="text-sm text-gray-600 mb-1">Version</p>
+                   <p className="font-medium text-gray-800">
+                     {getNestedValue(
+                       contractDetail,
+                       "electricMotorbike.version"
+                     ) || "-"}
+                   </p>
+                 </div>
+                 <div>
+                   <p className="text-sm text-gray-600 mb-1">Make From</p>
+                   <p className="font-medium text-gray-800">
+                     {getNestedValue(
+                       contractDetail,
+                       "electricMotorbike.makeFrom"
+                     ) || "-"}
+                   </p>
+                 </div>
+                 <div>
+                   <p className="text-sm text-gray-600 mb-1">Color</p>
+                   <p className="font-medium text-gray-800">
+                     {getNestedValue(contractDetail, "color.colorType") || "-"}
+                   </p>
+                 </div>
+               </div>
+             </div>
 
-            {/* Action buttons for status transitions */}
+             {/* Contract Documents */}
+             {contractDetail.contractDocuments && contractDetail.contractDocuments.length > 0 && (
+               <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-5 border border-amber-100">
+                 <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-amber-200">
+                   Contract Documents
+                 </h4>
+                 <div className="grid grid-cols-1 gap-4">
+                   {contractDetail.contractDocuments.map((doc, index) => (
+                     <div
+                       key={doc.id || index}
+                       className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+                     >
+                       <div className="flex items-center gap-3 flex-1">
+                         <img
+                           src={doc.imageUrl}
+                           alt={doc.documentType || "Document"}
+                           className="w-20 h-20 object-cover rounded border border-gray-300 cursor-pointer hover:opacity-80 transition-opacity"
+                           onClick={() => setViewingImageUrl(doc.imageUrl)}
+                           onError={(e) => {
+                             e.target.src = "https://via.placeholder.com/80?text=Image";
+                           }}
+                         />
+                         <div>
+                           <p className="text-sm font-medium text-gray-800">
+                             {doc.documentType || "Unknown Type"}
+                           </p>
+                           <p className="text-xs text-gray-500 mt-1">
+                             Click image to view
+                           </p>
+                         </div>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+               </div>
+             )}
+
+             {/* Action buttons for status transitions */}
             {contractDetail.status === "PENDING" && (
               <div className="flex gap-4 justify-end pt-4 border-t border-gray-200">
                 <button
@@ -1590,6 +1734,7 @@ function CustomerContract() {
                     setIsedit(true);
                     setSelectedId(contractDetail.id);
                     setFormModal(true);
+                    setCurrentContractStatus(contractDetail.status || "");
                     setUpdateForm({
                       title: contractDetail.title || "",
                       content: contractDetail.content || "",
@@ -1597,6 +1742,14 @@ function CustomerContract() {
                       deliveryDate: contractDetail.deliveryDate ? dayjs(contractDetail.deliveryDate).format("YYYY-MM-DD") : "",
                       contractPaidType: contractDetail.contractPaidType || "",
                     });
+                    // Reset document upload state
+                    setDocumentType("");
+                    setDocumentImages([]);
+                    setUploadedDocuments([]);
+                    // Fetch existing documents if Dealer Staff and status is CONFIRMED
+                    if (user?.roles?.includes("Dealer Staff") && contractDetail.status === "CONFIRMED" && contractDetail?.contractDocuments) {
+                      setUploadedDocuments(contractDetail.contractDocuments || []);
+                    }
                   }}
                   className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-2"
                 >
@@ -1613,6 +1766,32 @@ function CustomerContract() {
           </div>
         )}
       </BaseModal>
+
+      {/* Image View Modal */}
+      {viewingImageUrl && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+          onClick={() => setViewingImageUrl(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full">
+            <button
+              onClick={() => setViewingImageUrl(null)}
+              className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-75 transition-colors z-10"
+            >
+              <X size={24} />
+            </button>
+            <img
+              src={viewingImageUrl}
+              alt="Document"
+              className="w-full h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+              onError={(e) => {
+                e.target.src = "https://via.placeholder.com/800?text=Image+Not+Found";
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <BaseModal
         isOpen={isInstallmentDetailModalOpen}

@@ -490,7 +490,7 @@ function OrderRestockAgency() {
 
   const columns = [
     { key: "id", title: "Id" },
-    { key: "itemQuantity", title: "Items" },
+    { key: "itemQuantity", title: "Item(s)" },
     {
       key: "vehicleNames",
       title: "Vehicle Name(s)",
