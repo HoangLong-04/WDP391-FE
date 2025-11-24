@@ -10,7 +10,7 @@ export default function CreditLineCard({ data, loading }) {
       </div>
     );
 
-  const { creditLimit, warningThreshold, overDueThreshHoldDays, isBlocked } =
+  const { creditLimit, currentDebt, warningThreshold, overDueThreshHoldDays, isBlocked } =
     data;
 
   return (
@@ -25,6 +25,11 @@ export default function CreditLineCard({ data, loading }) {
       <div className="info-row">
         <span className="label">Credit Limit</span>
         <span className="value">{creditLimit?.toLocaleString()}₫</span>
+      </div>
+
+      <div className="info-row">
+        <span className="label">Current Debt</span>
+        <span className="value">{(currentDebt !== undefined && currentDebt !== null ? currentDebt : 0).toLocaleString()}₫</span>
       </div>
 
       <div className="info-row">

@@ -588,8 +588,8 @@ function OrderRestockManagementEVMStaff() {
 
             {/* Agency Information */}
             {orderDetail.agency && (
-              <div className="bg-white rounded-lg p-5 border border-gray-200">
-                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-5 border border-green-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-green-200">
                   Agency Information
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -618,8 +618,8 @@ function OrderRestockManagementEVMStaff() {
             )}
 
             {/* Order Payments */}
-            <div className="bg-white rounded-lg p-5 border border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-5 border border-yellow-100">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-yellow-200">
                 Order Payments {orderDetail.orderPayments && orderDetail.orderPayments.length > 0 && `(${orderDetail.orderPayments.length})`}
               </h4>
               {orderDetail.orderPayments && orderDetail.orderPayments.length > 0 ? (

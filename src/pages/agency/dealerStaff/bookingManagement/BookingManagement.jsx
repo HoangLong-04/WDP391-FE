@@ -282,8 +282,8 @@ function BookingManagement() {
         ) : bookingDetail ? (
           <div className="space-y-6">
             {/* Customer Info */}
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-              <h3 className="font-bold text-lg mb-4 text-gray-800">Customer Information</h3>
+            <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-4 border border-teal-100">
+              <h3 className="font-bold text-lg mb-4 pb-2 border-b border-teal-200 text-teal-700">Customer Information</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Fullname</p>
@@ -307,8 +307,8 @@ function BookingManagement() {
             </div>
 
             {/* Booking Details */}
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-              <h3 className="font-bold text-lg mb-4 text-gray-800">Booking Details</h3>
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+              <h3 className="font-bold text-lg mb-4 pb-2 border-b border-blue-200 text-blue-700">Booking Details</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Drive Date</p>

@@ -562,8 +562,8 @@ function StockPromotion() {
             </div>
 
             {/* Assigned Stocks */}
-            <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
                 Assigned Stocks ({promotionDetail.agencyStockPromotion?.length || 0})
               </h3>
               {promotionDetail.agencyStockPromotion &&

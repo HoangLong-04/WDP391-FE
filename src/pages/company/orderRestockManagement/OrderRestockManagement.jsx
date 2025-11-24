@@ -331,8 +331,8 @@ function OrderRestockManagement() {
 
             {/* Agency Information */}
             {orderDetail.agency && (
-              <div className="bg-white rounded-lg p-5 border border-gray-200">
-                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-5 border border-green-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-green-200">
                   Agency Information
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -362,8 +362,8 @@ function OrderRestockManagement() {
 
             {/* Order Items */}
             {orderDetail.orderItems && orderDetail.orderItems.length > 0 && (
-              <div className="bg-white rounded-lg p-5 border border-gray-200">
-                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+                <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
                   Order Items ({orderDetail.orderItems.length})
                 </h4>
                 <div className="space-y-4">
