@@ -64,5 +64,7 @@ const PrivateDealerStaff = {
     }),
   deleteContractDocumentImage: (imageId, data) =>
     apiConfig.privateApi.delete(`images/document-contract/${imageId}`, { data }),
+
+  deletePeriod: (id) => apiConfig.privateApi.delete(`contract-full-payment/${id}`)
 };
 export default PrivateDealerStaff;
