@@ -1699,7 +1699,7 @@ function QuotationManagement() {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Hold Days *</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Valid Until *</label>
             <input
               type="date"
               className="w-full px-3 py-2 border rounded-lg"
