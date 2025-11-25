@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import useDealerStaffList from "../../../hooks/useDealerStaffList";
 import useCustomerList from "../../../hooks/useCustomerList";
@@ -21,12 +27,28 @@ import useColorList from "../../../hooks/useColorList";
 import FormModal from "../../../components/modal/formModal/FormModal";
 import ContractForm from "./contractForm/ContractForm";
 import useMotorList from "../../../hooks/useMotorList";
-import { Pencil, Trash2, Plus, CreditCard, CheckCircle, Mail, Edit, XCircle, Loader2, Wallet, X } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  CreditCard,
+  CheckCircle,
+  Mail,
+  Edit,
+  XCircle,
+  Loader2,
+  Wallet,
+  X,
+  PiggyBank,
+} from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
 import BaseModal from "../../../components/modal/baseModal/BaseModal";
 import CircularProgress from "@mui/material/CircularProgress";
 import ConfirmModal from "../../../components/modal/confirmModal/ConfirmModal";
 import InstallmentPaymentForm from "./installmentPaymentForm/InstallmentPaymentForm";
+import PublicApi from "../../../services/PublicApi";
+import FullPeriodModal from "../../../components/modal/periodModal/FullPeriodModal";
+import PrivateDealerStaff from "../../../services/PrivateDealerStaffApi";
 
 function CustomerContract() {
   const { user } = useAuth();
@@ -35,7 +57,8 @@ function CustomerContract() {
   const { colorList } = useColorList();
   const { motorList } = useMotorList();
   const [motorbike, setMotorbike] = useState({});
-  const [allContracts, setAllContracts] = useState([]); // Store all contracts
+  const [allContracts, setAllContracts] = useState([]);
+  const [periodFull, setPeriodFull] = useState([]);
 
   const [page, setPage] = useState(1);
   const [limit] = useState(5); // Default to 5 for Dealer Staff, can be changed if needed
@@ -99,10 +122,12 @@ function CustomerContract() {
   const [isMarkingPaymentAsPaid, setIsMarkingPaymentAsPaid] = useState(false);
   const [sendingContractEmail, setSendingContractEmail] = useState(false);
   const [sendingInstallmentEmail, setSendingInstallmentEmail] = useState(false);
-  const [generatingInterestPayments, setGeneratingInterestPayments] = useState(false);
+  const [generatingInterestPayments, setGeneratingInterestPayments] =
+    useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [fullPaymentModal, setFullPaymentModal] = useState(false);
+  const [periodModal, setPeriodModal] = useState(false);
   const [fullPaymentForm, setFullPaymentForm] = useState({
     period: 1,
     amount: 0,
@@ -196,7 +221,11 @@ function CustomerContract() {
       // This MUST reflect the total number of items matching the current filters
       // If API returns wrong total (unfiltered), that's a backend issue
       const totalFromApi = paginationInfo.total;
-      if (totalFromApi !== undefined && totalFromApi !== null && !isNaN(totalFromApi)) {
+      if (
+        totalFromApi !== undefined &&
+        totalFromApi !== null &&
+        !isNaN(totalFromApi)
+      ) {
         const totalValue = Math.max(0, Number(totalFromApi));
         setTotalItem(totalValue);
       } else {
@@ -316,22 +345,28 @@ function CustomerContract() {
     try {
       // Fetch current contract detail to get accurate status
       const isDealerStaff = user?.roles?.includes("Dealer Staff");
-      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
-      
+      const api = isDealerStaff
+        ? PrivateDealerStaffApi
+        : PrivateDealerManagerApi;
+
       let currentContract = null;
       try {
         const res = await api.getCustomerContractDetail(selectedId);
         currentContract = res.data?.data;
       } catch (err) {
         // Fallback to finding in allContracts if detail fetch fails
-        currentContract = allContracts.find(c => c.id === Number(selectedId));
+        currentContract = allContracts.find((c) => c.id === Number(selectedId));
       }
-      
+
       // Only allow updating: title, content, signDate, deliveryDate, contractPaidType
       const updateData = {};
-      
+
       // Only include fields that have values
-      if (updateForm.title !== undefined && updateForm.title !== null && updateForm.title !== "") {
+      if (
+        updateForm.title !== undefined &&
+        updateForm.title !== null &&
+        updateForm.title !== ""
+      ) {
         updateData.title = updateForm.title;
       }
       if (updateForm.content !== undefined && updateForm.content !== null) {
@@ -341,42 +376,51 @@ function CustomerContract() {
         updateData.signDate = new Date(updateForm.signDate).toISOString();
       }
       if (updateForm.deliveryDate) {
-        updateData.deliveryDate = new Date(updateForm.deliveryDate).toISOString();
+        updateData.deliveryDate = new Date(
+          updateForm.deliveryDate
+        ).toISOString();
       }
       if (updateForm.contractPaidType) {
         updateData.contractPaidType = updateForm.contractPaidType;
       }
-      
+
       // Auto-transition: REJECTED -> PENDING after editing (to allow accept again)
       if (currentContract?.status === "REJECTED") {
         updateData.status = "PENDING";
-        toast.info("Status automatically changed to PENDING after editing. You can now accept the contract again.");
+        toast.info(
+          "Status automatically changed to PENDING after editing. You can now accept the contract again."
+        );
       }
-      
+
       // Auto-transition: CONFIRMED -> PROCESSING when signDate is updated
       if (currentContract?.status === "CONFIRMED" && updateData.signDate) {
         // If signDate is provided and contract is CONFIRMED, auto-transition to PROCESSING
         updateData.status = "PROCESSING";
-        toast.info("Status automatically changed to PROCESSING after updating sign date");
+        toast.info(
+          "Status automatically changed to PROCESSING after updating sign date"
+        );
       }
-      
+
       await PrivateDealerManagerApi.updateCustomerContract(
         selectedId,
         updateData
       );
-      
+
       // Only show success message if update was successful
       if (updateData.status === "CONFIRMED") {
         toast.success("Contract confirmed successfully");
       } else {
         toast.success("Update successfully");
       }
-      
+
       setFormModal(false);
       fetchCustomerContractList();
     } catch (error) {
       // Show full error message from backend
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message;
       console.error("Update contract error:", error);
       console.error("Error response:", error.response?.data);
       toast.error(errorMessage || "Failed to update contract");
@@ -431,9 +475,13 @@ function CustomerContract() {
         setDocumentImages([]);
         // Fetch contract detail again to get updated documents with full info
         try {
-          const detailRes = await PrivateDealerStaffApi.getCustomerContractDetail(selectedId);
+          const detailRes =
+            await PrivateDealerStaffApi.getCustomerContractDetail(selectedId);
           const contractDetail = detailRes.data?.data || null;
-          if (contractDetail?.contractDocuments && contractDetail.contractDocuments.length > 0) {
+          if (
+            contractDetail?.contractDocuments &&
+            contractDetail.contractDocuments.length > 0
+          ) {
             setUploadedDocuments(contractDetail.contractDocuments);
           }
         } catch (error) {
@@ -443,7 +491,11 @@ function CustomerContract() {
         fetchCustomerContractList();
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || "Failed to upload documents");
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to upload documents"
+      );
     } finally {
       setUploadingDocuments(false);
     }
@@ -459,12 +511,18 @@ function CustomerContract() {
       await PrivateDealerStaffApi.deleteContractDocumentImage(documentId, {
         imageUrl: imageUrl,
       });
-      setUploadedDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+      setUploadedDocuments((prev) =>
+        prev.filter((doc) => doc.id !== documentId)
+      );
       toast.success("Document deleted successfully");
       // Refresh contract detail
       fetchCustomerContractList();
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || "Failed to delete document");
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to delete document"
+      );
     } finally {
       setDeletingDocumentId(null);
     }
@@ -518,11 +576,14 @@ function CustomerContract() {
 
   const handleUpdateInstallmentPayment = async (e) => {
     console.log(installmentPaymentForm);
-    
+
     setSubmit(true);
     e.preventDefault();
     try {
-      await PrivateDealerManagerApi.updateInstallmentPayment(selectedId, installmentPaymentForm);
+      await PrivateDealerManagerApi.updateInstallmentPayment(
+        selectedId,
+        installmentPaymentForm
+      );
       toast.success("Update success");
       setUpdateInstallmentModal(false);
     } catch (error) {
@@ -691,7 +752,7 @@ function CustomerContract() {
 
       // Refresh the list to update UI
       await fetchCustomerContractList();
-      
+
       // Redirect to detail page after creating
       if (installmentContractId) {
         handleViewInstallmentContract(installmentContractId);
@@ -792,9 +853,11 @@ function CustomerContract() {
   const handleGenerateInterestPayments = async (installmentContractId) => {
     setGeneratingInterestPayments(true);
     try {
-      await PrivateDealerManagerApi.generateInterestPayments(installmentContractId);
+      await PrivateDealerManagerApi.generateInterestPayments(
+        installmentContractId
+      );
       toast.success("Interest payments generated successfully");
-      
+
       // Immediately refresh the detail to get updated data
       try {
         const res = await PrivateDealerManagerApi.getInstallmentContractDetail(
@@ -803,18 +866,25 @@ function CustomerContract() {
         const updatedDetail = res.data?.data || null;
         // Update detail - this will automatically hide the button if interestPayments exist
         setInstallmentContractDetail(updatedDetail);
-        
+
         // If still no interestPayments after refresh, try again after a short delay
-        if (!updatedDetail?.interestPayments || updatedDetail.interestPayments.length === 0) {
+        if (
+          !updatedDetail?.interestPayments ||
+          updatedDetail.interestPayments.length === 0
+        ) {
           setTimeout(async () => {
             try {
-              const retryRes = await PrivateDealerManagerApi.getInstallmentContractDetail(
-                installmentContractId
-              );
+              const retryRes =
+                await PrivateDealerManagerApi.getInstallmentContractDetail(
+                  installmentContractId
+                );
               const retryDetail = retryRes.data?.data || null;
               setInstallmentContractDetail(retryDetail);
             } catch (retryError) {
-              console.error("Error retrying refresh after generate:", retryError);
+              console.error(
+                "Error retrying refresh after generate:",
+                retryError
+              );
             }
           }, 1000);
         }
@@ -823,7 +893,9 @@ function CustomerContract() {
       }
     } catch (error) {
       toast.error(
-        error.response?.data?.message || error.message || "Failed to generate interest payments"
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to generate interest payments"
       );
     } finally {
       setGeneratingInterestPayments(false);
@@ -893,11 +965,15 @@ function CustomerContract() {
     setSendingContractEmail(true);
     try {
       const isDealerStaff = user?.roles?.includes("Dealer Staff");
-      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      const api = isDealerStaff
+        ? PrivateDealerStaffApi
+        : PrivateDealerManagerApi;
       await api.sendCustomerContractEmail(customerContractId);
       toast.success("Email sent successfully to customer");
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || "Failed to send email");
+      toast.error(
+        error.response?.data?.message || error.message || "Failed to send email"
+      );
     } finally {
       setSendingContractEmail(false);
     }
@@ -912,11 +988,15 @@ function CustomerContract() {
     setSendingInstallmentEmail(true);
     try {
       const isDealerStaff = user?.roles?.includes("Dealer Staff");
-      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
+      const api = isDealerStaff
+        ? PrivateDealerStaffApi
+        : PrivateDealerManagerApi;
       await api.sendInstallmentScheduleEmail(installmentContractId);
       toast.success("Installment schedule email sent successfully to customer");
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || "Failed to send email");
+      toast.error(
+        error.response?.data?.message || error.message || "Failed to send email"
+      );
     } finally {
       setSendingInstallmentEmail(false);
     }
@@ -927,22 +1007,28 @@ function CustomerContract() {
     setUpdatingStatusId(contractId);
     try {
       const isDealerStaff = user?.roles?.includes("Dealer Staff");
-      const api = isDealerStaff ? PrivateDealerStaffApi : PrivateDealerManagerApi;
-      
+      const api = isDealerStaff
+        ? PrivateDealerStaffApi
+        : PrivateDealerManagerApi;
+
       // Only update status, don't update signDate automatically
       // signDate will be updated separately when customer signs
       const updateData = { status: newStatus };
-      
+
       await api.updateCustomerContract(contractId, updateData);
       toast.success(`Contract status updated to ${newStatus}`);
-      
+
       // Close detail modal after updating status
       setIsDetailModalOpen(false);
       setContractDetail(null);
-      
+
       fetchCustomerContractList();
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || "Failed to update contract status");
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to update contract status"
+      );
     } finally {
       setUpdatingStatus(false);
       setUpdatingStatusId(null);
@@ -967,7 +1053,11 @@ function CustomerContract() {
       });
       fetchCustomerContractList();
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || "Failed to create full payment");
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to create full payment"
+      );
     } finally {
       setCreatingFullPayment(false);
     }
@@ -988,6 +1078,28 @@ function CustomerContract() {
     handleViewDetail(item.id);
   };
 
+  const handleGetPeriodFullPayment = async (id) => {
+    try {
+      const response = await PublicApi.getContractFullPayment(id);
+      setPeriodFull(response.data.data);
+      if (response.data.data.length === 0) {
+        toast.warning("No period found!");
+      }
+    } catch (error) {
+      toast.error(error.response.data.message);
+    }
+  };
+
+  const handleDeletePeriod = async (id) => {
+    try {
+      await PrivateDealerStaff.deletePeriod(id);
+      setPeriodModal(false);
+      toast.success("Delete ok");
+    } catch (error) {
+      toast.error("Delete fail");
+    }
+  };
+
   const columns = [
     { key: "id", title: "Id" },
     {
@@ -1001,7 +1113,11 @@ function CustomerContract() {
       title: "Customer Name",
       render: (customer) => {
         if (!customer) return "-";
-        return <span className="font-medium text-gray-800">{customer.name || "-"}</span>;
+        return (
+          <span className="font-medium text-gray-800">
+            {customer.name || "-"}
+          </span>
+        );
       },
     },
     {
@@ -1048,7 +1164,10 @@ function CustomerContract() {
         const installmentContractId = installmentContractMap[item.id];
         const hasInstallmentContract = !!installmentContractId;
         if (hasInstallmentContract) {
-          console.log("Has existing installment contract, viewing:", installmentContractId);
+          console.log(
+            "Has existing installment contract, viewing:",
+            installmentContractId
+          );
           handleViewInstallmentContract(installmentContractId);
         } else {
           console.log("No existing installment contract, opening modal");
@@ -1062,24 +1181,30 @@ function CustomerContract() {
         const isDebtType = item.contractPaidType === "DEBT";
         const canShowInstallmentButton = hasAllowedStatus && isDebtType;
         const shouldShow = canShowInstallmentButton && !isDealerStaff;
-        
+
         // More detailed logging
         if (!shouldShow) {
-          console.log(`[Installment Button] NOT SHOWING for Contract #${item.id}:`, {
-            status: item.status,
-            hasAllowedStatus,
-            contractPaidType: item.contractPaidType,
-            isDebtType,
-            isDealerStaff,
-            reason: !hasAllowedStatus ? `Status "${item.status}" must be COMPLETED` 
-                   : !isDebtType ? `Contract type is "${item.contractPaidType}", not DEBT`
-                   : isDealerStaff ? "User is Dealer Staff"
-                   : "Unknown reason"
-          });
+          console.log(
+            `[Installment Button] NOT SHOWING for Contract #${item.id}:`,
+            {
+              status: item.status,
+              hasAllowedStatus,
+              contractPaidType: item.contractPaidType,
+              isDebtType,
+              isDealerStaff,
+              reason: !hasAllowedStatus
+                ? `Status "${item.status}" must be COMPLETED`
+                : !isDebtType
+                ? `Contract type is "${item.contractPaidType}", not DEBT`
+                : isDealerStaff
+                ? "User is Dealer Staff"
+                : "Unknown reason",
+            }
+          );
         } else {
           console.log(`[Installment Button] SHOWING for Contract #${item.id}`);
         }
-        
+
         return shouldShow;
       },
     },
@@ -1096,8 +1221,12 @@ function CustomerContract() {
         setUpdateForm({
           title: item.title || "",
           content: item.content || "",
-          signDate: item.signDate ? dayjs(item.signDate).format("YYYY-MM-DD") : "",
-          deliveryDate: item.deliveryDate ? dayjs(item.deliveryDate).format("YYYY-MM-DD") : "",
+          signDate: item.signDate
+            ? dayjs(item.signDate).format("YYYY-MM-DD")
+            : "",
+          deliveryDate: item.deliveryDate
+            ? dayjs(item.deliveryDate).format("YYYY-MM-DD")
+            : "",
           contractPaidType: item.contractPaidType || "",
         });
         // Reset document upload state
@@ -1105,11 +1234,19 @@ function CustomerContract() {
         setDocumentImages([]);
         setUploadedDocuments([]);
         // Fetch existing documents if Dealer Staff and status is CONFIRMED
-        if (user?.roles?.includes("Dealer Staff") && item.status === "CONFIRMED") {
+        if (
+          user?.roles?.includes("Dealer Staff") &&
+          item.status === "CONFIRMED"
+        ) {
           try {
-            const res = await PrivateDealerStaffApi.getCustomerContractDetail(item.id);
+            const res = await PrivateDealerStaffApi.getCustomerContractDetail(
+              item.id
+            );
             const contractDetail = res.data?.data || null;
-            if (contractDetail?.contractDocuments && contractDetail.contractDocuments.length > 0) {
+            if (
+              contractDetail?.contractDocuments &&
+              contractDetail.contractDocuments.length > 0
+            ) {
               setUploadedDocuments(contractDetail.contractDocuments);
             }
           } catch (error) {
@@ -1143,7 +1280,19 @@ function CustomerContract() {
         });
         setFullPaymentModal(true);
       },
-      show: (item) => item.status === "COMPLETED" && item.contractPaidType === "FULL",
+      show: (item) =>
+        item.status === "COMPLETED" && item.contractPaidType === "FULL",
+    },
+    {
+      type: "view",
+      label: "View periods",
+      icon: PiggyBank,
+      onClick: (item) => {
+        setPeriodModal(true);
+        handleGetPeriodFullPayment(item.id);
+      },
+      show: (item) =>
+        item.status === "COMPLETED" && item.contractPaidType === "FULL",
     },
     {
       type: "delete",
@@ -1509,9 +1658,7 @@ function CustomerContract() {
               </h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">
-                    Payment Type
-                  </p>
+                  <p className="text-sm text-gray-600 mb-1">Payment Type</p>
                   <p className="font-medium text-gray-800">
                     {contractDetail.contractPaidType || "-"}
                   </p>
@@ -1596,100 +1743,104 @@ function CustomerContract() {
               </div>
             </div>
 
-             {/* Product Information */}
-             <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
-               <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
-                 Product Information
-               </h4>
-               <div className="grid grid-cols-2 gap-4">
-                 <div>
-                   <p className="text-sm text-gray-600 mb-1">Motorbike Name</p>
-                   <p className="font-medium text-gray-800">
-                     {getNestedValue(contractDetail, "electricMotorbike.name") ||
-                       "-"}
-                   </p>
-                 </div>
-                 <div>
-                   <p className="text-sm text-gray-600 mb-1">Model</p>
-                   <p className="font-medium text-gray-800">
-                     {getNestedValue(
-                       contractDetail,
-                       "electricMotorbike.model"
-                     ) || "-"}
-                   </p>
-                 </div>
-                 <div>
-                   <p className="text-sm text-gray-600 mb-1">Version</p>
-                   <p className="font-medium text-gray-800">
-                     {getNestedValue(
-                       contractDetail,
-                       "electricMotorbike.version"
-                     ) || "-"}
-                   </p>
-                 </div>
-                 <div>
-                   <p className="text-sm text-gray-600 mb-1">Make From</p>
-                   <p className="font-medium text-gray-800">
-                     {getNestedValue(
-                       contractDetail,
-                       "electricMotorbike.makeFrom"
-                     ) || "-"}
-                   </p>
-                 </div>
-                 <div>
-                   <p className="text-sm text-gray-600 mb-1">Color</p>
-                   <p className="font-medium text-gray-800">
-                     {getNestedValue(contractDetail, "color.colorType") || "-"}
-                   </p>
-                 </div>
-               </div>
-             </div>
+            {/* Product Information */}
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-5 border border-purple-100">
+              <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-purple-200">
+                Product Information
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Motorbike Name</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "electricMotorbike.name") ||
+                      "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Model</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(
+                      contractDetail,
+                      "electricMotorbike.model"
+                    ) || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Version</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(
+                      contractDetail,
+                      "electricMotorbike.version"
+                    ) || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Make From</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(
+                      contractDetail,
+                      "electricMotorbike.makeFrom"
+                    ) || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Color</p>
+                  <p className="font-medium text-gray-800">
+                    {getNestedValue(contractDetail, "color.colorType") || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
 
-             {/* Contract Documents */}
-             {contractDetail.contractDocuments && contractDetail.contractDocuments.length > 0 && (
-               <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-5 border border-amber-100">
-                 <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-amber-200">
-                   Contract Documents
-                 </h4>
-                 <div className="grid grid-cols-1 gap-4">
-                   {contractDetail.contractDocuments.map((doc, index) => (
-                     <div
-                       key={doc.id || index}
-                       className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
-                     >
-                       <div className="flex items-center gap-3 flex-1">
-                         <img
-                           src={doc.imageUrl}
-                           alt={doc.documentType || "Document"}
-                           className="w-20 h-20 object-cover rounded border border-gray-300 cursor-pointer hover:opacity-80 transition-opacity"
-                           onClick={() => setViewingImageUrl(doc.imageUrl)}
-                           onError={(e) => {
-                             e.target.src = "https://via.placeholder.com/80?text=Image";
-                           }}
-                         />
-                         <div>
-                           <p className="text-sm font-medium text-gray-800">
-                             {doc.documentType || "Unknown Type"}
-                           </p>
-                           <p className="text-xs text-gray-500 mt-1">
-                             Click image to view
-                           </p>
-                         </div>
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-               </div>
-             )}
+            {/* Contract Documents */}
+            {contractDetail.contractDocuments &&
+              contractDetail.contractDocuments.length > 0 && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-5 border border-amber-100">
+                  <h4 className="text-md font-semibold text-gray-800 mb-4 pb-2 border-b border-amber-200">
+                    Contract Documents
+                  </h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    {contractDetail.contractDocuments.map((doc, index) => (
+                      <div
+                        key={doc.id || index}
+                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <img
+                            src={doc.imageUrl}
+                            alt={doc.documentType || "Document"}
+                            className="w-20 h-20 object-cover rounded border border-gray-300 cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => setViewingImageUrl(doc.imageUrl)}
+                            onError={(e) => {
+                              e.target.src =
+                                "https://via.placeholder.com/80?text=Image";
+                            }}
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-gray-800">
+                              {doc.documentType || "Unknown Type"}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Click image to view
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-             {/* Action buttons for status transitions */}
+            {/* Action buttons for status transitions */}
             {contractDetail.status === "PENDING" && (
               <div className="flex gap-4 justify-end pt-4 border-t border-gray-200">
                 <button
                   onClick={() => {
                     handleUpdateContractStatus(contractDetail.id, "REJECTED");
                   }}
-                  disabled={updatingStatus && updatingStatusId === contractDetail.id}
+                  disabled={
+                    updatingStatus && updatingStatusId === contractDetail.id
+                  }
                   className="px-6 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {updatingStatus && updatingStatusId === contractDetail.id ? (
@@ -1708,7 +1859,9 @@ function CustomerContract() {
                   onClick={() => {
                     handleUpdateContractStatus(contractDetail.id, "CONFIRMED");
                   }}
-                  disabled={updatingStatus && updatingStatusId === contractDetail.id}
+                  disabled={
+                    updatingStatus && updatingStatusId === contractDetail.id
+                  }
                   className="px-6 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {updatingStatus && updatingStatusId === contractDetail.id ? (
@@ -1738,8 +1891,14 @@ function CustomerContract() {
                     setUpdateForm({
                       title: contractDetail.title || "",
                       content: contractDetail.content || "",
-                      signDate: contractDetail.signDate ? dayjs(contractDetail.signDate).format("YYYY-MM-DD") : "",
-                      deliveryDate: contractDetail.deliveryDate ? dayjs(contractDetail.deliveryDate).format("YYYY-MM-DD") : "",
+                      signDate: contractDetail.signDate
+                        ? dayjs(contractDetail.signDate).format("YYYY-MM-DD")
+                        : "",
+                      deliveryDate: contractDetail.deliveryDate
+                        ? dayjs(contractDetail.deliveryDate).format(
+                            "YYYY-MM-DD"
+                          )
+                        : "",
                       contractPaidType: contractDetail.contractPaidType || "",
                     });
                     // Reset document upload state
@@ -1747,8 +1906,14 @@ function CustomerContract() {
                     setDocumentImages([]);
                     setUploadedDocuments([]);
                     // Fetch existing documents if Dealer Staff and status is CONFIRMED
-                    if (user?.roles?.includes("Dealer Staff") && contractDetail.status === "CONFIRMED" && contractDetail?.contractDocuments) {
-                      setUploadedDocuments(contractDetail.contractDocuments || []);
+                    if (
+                      user?.roles?.includes("Dealer Staff") &&
+                      contractDetail.status === "CONFIRMED" &&
+                      contractDetail?.contractDocuments
+                    ) {
+                      setUploadedDocuments(
+                        contractDetail.contractDocuments || []
+                      );
                     }
                   }}
                   className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-2"
@@ -1758,7 +1923,6 @@ function CustomerContract() {
                 </button>
               </div>
             )}
-
           </div>
         ) : (
           <div className="text-center py-12 text-gray-500">
@@ -1786,7 +1950,8 @@ function CustomerContract() {
               className="w-full h-full object-contain rounded-lg"
               onClick={(e) => e.stopPropagation()}
               onError={(e) => {
-                e.target.src = "https://via.placeholder.com/800?text=Image+Not+Found";
+                e.target.src =
+                  "https://via.placeholder.com/800?text=Image+Not+Found";
               }}
             />
           </div>
@@ -1819,23 +1984,38 @@ function CustomerContract() {
                 <div className="flex items-center gap-3">
                   {renderStatusTag(installmentContractDetail.status)}
                   {/* Only show Generate button if installment payments don't exist */}
-                  {(!installmentContractDetail.installmentPayments || 
-                    !Array.isArray(installmentContractDetail.installmentPayments) ||
-                    installmentContractDetail.installmentPayments.length === 0) &&
-                   (!installmentContractDetail.interestPayments || 
-                    !Array.isArray(installmentContractDetail.interestPayments) ||
+                  {(!installmentContractDetail.installmentPayments ||
+                    !Array.isArray(
+                      installmentContractDetail.installmentPayments
+                    ) ||
+                    installmentContractDetail.installmentPayments.length ===
+                      0) &&
+                  (!installmentContractDetail.interestPayments ||
+                    !Array.isArray(
+                      installmentContractDetail.interestPayments
+                    ) ||
                     installmentContractDetail.interestPayments.length === 0) ? (
                     <button
-                      onClick={() => handleGenerateInterestPayments(installmentContractDetail.id)}
+                      onClick={() =>
+                        handleGenerateInterestPayments(
+                          installmentContractDetail.id
+                        )
+                      }
                       disabled={generatingInterestPayments}
                       className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Generate interest payments"
                     >
-                      {generatingInterestPayments ? "Generating..." : "Generate Interest Payments"}
+                      {generatingInterestPayments
+                        ? "Generating..."
+                        : "Generate Interest Payments"}
                     </button>
                   ) : null}
                   <button
-                    onClick={() => handleSendInstallmentScheduleEmail(installmentContractDetail.id)}
+                    onClick={() =>
+                      handleSendInstallmentScheduleEmail(
+                        installmentContractDetail.id
+                      )
+                    }
                     disabled={sendingInstallmentEmail}
                     className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Send installment schedule to customer email"
@@ -2102,9 +2282,9 @@ function CustomerContract() {
                                         setUpdateInstallmentModal(true);
                                         setInstallmentPaymentForm({
                                           ...installmentPaymentForm,
-                                          dueDate: payment.dueDate
+                                          dueDate: payment.dueDate,
                                         });
-                                        setSelectedId(payment.id)
+                                        setSelectedId(payment.id);
                                       }}
                                       className="cursor-pointer text-white bg-blue-500 p-2 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
                                       title="Update"
@@ -2181,7 +2361,9 @@ function CustomerContract() {
                                   : "-"}
                               </td>
                               <td className="px-4 py-2 text-gray-800">
-                                {formatCurrency(payment.interestAmount || payment.amount || 0)}
+                                {formatCurrency(
+                                  payment.interestAmount || payment.amount || 0
+                                )}
                               </td>
                               <td className="px-4 py-2 text-gray-800">
                                 {formatCurrency(payment.amountPaid || 0)}
@@ -2206,13 +2388,14 @@ function CustomerContract() {
       </BaseModal>
 
       <ConfirmModal
-        isOpen={isPaymentConfirmModalOpen} 
+        isOpen={isPaymentConfirmModalOpen}
         onClose={() => {
           setIsPaymentConfirmModalOpen(false);
           setSelectedPaymentForConfirm(null);
         }}
         onConfirm={handleConfirmMarkPaymentAsPaid}
-        isSubm itting={isMarkingPaymentAsPaid}
+        isSubm
+        itting={isMarkingPaymentAsPaid}
         title="Mark Payment as PAID"
         message={
           selectedPaymentForConfirm
@@ -2307,6 +2490,12 @@ function CustomerContract() {
           </div>
         </div>
       </FormModal>
+      <FullPeriodModal
+        onClose={() => setPeriodModal(false)}
+        open={periodModal}
+        periods={periodFull}
+        onDelete={handleDeletePeriod}
+      />
     </div>
   );
 }

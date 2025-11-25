@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import BaseModal from "../baseModal/BaseModal";
-import { Calendar, CheckCircle, Clock } from "lucide-react";
+import { Calendar, CheckCircle, Clock, Trash2 } from "lucide-react";
 import PublicApi from "../../../services/PublicApi";
 import { toast } from "react-toastify";
+import { useAuth } from "../../../hooks/useAuth";
 
-function FullPeriodModal({ open, onClose, periods }) {
+function FullPeriodModal({ open, onClose, periods, onDelete }) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(periods?.[0]?.period || 1);
 
   const activeData = periods.find((p) => p.period === activeTab);
@@ -44,6 +46,18 @@ function FullPeriodModal({ open, onClose, periods }) {
 
       {activeData && (
         <div className="space-y-4">
+          {!activeData.paidAt && user && (
+            <div className="flex justify-end">
+              <button
+              onClick={() => onDelete(activeData.id)}
+                title="Delete period"
+                className="rounded-lg bg-red-400 cursor-pointer hover:bg-red-500 p-2 transition duration-300"
+              >
+                <Trash2 color="white" />
+              </button>
+            </div>
+          )}
+
           <InfoRow
             icon={<Calendar className="w-5 h-5 text-gray-500" />}
             label="Created At"
@@ -64,7 +78,7 @@ function FullPeriodModal({ open, onClose, periods }) {
             }
             valueClass={activeData.paidAt ? "text-green-600" : "text-red-500"}
           />
-          {!activeData.paidAt && (
+          {!activeData.paidAt && !user && (
             <div className="flex justify-end">
               <button
                 onClick={() => handleMakeFullPayment(activeData.id)}
