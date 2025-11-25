@@ -441,9 +441,8 @@ function CompanyDash() {
                     </div>
                     <div className="text-right ml-4">
                       <p className="text-xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
-                        {item.totalQuantity}
+                        {item.total_quantity}
                       </p>
-                      <p className="text-xs text-gray-500">units</p>
                     </div>
                   </div>
                 );
