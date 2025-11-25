@@ -40,6 +40,7 @@ import {
   Wallet,
   X,
   PiggyBank,
+  Upload,
 } from "lucide-react";
 import { renderStatusTag } from "../../../utils/statusTag";
 import BaseModal from "../../../components/modal/baseModal/BaseModal";
@@ -128,6 +129,7 @@ function CustomerContract() {
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [fullPaymentModal, setFullPaymentModal] = useState(false);
   const [periodModal, setPeriodModal] = useState(false);
+  const [documentUploadModal, setDocumentUploadModal] = useState(false);
   const [fullPaymentForm, setFullPaymentForm] = useState({
     period: 1,
     amount: 0,
@@ -489,6 +491,8 @@ function CustomerContract() {
         }
         // Refresh contract list
         fetchCustomerContractList();
+        // Close modal after successful upload
+        setDocumentUploadModal(false);
       }
     } catch (error) {
       toast.error(
@@ -1233,31 +1237,38 @@ function CustomerContract() {
         setDocumentType("");
         setDocumentImages([]);
         setUploadedDocuments([]);
-        // Fetch existing documents if Dealer Staff and status is CONFIRMED
-        if (
-          user?.roles?.includes("Dealer Staff") &&
-          item.status === "CONFIRMED"
-        ) {
-          try {
-            const res = await PrivateDealerStaffApi.getCustomerContractDetail(
-              item.id
-            );
-            const contractDetail = res.data?.data || null;
-            if (
-              contractDetail?.contractDocuments &&
-              contractDetail.contractDocuments.length > 0
-            ) {
-              setUploadedDocuments(contractDetail.contractDocuments);
-            }
-          } catch (error) {
-            console.error("Error fetching contract documents:", error);
-          }
-        }
       },
       show: (item) => {
         // Allow edit for REJECTED and CONFIRMED status
         return item.status === "REJECTED" || item.status === "CONFIRMED";
       },
+    },
+    {
+      type: "edit",
+      label: "Upload Document",
+      icon: Upload,
+      onClick: async (item) => {
+        setSelectedId(item.id);
+        setDocumentType("");
+        setDocumentImages([]);
+        setUploadedDocuments([]);
+        // Fetch existing documents
+        try {
+          const isDealerStaff = user?.roles?.includes("Dealer Staff");
+          const api = isDealerStaff
+            ? PrivateDealerStaffApi
+            : PrivateDealerManagerApi;
+          const res = await api.getCustomerContractDetail(item.id);
+          const detail = res.data?.data || null;
+          if (detail?.contractDocuments) {
+            setUploadedDocuments(detail.contractDocuments || []);
+          }
+        } catch (error) {
+          console.error("Error fetching contract documents:", error);
+        }
+        setDocumentUploadModal(true);
+      },
+      show: (item) => item.status === "PROCESSING",
     },
     {
       type: "edit",
@@ -1439,16 +1450,6 @@ function CustomerContract() {
           updateForm={updateForm}
           user={user}
           contractStatus={currentContractStatus}
-          documentType={documentType}
-          setDocumentType={setDocumentType}
-          documentImages={documentImages}
-          setDocumentImages={setDocumentImages}
-          uploadedDocuments={uploadedDocuments}
-          uploadingDocuments={uploadingDocuments}
-          deletingDocumentId={deletingDocumentId}
-          onUploadDocuments={handleUploadDocuments}
-          onDeleteDocument={handleDeleteDocument}
-          onViewImage={setViewingImageUrl}
         />
       </FormModal>
 
@@ -2496,6 +2497,114 @@ function CustomerContract() {
         periods={periodFull}
         onDelete={handleDeletePeriod}
       />
+
+      {/* Document Upload Modal */}
+      <BaseModal
+        isOpen={documentUploadModal}
+        onClose={() => {
+          setDocumentUploadModal(false);
+          setDocumentType("");
+          setDocumentImages([]);
+        }}
+        title="Upload Document"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Document Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={documentType}
+              onChange={(e) => setDocumentType(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg"
+              required
+            >
+              <option value="">-- Select Document Type --</option>
+              <option value="CONTRACT">CONTRACT</option>
+              <option value="INVOICE">INVOICE</option>
+              <option value="RECEIPT">RECEIPT</option>
+              <option value="OTHER">OTHER</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Document Images <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={(e) => {
+                const files = Array.from(e.target.files);
+                setDocumentImages(files);
+              }}
+              className="w-full px-3 py-2 border rounded-lg"
+              required
+            />
+          </div>
+
+          {/* Uploaded Documents */}
+          {uploadedDocuments.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                Uploaded Documents
+              </h4>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {uploadedDocuments.map((doc, index) => (
+                  <div
+                    key={doc.id || index}
+                    className="flex items-center justify-between p-2 bg-gray-50 rounded border"
+                  >
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={doc.imageUrl}
+                        alt={doc.documentType || "Document"}
+                        className="w-12 h-12 object-cover rounded border"
+                        onError={(e) => {
+                          e.target.src =
+                            "https://via.placeholder.com/48?text=Image";
+                        }}
+                      />
+                      <span className="text-sm text-gray-700">
+                        {doc.documentType || "Unknown Type"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteDocument(doc.id, doc.imageUrl)}
+                      disabled={deletingDocumentId === doc.id}
+                      className="text-red-500 hover:text-red-700 disabled:opacity-50"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end pt-4 border-t">
+            <button
+              type="button"
+              onClick={() => {
+                setDocumentUploadModal(false);
+                setDocumentType("");
+                setDocumentImages([]);
+              }}
+              className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleUploadDocuments}
+              disabled={uploadingDocuments || !documentType || documentImages.length === 0}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {uploadingDocuments ? "Uploading..." : "Upload"}
+            </button>
+          </div>
+        </div>
+      </BaseModal>
     </div>
   );
 }
