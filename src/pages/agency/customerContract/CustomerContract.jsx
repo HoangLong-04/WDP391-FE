@@ -1878,17 +1878,15 @@ function CustomerContract() {
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Start Date</p>
                   <p className="font-medium text-gray-800">
-                    {installmentContractDetail.startDate
-                      ? dayjs
-                          .utc(installmentContractDetail.startDate)
-                          .format("DD/MM/YYYY HH:mm")
+                    {installmentContractDetail?.startAt || installmentContractDetail?.startDate
+                      ? dayjs(installmentContractDetail.startAt || installmentContractDetail.startDate).utc().format("DD/MM/YYYY")
                       : "-"}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Penalty Type</p>
                   <p className="font-medium text-gray-800">
-                    {installmentContractDetail.penaltyType || "-"}
+                    {installmentContractDetail?.penaltyType || "-"}
                   </p>
                 </div>
               </div>

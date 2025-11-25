@@ -121,7 +121,7 @@ function Contract({
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
             <Info
               label="Start Date"
-              value={dayjs(installmentContract.startDate).format("DD/MM/YYYY")}
+              value={dayjs(installmentContract.startAt || installmentContract.startDate).format("DD/MM/YYYY")}
             />
             <Info
               label="Penalty Value"
