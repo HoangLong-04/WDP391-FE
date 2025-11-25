@@ -174,6 +174,7 @@ function ContractForm({
           onChange={handleChange}
           className={selectClasses}
           required={!isEdit}
+          disabled={isEdit}
         >
           <option value="">-- Select Payment Type --</option>
           <option value="FULL">FULL</option>
