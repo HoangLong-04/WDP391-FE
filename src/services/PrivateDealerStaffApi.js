@@ -20,6 +20,10 @@ const PrivateDealerStaff = {
     apiConfig.privateApi.get(`agency-stock/not-available/${agencyId}`, {
       params,
     }),
+  getNotAvailableStockDetail: (motorbikeId, colorId) =>
+    apiConfig.privateApi.get(
+      `agency-stock/detail/not-in-stock/${motorbikeId}/${colorId}`
+    ),
   getStockById: (id) => apiConfig.privateApi.get(`agency-stock/detail/${id}`),
   createQuotation: (data) => apiConfig.privateApi.post("quotation", data),
   getQuotationList: (agencyId, params) =>

@@ -11,11 +11,13 @@ function useStockListAgency() {
   const fetchStockList = async () => {
     setLoad(true);
     try {
+      // Backend expects "page" & "limit" and supports sort param (e.g. newest)
       const response = await PrivateDealerManagerApi.getStockList(
         user?.agencyId,
         {
-          pageNum,
+          page: pageNum,
           limit,
+          sort: "newest",
         }
       );
       setStockList(response.data.data);

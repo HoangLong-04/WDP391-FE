@@ -245,16 +245,18 @@ function StockManagement() {
     isFetchingStockRef.current = true;
     setLoading(true);
     try {
-      const response = await PrivateDealerManagerApi.getStockListInfo(
+      // Dùng đúng API phân trang /agency-stock/list với page & limit giống swagger
+      const response = await PrivateDealerManagerApi.getStockList(
         user.agencyId,
         {
           page,
           limit,
           colorId: colorId || undefined,
           motorbikeId: motorbikeId || undefined,
+          sort: "newest",
         }
       );
-      const stocks = response.data?.data || [];
+      const stocks = response.data?.data || response.data?.data || [];
       setStockList(stocks);
       setTotalItem(response.data?.paginationInfo?.total || stocks.length);
     } catch (error) {
