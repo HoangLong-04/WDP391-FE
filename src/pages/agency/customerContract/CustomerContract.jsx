@@ -2113,7 +2113,8 @@ function CustomerContract() {
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Contract Type</p>
                     <p className="font-medium text-gray-800">
-                      {installmentContractDetail.customerContract.type || "-"}
+                      {installmentContractDetail.customerContract
+                        .contractPaidType || "-"}
                     </p>
                   </div>
                   <div>
