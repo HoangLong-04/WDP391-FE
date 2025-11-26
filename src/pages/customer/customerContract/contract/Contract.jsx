@@ -139,6 +139,10 @@ function Contract({
               label="Total Debt Paid"
               value={`${installmentContract.totalDebtPaid?.toLocaleString()} VND`}
             />
+            <Info
+              label="Total Interest Paid"
+              value={`${installmentContract.totalInterestPaid?.toLocaleString()} VND`}
+            />
             <Info label="Status" value={installmentContract.status} />
             {/* <Info label="Contract id" value={installmentContract.id} /> */}
             <div>
