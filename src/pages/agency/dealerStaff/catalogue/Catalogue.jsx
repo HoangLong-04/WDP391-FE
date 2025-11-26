@@ -96,9 +96,10 @@ function Catalogue() {
 
     setLoadingInStock(true);
     try {
+      // Ensure we use correct paging params and newest-first sorting
       const stockRes = await PrivateDealerStaffApi.getStockListInfo(
         user.agencyId,
-        { page: 1, limit: 100 }
+        { page: 1, limit: 100, sort: "newest" }
       );
       const stocksData = stockRes.data?.data || [];
 
@@ -233,20 +234,44 @@ function Catalogue() {
     try {
       const res = await PrivateDealerStaffApi.getNotAvailableStockList(
         user.agencyId,
-        { page: 1, limit: 200 }
+        // Dùng đúng paging + sort newest như swagger
+        { page: 1, limit: 200, sort: "newest" }
       );
       const motorsData = res.data?.data || [];
 
-      const normalizedMotors = motorsData.map((motor) => ({
-        ...motor,
-        images:
-          motor.images && motor.images.length > 0
-            ? motor.images
-            : motor.imageUrl
-            ? [motor.imageUrl]
-            : [],
-        colors: motor.colors || [],
-      }));
+      const normalizedMotors = motorsData.map((motor) => {
+        // API not-available trả theo từng màu: colorId, colorType, imageUrl
+        const color =
+          motor.colorId != null || motor.colorType
+            ? {
+                id: motor.colorId,
+                colorType: motor.colorType,
+              }
+            : null;
+
+        const colors =
+          motor.colors && motor.colors.length > 0
+            ? motor.colors
+            : color
+            ? [
+                {
+                  colorId: color.id,
+                  color,
+                },
+              ]
+            : [];
+
+        return {
+          ...motor,
+          images:
+            motor.images && motor.images.length > 0
+              ? motor.images
+              : motor.imageUrl
+              ? [motor.imageUrl]
+              : [],
+          colors,
+        };
+      });
 
       setNotAvailableMotors(normalizedMotors);
       updateMotorList(normalizedMotors);
@@ -494,8 +519,9 @@ function Catalogue() {
     );
   };
 
-  // Check if current selection has stock
-  const hasStock = selectedDetail !== null;
+  // Check if current selection has stock (quantity > 0)
+  const hasStock =
+    selectedDetail !== null && (selectedDetail.quantity || 0) > 0;
 
   // Separate motors into in-stock and out-of-stock
   const inStockMotorIds = useMemo(() => {
@@ -636,7 +662,7 @@ function Catalogue() {
     motorIdToMotor,
   ]);
 
-  const renderMotorCard = ({ motor, stockInfo, hasStock, colorInfo }) => {
+  const renderMotorCard = ({ motor, stockInfo, hasStock, colorInfo, isNotAvailable }) => {
     const name = motor?.name || `Motor #${motor.id}`;
     const image = motor?.images?.[0]?.imageUrl || motor?.images?.[0] || "";
 
@@ -695,42 +721,115 @@ function Catalogue() {
             if (stockId) {
               openDetail(stockId);
             } else {
-              // If no stock, fetch full motor detail to get all color information
-              setSelectedId(`motor-${motor.id}`);
-              setSelectedDetail(null);
-              setDetailLoading(true);
-              try {
-                // Always fetch from detail API to get full color information
-                const motorRes = await PublicApi.getMotorDetailForUser(
-                  motor.id
-                );
-                const fullDetail =
-                  motorRes.data?.data || motorRes.data || motor;
-                const colors = fullDetail?.colors || [];
+              // No stock in agency
+              // Với tab Not Available: dùng API detail not-in-stock theo motorbikeId & colorId
+              if (isNotAvailable && (colorInfo?.id || colorInfo?.colorId)) {
+                const motorbikeId = motor.id;
+                const colorId = colorInfo.id ?? colorInfo.colorId;
+                setSelectedId(`not-available-${motorbikeId}-${colorId}`);
+                setSelectedDetail(null);
+                setDetailLoading(true);
+                try {
+                  const res =
+                    await PrivateDealerStaffApi.getNotAvailableStockDetail(
+                      motorbikeId,
+                      colorId
+                    );
+                  const data = res.data?.data;
+                  const mb = data?.motorbike || motor;
+                  // Always build color object with id + colorType so it matches selectedDetail.colorId
+                  const apiColor = {
+                    id: colorId,
+                    colorType: data?.color?.colorType || colorInfo.colorType,
+                  };
+                  const images =
+                    (mb.images && mb.images.length > 0
+                      ? mb.images
+                      : []) || (data?.imageUrl ? [{ imageUrl: data.imageUrl }] : []);
 
-                if (colors && colors.length > 0) {
-                  const detailWithColors = { ...fullDetail, colors };
-                  setMotorDetail(detailWithColors);
-                  // Update cache
+                  const colors =
+                    mb.colors && mb.colors.length > 0
+                      ? mb.colors
+                      : colorId
+                      ? [
+                          {
+                            colorId,
+                            color: apiColor,
+                          },
+                        ]
+                      : [];
+
+                  const motorDetailFull = {
+                    ...mb,
+                    images,
+                    colors,
+                  };
+
+                  setMotorDetail(motorDetailFull);
                   setMotorDetailsMap((prev) => {
                     const newMap = new Map(prev);
-                    newMap.set(motor.id, detailWithColors);
+                    newMap.set(motorbikeId, motorDetailFull);
                     return newMap;
                   });
-                } else {
-                  // Use motor from list even without colors
-                  setMotorDetail(fullDetail || motor);
+
+                  // Tạo selectedDetail ảo cho PRE_ORDER: lấy motorbikeId & colorId từ API detail
+                  setSelectedDetail({
+                    motorbikeId: motorbikeId,
+                    colorId: colorId,
+                    price: mb.price || 0,
+                    quantity: 0,
+                    imageColor:
+                      data?.imageUrl ||
+                      images?.[0]?.imageUrl ||
+                      images?.[0] ||
+                      "",
+                  });
+                } catch (error) {
+                  console.error("Error loading not-available detail:", error);
+                  toast.error(
+                    error.message || "Failed to load not available detail"
+                  );
+                } finally {
+                  setDetailLoading(false);
                 }
-              } catch (error) {
-                console.error("Error loading motor detail:", error);
-                // Fallback to motor from list or cache
-                const motorFromList = motorList.find(
-                  (m) => String(m.id) === String(motor.id)
-                );
-                const cachedDetail = motorDetailsMap.get(motor.id);
-                setMotorDetail(motorFromList || cachedDetail || motor);
-              } finally {
-                setDetailLoading(false);
+              } else {
+                // If no stock (in-stock/out-of-stock), fetch full motor detail to get all color information
+                setSelectedId(`motor-${motor.id}`);
+                setSelectedDetail(null);
+                setDetailLoading(true);
+                try {
+                  // Always fetch from detail API to get full color information
+                  const motorRes = await PublicApi.getMotorDetailForUser(
+                    motor.id
+                  );
+                  const fullDetail =
+                    motorRes.data?.data || motorRes.data || motor;
+                  const colors = fullDetail?.colors || [];
+
+                  if (colors && colors.length > 0) {
+                    const detailWithColors = { ...fullDetail, colors };
+                    setMotorDetail(detailWithColors);
+                    // Update cache
+                    setMotorDetailsMap((prev) => {
+                      const newMap = new Map(prev);
+                      newMap.set(motor.id, detailWithColors);
+                      return newMap;
+                    });
+                  } else {
+                    // Use motor from list even without colors
+                    setMotorDetail(fullDetail || motor);
+                  }
+                } catch (error) {
+                  console.error("Error loading motor detail:", error);
+                  // Fallback to motor from list or cache
+                  const motorFromList = motorList.find(
+                    (m) => String(m.id) === String(motor.id)
+                  );
+                  const cachedDetail = motorDetailsMap.get(motor.id);
+                  setMotorDetail(motorFromList || cachedDetail || motor);
+                } finally {
+                  setDetailLoading(false);
+                }
               }
             }
           }}
@@ -834,8 +933,9 @@ function Catalogue() {
               {(() => {
                 const motor = motorDetail;
                 const name = motor?.name || `Motor #${motor?.id}`;
+                // Ưu tiên ảnh theo màu đã chọn (kể cả Not Available), fallback về ảnh chung
                 const bannerImg =
-                  (hasStock && selectedDetail?.imageColor) ||
+                  selectedDetail?.imageColor ||
                   motor?.images?.[0]?.imageUrl ||
                   motor?.images?.[0] ||
                   "";
@@ -893,24 +993,17 @@ function Catalogue() {
                           </>
                         )}
                       </div>
-                      {activeTab === "notAvailable" ? (
-                        <div className="w-full md:w-1/3 mx-auto mt-4 md:mt-0 flex justify-center">
-  <BikeSlide colors={motor.colors} />
-</div>
-
-                      ) : (
-                        <div className="mt-4 md:mt-0 h-48 md:h-56 bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-inner relative w-full md:w-1/2">
-                          {bannerImg ? (
-                            <img
-                              src={bannerImg}
-                              alt={name}
-                              className="object-contain w-full h-full"
-                            />
-                          ) : (
-                            <span className="text-gray-400">No image</span>
-                          )}
-                        </div>
-                      )}
+                      <div className="mt-4 md:mt-0 h-48 md:h-56 bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-inner relative w-full md:w-1/2">
+                        {bannerImg ? (
+                          <img
+                            src={bannerImg}
+                            alt={name}
+                            className="object-contain w-full h-full"
+                          />
+                        ) : (
+                          <span className="text-gray-400">No image</span>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 mt-4">
                       <div>
@@ -1258,15 +1351,22 @@ function Catalogue() {
                       // Get base price from motorDetail if available
                       const basePrice =
                         currentMotorDetail?.price || motorDetail?.price || 0;
+                      // Auto bind motorbikeId & colorId từ detail (đã chọn màu ở list)
+                      const preOrderMotorId =
+                        currentMotorDetail?.id || motorDetail?.id || "";
+                      const preOrderColorId =
+                        selectedDetail?.colorId ||
+                        (motorDetail?.colors &&
+                          motorDetail.colors[0]?.color?.id) ||
+                        "";
                       setQuoteForm((prev) => ({
                         ...prev,
                         type: "PRE_ORDER", // Only PRE_ORDER for out-of-stock items
                         basePrice: Number(basePrice),
                         promotionPrice: 0,
                         finalPrice: Number(basePrice),
-                        motorbikeId:
-                          currentMotorDetail?.id || motorDetail?.id || "",
-                        colorId: "", // Don't auto-select, require user to choose
+                        motorbikeId: preOrderMotorId,
+                        colorId: preOrderColorId,
                       }));
                     }
                   }}
@@ -1389,6 +1489,7 @@ function Catalogue() {
                           stockInfo,
                           hasStock,
                           colorInfo,
+                          isNotAvailable: true,
                         })}
                       </div>
                     )
@@ -1484,13 +1585,13 @@ function Catalogue() {
                 "Please select an existing customer or create a new one."
               );
             }
-            // Get motorbikeId and colorId - from selectedDetail if has stock, otherwise from motorDetail and form
+            // Get motorbikeId and colorId - từ selectedDetail nếu có, fallback quoteForm/motorDetail
             const motorbikeId = hasStock
               ? Number(selectedDetail.motorbikeId)
               : Number(quoteForm.motorbikeId || motorDetail?.id);
             const colorId = hasStock
               ? Number(selectedDetail.colorId)
-              : Number(quoteForm.colorId);
+              : Number(quoteForm.colorId || selectedDetail?.colorId);
 
             if (!motorbikeId) {
               throw new Error("Cannot get motorbike ID. Please try again.");
@@ -1964,44 +2065,6 @@ function Catalogue() {
           )}
           {!hasStock && (
             <>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Color <span className="text-red-500">*</span>
-                  <span className="text-xs text-gray-500 font-normal ml-2">
-                    (Required for pre-order)
-                  </span>
-                </label>
-                {motorDetail?.colors && motorDetail.colors.length > 0 ? (
-                  <select
-                    className="w-full px-3 py-2 border rounded-lg"
-                    value={quoteForm.colorId}
-                    onChange={(e) =>
-                      setQuoteForm((p) => ({ ...p, colorId: e.target.value }))
-                    }
-                    required
-                  >
-                    <option value="">-- Select Color --</option>
-                    {motorDetail.colors.map((c) => {
-                      const colorId = c.color?.id;
-                      const colorType = c.color?.colorType || "Unknown";
-                      return (
-                        <option key={colorId} value={colorId}>
-                          {colorType}
-                        </option>
-                      );
-                    })}
-                  </select>
-                ) : (
-                  <div className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-500">
-                    Loading color options...
-                  </div>
-                )}
-                {motorDetail?.colors && motorDetail.colors.length === 0 && (
-                  <p className="text-xs text-red-500 mt-1">
-                    No colors available for this motorbike
-                  </p>
-                )}
-              </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Price <span className="text-red-500">*</span>

@@ -496,13 +496,12 @@ function QuotationManagement() {
       key: "action",
       title: "Action",
       render: (_, row) => {
-        const depositInfo = quotationDepositMap.get(row.id);
         const isPreOrder = row.type === "PRE_ORDER";
-        const isDepositApplied = depositInfo && depositInfo.status === "APPLIED";
+        const isAccepted = row.status === "ACCEPTED";
         const hasOrderRestock = quotationIdsWithOrderRestock.has(row.id);
         
-        // Show action button only for PRE_ORDER with deposit APPLIED and no order restock yet
-        if (isPreOrder && isDepositApplied && !hasOrderRestock) {
+        // Show action button only for PRE_ORDER with status ACCEPTED and no order restock yet
+        if (isPreOrder && isAccepted && !hasOrderRestock) {
           return (
             <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
               <button

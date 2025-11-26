@@ -799,6 +799,12 @@ function QuotationManagement() {
           ? new Date(editForm.validUntil).toISOString()
           : null,
       };
+
+      // Nếu quotation đang REJECTED, sau khi sửa sẽ đưa về DRAFT
+      // để người dùng có thể CONFIRM / REJECT lại trong detail
+      if (selectedQuotationForEdit.status === "REJECTED") {
+        payload.status = "DRAFT";
+      }
       
       await PrivateDealerStaffApi.updateQuotation(selectedQuotationForEdit.id, payload);
       toast.success("Quotation updated successfully");
