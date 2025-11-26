@@ -1633,18 +1633,6 @@ function QuotationManagement() {
               disabled
             />
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Contract Paid Type *</label>
-            <select
-              className="w-full px-3 py-2 border rounded-lg"
-              value={contractForm.contractPaidType}
-              onChange={(e) => setContractForm((prev) => ({ ...prev, contractPaidType: e.target.value }))}
-              required
-            >
-              <option value="FULL">FULL</option>
-              <option value="DEBT">DEBT</option>
-            </select>
-          </div>
         </div>
       </FormModal>
       <FormModal

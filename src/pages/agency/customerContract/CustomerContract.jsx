@@ -2029,7 +2029,7 @@ function CustomerContract() {
             </div>
 
             {/* Payment Summary */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 border-2 border-indigo-200">
                 <p className="text-sm text-gray-600 mb-1">Pre Paid Total</p>
                 <p className="text-xl font-bold text-indigo-700">
@@ -2040,6 +2040,12 @@ function CustomerContract() {
                 <p className="text-sm text-gray-600 mb-1">Total Debt Paid</p>
                 <p className="text-xl font-bold text-green-700">
                   {formatCurrency(installmentContractDetail.totalDebtPaid || 0)}
+                </p>
+              </div>
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-200">
+                <p className="text-sm text-gray-600 mb-1">Total Interest Paid</p>
+                <p className="text-xl font-bold text-purple-700">
+                  {formatCurrency(installmentContractDetail.totalInterestPaid || 0)}
                 </p>
               </div>
               <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-lg p-4 border-2 border-orange-200">
